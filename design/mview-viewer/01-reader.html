@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="light dark" />
+<title>mview — Reader</title>
+<style>
+  :root {
+    --bg: #fbfaf7; --surface: #ffffff; --surface-2: #f3f1ec; --text: #1d1c1a; --muted: #5f5b53;
+    --border: #e3dfd6; --accent: #2f5bd3; --accent-ink: #ffffff; --ok: #1f7a4a; --code-bg: #f5f3ee;
+    --focus: #2f5bd3; --key: #8a3ab9; --str: #1f7a4a; --num: #b3541e; --bool: #2f5bd3; --hit: #ffe58a;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #161614; --surface: #1d1d1a; --surface-2: #262622; --text: #ecebe6; --muted: #a8a49a;
+      --border: #34332e; --accent: #8fb0ff; --accent-ink: #10131c; --ok: #6fd39b; --code-bg: #22221f;
+      --focus: #8fb0ff; --key: #d7a6f5; --str: #8fdcae; --num: #f2a774; --bool: #8fb0ff; --hit: #6b5a12;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--bg); color: var(--text); font: 16px/1.6 var(--font); }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
+  button { font: inherit; color: inherit; }
+
+  /* Top bar */
+  .bar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 16px;
+    height: 56px; padding: 0 24px; background: color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter: blur(8px); border-bottom: 1px solid var(--border); }
+  .brand { font-weight: 700; letter-spacing: -0.02em; display: flex; align-items: center; gap: 8px; }
+  .brand svg { width: 20px; height: 20px; }
+  .doc { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+  .doc-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .live { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+  .live::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
+  .spacer { flex: 1; }
+  .seg { display: inline-flex; padding: 3px; background: var(--surface-2); border-radius: 10px; gap: 2px; }
+  .seg button { border: 0; background: transparent; padding: 6px 12px; border-radius: 8px; font-size: 14px; cursor: pointer; min-height: 32px; color: var(--muted); }
+  .seg button[aria-pressed="true"] { background: var(--surface); color: var(--text); box-shadow: 0 1px 2px rgb(0 0 0 / .12); font-weight: 600; }
+  .detected { font-size: 13px; color: var(--muted); }
+
+  main { padding: 48px 24px 120px; }
+  .view[hidden] { display: none !important; }
+
+  /* Markdown */
+  .prose { max-width: 760px; margin: 0 auto; font-family: var(--serif); font-size: 19px; line-height: 1.7; }
+  .prose h1, .prose h2 { font-family: var(--font); letter-spacing: -0.02em; line-height: 1.25; }
+  .prose h1 { font-size: 40px; margin: 0 0 8px; }
+  .prose h2 { font-size: 26px; margin: 48px 0 12px; }
+  .prose .lede { color: var(--muted); font-size: 20px; margin-top: 0; }
+  .prose code { font-family: var(--mono); font-size: 0.85em; background: var(--code-bg); padding: 2px 5px; border-radius: 4px; }
+  .prose pre { font-family: var(--mono); font-size: 14px; line-height: 1.6; background: var(--code-bg); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; overflow-x: auto; }
+  .prose pre code { background: none; padding: 0; font-size: inherit; }
+  .tok-k { color: var(--key); } .tok-s { color: var(--str); } .tok-c { color: var(--muted); }
+  .prose table { width: 100%; border-collapse: collapse; font-family: var(--font); font-size: 15px; }
+  .prose th, .prose td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  .prose th { font-weight: 600; color: var(--muted); font-size: 13px; text-transform: uppercase; letter-spacing: .04em; }
+  .prose a { color: var(--accent); }
+
+  /* Diagram figure (embedded in markdown) */
+  .figure { position: relative; margin: 24px -40px; padding: 24px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; }
+  .figure .tools { position: absolute; top: 10px; right: 10px; display: flex; gap: 4px; opacity: .0; transition: opacity .15s; }
+  .figure:hover .tools, .figure:focus-within .tools { opacity: 1; }
+  .figure figcaption { font-family: var(--font); font-size: 13px; color: var(--muted); margin-top: 8px; text-align: center; }
+  .tool { border: 1px solid var(--border); background: var(--surface); border-radius: 8px; min-width: 32px; height: 32px; padding: 0 10px; cursor: pointer; font-size: 13px; }
+  .tool:hover { background: var(--surface-2); }
+
+  /* Mermaid full view */
+  .stage { max-width: 1200px; margin: 0 auto; height: calc(100vh - 220px); min-height: 480px; position: relative; overflow: hidden;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 16px; cursor: grab; }
+  .stage svg.diagram { position: absolute; left: 50%; top: 50%; width: 760px; transform-origin: center; transform: translate(-50%, -50%) scale(var(--z, 1)); }
+  .dock { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 4px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 4px; box-shadow: 0 6px 24px rgb(0 0 0 / .12); }
+  .dock output { min-width: 52px; text-align: center; font-size: 13px; font-variant-numeric: tabular-nums; color: var(--muted); }
+  .dock .sep { width: 1px; height: 20px; background: var(--border); margin: 0 4px; }
+
+  /* JSON */
+  .json-wrap { max-width: 980px; margin: 0 auto; }
+  .json-tools { display: flex; gap: 8px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
+  .search { flex: 1; min-width: 220px; display: flex; align-items: center; gap: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 0 12px; height: 40px; }
+  .search input { flex: 1; border: 0; background: transparent; color: var(--text); font: inherit; font-size: 15px; outline: none; }
+  .search:focus-within { outline: 2px solid var(--focus); outline-offset: 1px; }
+  .count { font-size: 13px; color: var(--muted); white-space: nowrap; }
+  .tree { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px 8px; font: 14px/1.75 var(--mono); }
+  .node { padding-left: 20px; }
+  .row { display: flex; align-items: baseline; gap: 6px; border-radius: 6px; padding: 0 6px; }
+  .row:hover { background: var(--surface-2); }
+  .twisty { width: 16px; border: 0; background: none; cursor: pointer; color: var(--muted); padding: 0; font-family: var(--mono); }
+  .k { color: var(--key); cursor: copy; } .s { color: var(--str); } .n { color: var(--num); } .b { color: var(--bool); } .nul { color: var(--muted); }
+  .meta { color: var(--muted); font-size: 12px; }
+  mark { background: var(--hit); color: inherit; border-radius: 3px; }
+  .collapsed > .children { display: none; }
+  .raw { white-space: pre; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px; font: 14px/1.6 var(--mono); overflow-x: auto; }
+
+  /* Empty */
+  .empty { max-width: 640px; margin: 8vh auto 0; text-align: center; }
+  .drop { border: 2px dashed var(--border); border-radius: 20px; padding: 48px 32px; background: var(--surface); }
+  .drop h1 { font-size: 28px; letter-spacing: -0.02em; margin: 0 0 8px; }
+  .drop p { color: var(--muted); margin: 0 0 24px; }
+  kbd { font-family: var(--mono); font-size: 13px; border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 6px; padding: 2px 7px; background: var(--surface-2); }
+  .drop textarea { width: 100%; min-height: 120px; border: 1px solid var(--border); border-radius: 12px; padding: 12px; font: 14px/1.5 var(--mono); background: var(--bg); color: var(--text); resize: vertical; }
+  .hints { display: flex; gap: 24px; justify-content: center; margin-top: 24px; color: var(--muted); font-size: 14px; flex-wrap: wrap; }
+  .hints code { font-family: var(--mono); background: var(--code-bg); padding: 2px 6px; border-radius: 4px; }
+
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px); opacity: 0; background: var(--text); color: var(--bg);
+    padding: 10px 16px; border-radius: 10px; font-size: 14px; transition: .2s; pointer-events: none; }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast code { font-family: var(--mono); }
+
+  /* Artboard-only state switcher (not product UI) */
+  .artboard-ctl { position: fixed; left: 16px; bottom: 16px; z-index: 20; font-size: 12px; border: 1px dashed var(--muted); border-radius: 10px; padding: 6px 8px; background: var(--bg); display: flex; gap: 6px; align-items: center; }
+  .artboard-ctl button { border: 1px solid var(--border); background: var(--surface); border-radius: 6px; padding: 3px 8px; cursor: pointer; font-size: 12px; }
+
+  @media (max-width: 720px) {
+    .bar { gap: 10px; padding: 0 12px; } .detected, .live span { display: none; }
+    .figure { margin: 24px 0; } .prose { font-size: 17px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<header class="bar">
+  <div class="brand" aria-label="mview">
+    <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="1" y="3" width="18" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M5 13V7l2.5 3L10 7v6M13 7l2 6 2-6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+    mview
+  </div>
+  <div class="doc">
+    <span class="doc-name" id="docName">README.md</span>
+    <span class="live" id="live"><span>Live</span></span>
+  </div>
+  <div class="spacer"></div>
+  <span class="detected" id="detected">Detected: Markdown</span>
+  <div class="seg" role="group" aria-label="Render as">
+    <button type="button" data-type="markdown" aria-pressed="true">Markdown</button>
+    <button type="button" data-type="mermaid" aria-pressed="false">Mermaid</button>
+    <button type="button" data-type="json" aria-pressed="false">JSON</button>
+  </div>
+</header>
+
+<main>
+  <!-- Markdown -->
+  <section class="view" data-view="markdown" aria-label="Markdown document">
+    <article class="prose">
+      <h1>orders-service</h1>
+      <p class="lede">Handles checkout, order state and payment capture for the storefront.</p>
+      <h2>Checkout flow</h2>
+      <p>The storefront never talks to the payment provider directly. Every order goes through the gateway, which forwards it to <code>orders-service</code>.</p>
+      <figure class="figure">
+        <div class="tools" role="toolbar" aria-label="Diagram tools">
+          <button class="tool" type="button" aria-label="Zoom out">−</button>
+          <button class="tool" type="button" aria-label="Zoom in">+</button>
+          <button class="tool" type="button">Open full view</button>
+          <button class="tool" type="button">Export SVG</button>
+        </div>
+        <svg class="diagram-sm" viewBox="0 0 760 300" width="100%" role="img" aria-label="Sequence: Storefront, Gateway, orders-service, Payments">
+          <g font-family="-apple-system, sans-serif" font-size="14" fill="currentColor">
+            <g stroke="currentColor" stroke-opacity=".35" fill="none">
+              <rect x="20" y="10" width="140" height="40" rx="8"/><rect x="215" y="10" width="140" height="40" rx="8"/>
+              <rect x="410" y="10" width="140" height="40" rx="8"/><rect x="605" y="10" width="140" height="40" rx="8"/>
+              <path d="M90 50V290M285 50V290M480 50V290M675 50V290" stroke-dasharray="4 5"/>
+            </g>
+            <text x="90" y="35" text-anchor="middle">Storefront</text><text x="285" y="35" text-anchor="middle">Gateway</text>
+            <text x="480" y="35" text-anchor="middle">orders-service</text><text x="675" y="35" text-anchor="middle">Payments</text>
+            <g stroke="#2f5bd3" stroke-width="1.6" fill="none"><path d="M90 90H277M285 130H472M480 170H667"/><path d="M675 210H488M480 250H98" stroke-dasharray="6 4"/></g>
+            <g fill="#2f5bd3"><path d="M277 85l8 5-8 5zM472 125l8 5-8 5zM667 165l8 5-8 5zM488 205l-8 5 8 5zM98 245l-8 5 8 5z"/></g>
+            <text x="188" y="82" text-anchor="middle" font-size="13">POST /checkout</text>
+            <text x="382" y="122" text-anchor="middle" font-size="13">createOrder()</text>
+            <text x="577" y="162" text-anchor="middle" font-size="13">capture(amount)</text>
+            <text x="577" y="202" text-anchor="middle" font-size="13">captured</text>
+            <text x="285" y="242" text-anchor="middle" font-size="13">201 Created · order_8F2K</text>
+          </g>
+        </svg>
+        <figcaption>mermaid · sequenceDiagram</figcaption>
+      </figure>
+      <h2>Endpoints</h2>
+      <table>
+        <thead><tr><th>Method</th><th>Path</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr><td><code>POST</code></td><td><code>/orders</code></td><td>Create an order from a cart</td></tr>
+          <tr><td><code>GET</code></td><td><code>/orders/:id</code></td><td>Read order state</td></tr>
+          <tr><td><code>POST</code></td><td><code>/orders/:id/cancel</code></td><td>Cancel before capture</td></tr>
+        </tbody>
+      </table>
+      <h2>Try it locally</h2>
+<pre><code><span class="tok-c"># create an order</span>
+curl -X POST localhost:8080/orders \
+  -H <span class="tok-s">"content-type: application/json"</span> \
+  -d <span class="tok-s">'{"cartId": "cart_19ab", "currency": "EUR"}'</span></code></pre>
+    </article>
+  </section>
+
+  <!-- Mermaid -->
+  <section class="view" data-view="mermaid" aria-label="Mermaid diagram" hidden>
+    <div class="stage" id="stage">
+      <svg class="diagram" id="bigDiagram" viewBox="0 0 760 360" role="img" aria-label="Flowchart: checkout decision">
+        <g font-family="-apple-system, sans-serif" font-size="15" fill="currentColor">
+          <g fill="none" stroke="currentColor" stroke-opacity=".45" stroke-width="1.4">
+            <rect x="20" y="150" width="150" height="56" rx="10"/><path d="M300 110l70 68-70 68-70-68z"/>
+            <rect x="480" y="60" width="200" height="56" rx="10"/><rect x="480" y="240" width="200" height="56" rx="10"/>
+          </g>
+          <g stroke="#2f5bd3" stroke-width="1.6" fill="none"><path d="M170 178H222M370 178C420 178 420 88 472 88M370 178C420 178 420 268 472 268"/></g>
+          <text x="95" y="183" text-anchor="middle">Cart submitted</text>
+          <text x="300" y="183" text-anchor="middle">Stock ok?</text>
+          <text x="580" y="93" text-anchor="middle">Reserve and capture</text>
+          <text x="580" y="273" text-anchor="middle">Notify: out of stock</text>
+          <text x="430" y="120" font-size="13" fill="#2f5bd3">yes</text><text x="430" y="248" font-size="13" fill="#2f5bd3">no</text>
+        </g>
+      </svg>
+      <div class="dock" role="toolbar" aria-label="Diagram controls">
+        <button class="tool" type="button" id="zOut" aria-label="Zoom out">−</button>
+        <output id="zVal" aria-live="polite">100%</output>
+        <button class="tool" type="button" id="zIn" aria-label="Zoom in">+</button>
+        <button class="tool" type="button" id="zFit">Fit</button>
+        <span class="sep" aria-hidden="true"></span>
+        <button class="tool" type="button" id="exportSvg">Export SVG</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- JSON -->
+  <section class="view" data-view="json" aria-label="JSON document" hidden>
+    <div class="json-wrap">
+      <div class="json-tools">
+        <label class="search"><span aria-hidden="true">⌕</span><input id="q" type="search" placeholder="Search keys and values" aria-label="Search keys and values" /><span class="count" id="count"></span></label>
+        <button class="tool" type="button" id="expandAll">Expand all</button>
+        <button class="tool" type="button" id="collapseAll">Collapse all</button>
+        <div class="seg" role="group" aria-label="JSON view"><button type="button" id="asTree" aria-pressed="true">Tree</button><button type="button" id="asRaw" aria-pressed="false">Raw</button></div>
+      </div>
+      <div class="tree" id="tree" role="tree" aria-label="JSON tree"></div>
+      <pre class="raw" id="raw" hidden></pre>
+    </div>
+  </section>
+
+  <!-- Empty -->
+  <section class="view" data-view="empty" aria-label="Paste content" hidden>
+    <div class="empty">
+      <div class="drop">
+        <h1>Paste something to view it</h1>
+        <p>Markdown, a Mermaid diagram or JSON. Press <kbd>⌘</kbd> <kbd>V</kbd> anywhere on this page.</p>
+        <label for="pasteBox" class="sr" style="position:absolute;left:-9999px">Or paste into this box</label>
+        <textarea id="pasteBox" placeholder="…or paste here"></textarea>
+      </div>
+      <div class="hints"><span>From a file: <code>mview notes.md</code></span><span>From the clipboard: <code>mview --paste</code></span></div>
+    </div>
+  </section>
+</main>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<div class="artboard-ctl" aria-label="Artboard state (not part of the product)">
+  Artboard state:
+  <button type="button" data-demo="file">File</button>
+  <button type="button" data-demo="empty">Empty page</button>
+</div>
+
+<script>
+const ORDER = {
+  id: "order_8F2K", status: "captured", createdAt: "2026-11-10T14:32:08Z",
+  customer: { id: "cus_311", email: "lucia.romero@example.com", "x-segment": "returning" },
+  items: [
+    { sku: "TSHIRT-BLK-M", name: "Logo T-shirt", qty: 2, unitPrice: 24.9 },
+    { sku: "MUG-WHT", name: "Ceramic mug", qty: 1, unitPrice: 12.5 }
+  ],
+  totals: { subtotal: 62.3, shipping: 4.99, tax: 13.08, total: 80.37, currency: "EUR" },
+  "shipping.address": { line1: "Av. Corrientes 1234", city: "Buenos Aires", country: "AR" },
+  giftWrap: false, coupon: null
+};
+const LABEL = { markdown: "Markdown", mermaid: "Mermaid", json: "JSON" };
+const NAMES = { markdown: "README.md", mermaid: "checkout.mmd", json: "order.json" };
+const $ = (s) => document.querySelector(s);
+const h = (tag, cls, ...kids) => { const e = document.createElement(tag); if (cls) e.className = cls; e.append(...kids); return e; };
+const toast = (msg, code) => { const t = $("#toast"); t.replaceChildren(msg); if (code) t.append(h("code", "", code)); t.classList.add("show"); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), 1600); };
+
+function show(type) {
+  document.querySelectorAll(".view").forEach(v => v.hidden = v.dataset.view !== type);
+  document.querySelectorAll(".seg [data-type]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.type === type)));
+  const empty = type === "empty";
+  $("#docName").textContent = empty ? "Clipboard" : NAMES[type];
+  $("#live").hidden = empty; $("#detected").textContent = empty ? "Waiting for paste" : "Detected: " + LABEL[type];
+}
+document.querySelectorAll(".seg [data-type]").forEach(b => b.addEventListener("click", () => show(b.dataset.type)));
+document.querySelectorAll("[data-demo]").forEach(b => b.addEventListener("click", () => show(b.dataset.demo === "empty" ? "empty" : "markdown")));
+
+/* JSON tree */
+const ident = /^[A-Za-z_$][\w$]*$/;
+const childPath = (p, k) => typeof k === "number" ? `${p}[${k}]` : ident.test(k) ? (p ? `${p}.${k}` : k) : `${p}["${k}"]`;
+function hl(text, q) {
+  const s = String(text), f = document.createDocumentFragment();
+  const i = q ? s.toLowerCase().indexOf(q) : -1;
+  if (i < 0) { f.append(s); return f; }
+  f.append(s.slice(0, i), h("mark", "", s.slice(i, i + q.length)), s.slice(i + q.length)); return f;
+}
+function valueNode(v, q) {
+  if (v === null) return h("span", "nul", "null");
+  if (typeof v === "string") return h("span", "s", '"', hl(v, q), '"');
+  if (typeof v === "number") return h("span", "n", hl(v, q));
+  return h("span", "b", String(v));
+}
+function keyNode(key, path, q) {
+  if (key === null) return [];
+  const k = typeof key === "number" ? h("span", "k", String(key)) : h("span", "k", '"', hl(key, q), '"');
+  k.dataset.path = path; k.title = "Click to copy path"; return [k, ":"];
+}
+function matches(k, v, q) { return q && (String(k).toLowerCase().includes(q) || (v !== null && typeof v !== "object" && String(v).toLowerCase().includes(q))); }
+let hits = 0;
+function build(key, v, path, q) {
+  const el = document.createElement("div"); el.className = "node"; el.setAttribute("role", "treeitem");
+  const isObj = v && typeof v === "object";
+  if (matches(key ?? "", v, q)) hits++;
+  if (!isObj) {
+    const val = h("span", "", valueNode(v, q)); val.dataset.path = path;
+    el.append(h("div", "row", h("span", "twisty"), ...keyNode(key, path, q), " ", val));
+    return { el, hit: matches(key ?? "", v, q) };
+  }
+  const entries = Array.isArray(v) ? v.map((x, i) => [i, x]) : Object.entries(v);
+  const open = Array.isArray(v) ? "[" : "{", close = Array.isArray(v) ? "]" : "}";
+  const tw = h("button", "twisty", "▾"); tw.type = "button"; tw.setAttribute("aria-label", "Toggle");
+  const kids = h("div", "children"); kids.setAttribute("role", "group");
+  el.append(h("div", "row", tw, ...keyNode(key, path, q), " ", h("span", "meta", `${open} ${entries.length} ${Array.isArray(v) ? "items" : "keys"} ${close}`)), kids);
+  let anyHit = matches(key ?? "", v, q);
+  for (const [k, x] of entries) { const r = build(k, x, childPath(path, k), q); kids.appendChild(r.el); anyHit = anyHit || r.hit; }
+  if (q && !anyHit) el.classList.add("collapsed");
+  el.querySelector(".twisty").addEventListener("click", () => el.classList.toggle("collapsed"));
+  return { el, hit: anyHit };
+}
+function renderTree() {
+  const q = $("#q").value.trim().toLowerCase(); hits = 0;
+  const tree = $("#tree"); tree.replaceChildren(build(null, ORDER, "", q).el);
+  $("#count").textContent = q ? (hits ? `${hits} matches` : `No matches for “${$("#q").value}”`) : "";
+}
+$("#q").addEventListener("input", renderTree);
+$("#tree").addEventListener("click", (e) => { const t = e.target.closest("[data-path]"); if (t && t.dataset.path) { navigator.clipboard?.writeText(t.dataset.path).catch(() => {}); toast("Copied ", t.dataset.path); } });
+$("#expandAll").addEventListener("click", () => document.querySelectorAll("#tree .node").forEach(n => n.classList.remove("collapsed")));
+$("#collapseAll").addEventListener("click", () => document.querySelectorAll("#tree .node .node").forEach(n => n.querySelector(".children") && n.classList.add("collapsed")));
+$("#raw").textContent = JSON.stringify(ORDER, null, 2);
+$("#asTree").addEventListener("click", () => { $("#tree").hidden = false; $("#raw").hidden = true; $("#asTree").setAttribute("aria-pressed", "true"); $("#asRaw").setAttribute("aria-pressed", "false"); });
+$("#asRaw").addEventListener("click", () => { $("#tree").hidden = true; $("#raw").hidden = false; $("#asTree").setAttribute("aria-pressed", "false"); $("#asRaw").setAttribute("aria-pressed", "true"); });
+renderTree();
+
+/* Mermaid zoom */
+let z = 1; const setZ = (v) => { z = Math.min(4, Math.max(0.25, v)); $("#bigDiagram").style.setProperty("--z", z); $("#zVal").textContent = Math.round(z * 100) + "%"; };
+$("#zIn").onclick = () => setZ(z * 1.25); $("#zOut").onclick = () => setZ(z / 1.25); $("#zFit").onclick = () => setZ(1);
+$("#stage").addEventListener("wheel", (e) => { e.preventDefault(); setZ(z * (e.deltaY < 0 ? 1.1 : 0.9)); }, { passive: false });
+$("#exportSvg").onclick = () => toast("Saved ", "checkout.svg");
+</script>
+</body>
+</html>

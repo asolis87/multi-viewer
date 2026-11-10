@@ -1,0 +1,10 @@
+{
+  "title": "mview viewer",
+  "brief": "Browser frontend for mview: a local viewer for Markdown (with embedded Mermaid), raw Mermaid diagrams and JSON, opened from a file with live reload, the clipboard, stdin or an empty paste page.",
+  "feature": "odd/tasks/mview.md",
+  "artboards": [
+    { "file": "01-reader.html", "title": "Reader", "tradeoff": "Calm, centered reading column with a minimal top bar; best for long Markdown, tools stay out of the way but JSON and diagrams get fewer on-screen controls", "width": 1440, "height": 900 },
+    { "file": "02-workbench.html", "title": "Workbench", "tradeoff": "IDE-like outline, inspector and status bar; everything visible and dense, heavier chrome for quick reads", "width": 1440, "height": 900 },
+    { "file": "03-focus-canvas.html", "title": "Focus canvas", "tradeoff": "Full-bleed content with one floating pill and a ⌘K palette; maximum space for diagrams, lower discoverability", "width": 1440, "height": 900 }
+  ]
+}

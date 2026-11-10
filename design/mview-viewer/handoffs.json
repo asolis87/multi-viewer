@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "chosen": "02-workbench.html",
+  "handoffs": {
+    "02-workbench.html": {
+      "status": "sent",
+      "queued": false,
+      "sentAt": "2026-11-10T23:38:31.801Z",
+      "startedAt": null,
+      "implementedAt": null,
+      "feature": "odd/tasks/mview.md"
+    }
+  }
+}
