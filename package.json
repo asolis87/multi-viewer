@@ -1,0 +1,43 @@
+{
+  "name": "mview",
+  "version": "0.1.0",
+  "description": "Open Markdown, Mermaid and JSON from the terminal or clipboard in your browser.",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "mview": "dist/cli/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "npm run build:web && npm run build:cli",
+    "build:web": "vite build",
+    "build:cli": "tsc -p tsconfig.cli.json",
+    "dev:web": "vite",
+    "check": "tsc -p tsconfig.cli.json --noEmit && svelte-check",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "chokidar": "^6.0.0",
+    "clipboardy": "^5.3.2",
+    "open": "^11.0.4"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^7.3.1",
+    "@types/markdown-it": "^14.2.0",
+    "@types/node": "^26.6.6",
+    "dompurify": "^3.4.17",
+    "highlight.js": "^11.12.0",
+    "markdown-it": "^15.0.3",
+    "mermaid": "^12.3.0",
+    "svelte": "^5.57.3",
+    "svelte-check": "^4.7.8",
+    "typescript": "^6.0.3",
+    "vite": "^8.3.7",
+    "vitest": "^5.1.0"
+  }
+}
