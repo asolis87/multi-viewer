@@ -9,6 +9,20 @@ curl -s api/thing | mview    # open piped content
 mview                        # empty page: paste with Cmd/Ctrl+V
 ```
 
+## Install
+
+Requires Node.js 20 or later. mview is not on the npm registry yet; install the packaged release from GitHub:
+
+```bash
+pnpm add -g https://github.com/asolis87/multi-viewer/releases/download/v0.1.0/mview-0.1.0.tgz
+# or
+npm i -g https://github.com/asolis87/multi-viewer/releases/download/v0.1.0/mview-0.1.0.tgz
+```
+
+With pnpm, run `pnpm setup` once if it says the global bin directory is not in your `PATH`. Uninstall with `pnpm remove -g mview` or `npm rm -g mview`.
+
+Installing straight from the source (`pnpm add -g github:asolis87/multi-viewer`) does not work: the repository holds no build output, npm does not install the build tools for a global git install, and pnpm refuses to run a git package's build script unless it is allowlisted.
+
 ## What it renders
 
 | Type | Detected by | Features |
@@ -56,4 +70,12 @@ npm run build     # builds the Svelte frontend (dist/web) and the CLI (dist/cli)
 npm test          # Vitest
 npm run check     # type-check CLI and frontend
 npm link          # puts `mview` on your PATH
+```
+
+To cut a release, build and test on a clean `main`, then attach the tarball to a GitHub release:
+
+```bash
+npm run build && npm test
+npm pack                                    # writes mview-<version>.tgz
+gh release create v<version> mview-<version>.tgz --target "$(git rev-parse HEAD)"
 ```
