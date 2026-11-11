@@ -7,6 +7,7 @@ describe("mermaid info", () => {
   it("reads the diagram keyword past comments and front-matter", () => {
     expect(diagramKeyword("---\ntitle: x\n---\n%% c\nflowchart LR\n")).toBe("flowchart");
     expect(diagramKeyword("")).toBe("diagram");
+    expect(diagramKeyword("gitGraph:\n  commit")).toBe("gitGraph");
   });
 
   it("lists sequence participants, declared and implicit", () => {
