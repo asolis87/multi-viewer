@@ -98,6 +98,14 @@ describe("mview CLI", () => {
     expect(r.stderr).toBe("mview: file not found: nope-404.md\n");
   });
 
+  it("a directory is rejected before starting the server (T15)", () => {
+    const dir = mkdtempSync(join(tmpdir(), "mview-dir-"));
+    const r = spawnSync(process.execPath, [CLI, "--no-open", dir], { encoding: "utf8", timeout: 5000, killSignal: "SIGINT" });
+    expect(r.status).toBe(1);
+    expect(r.stdout).toBe("");
+    expect(r.stderr).toBe(`mview: not a file: ${dir}\n`);
+  });
+
   it("serves stdin content with detected type", async () => {
     const { url } = await startCli([], '{"a": 1}');
     const doc = await (await fetch(docUrl(url))).json();

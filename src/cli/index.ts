@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { access } from "node:fs/promises";
+import { stat } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { HELP, parseCliArgs } from "./args.js";
@@ -31,10 +31,15 @@ async function main(argv: string[]): Promise<number> {
 
   if (args.file) {
     const path = resolve(args.file);
+    let info;
     try {
-      await access(path);
+      info = await stat(path);
     } catch {
       process.stderr.write(`mview: file not found: ${args.file}\n`);
+      return 1;
+    }
+    if (!info.isFile()) {
+      process.stderr.write(`mview: not a file: ${args.file}\n`);
       return 1;
     }
     watchPath = path;
