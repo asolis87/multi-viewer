@@ -77,8 +77,8 @@ function startsWithMermaidKeyword(content: string): boolean {
   return MERMAID_KEYWORDS.includes(word);
 }
 
-/** First line that is not blank, a `%%` comment, or YAML front-matter. */
-function firstMeaningfulLine(content: string): string | null {
+/** First line that is not blank, a `%%` comment, or YAML front-matter. Shared with the frontend. */
+export function firstMeaningfulLine(content: string): string | null {
   const lines = content.split(/\r?\n/);
   let i = 0;
   while (i < lines.length && lines[i]!.trim() === "") i++;

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { TYPE_LABEL, type SelectValue } from "../lib/typeState.js";
   import type { DocType } from "../lib/doc.js";
+  import { THEME_OPTIONS, type ThemeChoice } from "../lib/theme.js";
 
   interface Props {
     name: string;
@@ -12,9 +13,11 @@
     outlineButton?: HTMLButtonElement;
     ontoggleoutline: () => void;
     onselect: (value: SelectValue) => void;
+    theme: ThemeChoice;
+    ontheme: (theme: ThemeChoice) => void;
   }
 
-  let { name, sourceLabel, detected, value, drawerOpen, outlineButton = $bindable(), ontoggleoutline, onselect }: Props = $props();
+  let { name, sourceLabel, detected, value, drawerOpen, outlineButton = $bindable(), ontoggleoutline, onselect, theme, ontheme }: Props = $props();
 </script>
 
 <header class="toolbar">
@@ -56,5 +59,17 @@
     {#if value !== "auto"}
       <span class="manual-tag" title="Manual type is kept across live reloads until you change it">Manual</span>
     {/if}
+  </div>
+  <div class="theme">
+    <label for="theme-select">Theme</label>
+    <select
+      id="theme-select"
+      value={theme}
+      onchange={(e) => ontheme((e.currentTarget as HTMLSelectElement).value as ThemeChoice)}
+    >
+      {#each THEME_OPTIONS as option (option.value)}
+        <option value={option.value}>{option.label}</option>
+      {/each}
+    </select>
   </div>
 </header>

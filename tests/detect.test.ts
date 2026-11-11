@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { detectType } from "../src/shared/detect.js";
+import { detectType, firstMeaningfulLine } from "../src/shared/detect.js";
 
 describe("detectType by filename extension", () => {
   it.each([
@@ -76,5 +76,17 @@ describe("detectType by content", () => {
 
   it("empty content is markdown", () => {
     expect(detectType("")).toBe("markdown");
+  });
+});
+
+describe("firstMeaningfulLine (shared by CLI detection and the frontend, T13)", () => {
+  it("skips blank lines, %% comments and front-matter", () => {
+    expect(firstMeaningfulLine("\n  \n%% note\n  flowchart LR  \nA-->B")).toBe("flowchart LR");
+    expect(firstMeaningfulLine("---\ntitle: X\n---\n\nsequenceDiagram")).toBe("sequenceDiagram");
+  });
+
+  it("returns null when nothing meaningful remains", () => {
+    expect(firstMeaningfulLine("")).toBeNull();
+    expect(firstMeaningfulLine("\n%% only a comment\n")).toBeNull();
   });
 });

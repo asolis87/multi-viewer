@@ -95,6 +95,13 @@ describe("server", () => {
     expect(csp).toContain("connect-src 'self'");
   });
 
+  it("blocks remote images in the content security policy (T11)", async () => {
+    const index = await get(server.port, "/");
+    const directives = String(index.headers["content-security-policy"]).split("; ");
+    expect(directives).toContain("img-src 'self' data: blob:");
+    expect(directives.join(" ")).not.toContain("https:");
+  });
+
   it("does not escape the web root", async () => {
     for (const p of ["/assets/../../etc/passwd", "/assets/%2e%2e/%2e%2e/etc/passwd", "/..%2f..%2fetc/passwd"]) {
       const res = await get(server.port, p);

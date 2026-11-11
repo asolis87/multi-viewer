@@ -143,6 +143,7 @@ function getPurifier(): Purifier {
   if (purifier) return purifier;
   purifier = DOMPurify(window);
   purifier.addHook("afterSanitizeAttributes", (node) => {
+    if (blockRemoteImage(node)) return;
     if (node.tagName !== "A") return;
     const href = node.getAttribute("href");
     if (href && !href.startsWith("#")) {
@@ -153,6 +154,71 @@ function getPurifier(): Purifier {
     }
   });
   return purifier;
+}
+
+/**
+ * True for URLs that would make the browser contact another host: `http:`, `https:` and
+ * protocol-relative `//` (browsers also read `/\` and `\\` as `//`). Trimmed, case-insensitive.
+ */
+export function isRemoteUrl(url: string): boolean {
+  // Same normalization as the WHATWG URL parser: drop tabs/newlines anywhere, then leading and
+  // trailing C0 controls and spaces; `\` counts as `/` for http(s)-like URLs.
+  const u = url
+    .replace(/[\t\n\r]/g, "")
+    .replace(/^[\x00-\x20]+|[\x00-\x20]+$/g, "")
+    .toLowerCase()
+    .replace(/\\/g, "/");
+  return u.startsWith("http:") || u.startsWith("https:") || u.startsWith("//");
+}
+
+function hasRemoteCandidate(srcset: string): boolean {
+  // Conservative: drop tabs/newlines first so a URL split by them is still recognized as remote.
+  return srcset
+    .replace(/[\t\n\r]/g, "")
+    .split(",")
+    .some((candidate) => isRemoteUrl(candidate.replace(/^[\x00-\x20]+/, "").split(/[ \f]+/)[0] ?? ""));
+}
+
+/** Placeholder shown instead of a remote image (S6, T11): alt text and the URL as plain text. */
+function remoteImagePlaceholder(doc: Document, url: string, alt: string): HTMLElement {
+  const box = doc.createElement("span");
+  box.className = "remote-image";
+  box.setAttribute("role", "img");
+  box.setAttribute("aria-label", alt ? `Remote image blocked: ${alt}` : "Remote image blocked");
+  const title = doc.createElement("span");
+  title.className = "remote-image-title";
+  title.textContent = "Remote image blocked";
+  box.append(title);
+  if (alt) {
+    const altEl = doc.createElement("span");
+    altEl.className = "remote-image-alt";
+    altEl.textContent = alt;
+    box.append(altEl);
+  }
+  const urlEl = doc.createElement("code");
+  urlEl.className = "remote-image-url";
+  urlEl.textContent = url.trim();
+  box.append(urlEl);
+  return box;
+}
+
+/**
+ * Remote images never load (S6, T11): a remote `<img>` becomes a placeholder, remote `srcset`
+ * values are dropped and remote `<source>` elements are removed. The page CSP blocks them too.
+ * Returns true when the node was replaced or removed.
+ */
+function blockRemoteImage(node: Element): boolean {
+  const srcset = node.getAttribute("srcset");
+  if (srcset !== null && hasRemoteCandidate(srcset)) node.removeAttribute("srcset");
+  if (node.tagName === "SOURCE" && !node.hasAttribute("srcset") && srcset !== null) {
+    node.remove();
+    return true;
+  }
+  if (node.tagName !== "IMG") return false;
+  const src = node.getAttribute("src");
+  if (src === null || !isRemoteUrl(src)) return false;
+  node.replaceWith(remoteImagePlaceholder(node.ownerDocument, src, node.getAttribute("alt")?.trim() ?? ""));
+  return true;
 }
 
 /** Sanitize untrusted HTML for insertion into the document view. */

@@ -3,12 +3,14 @@
   "chosen": "02-workbench.html",
   "handoffs": {
     "02-workbench.html": {
-      "status": "sent",
+      "status": "implemented",
       "queued": false,
       "sentAt": "2026-11-10T23:38:31.801Z",
       "startedAt": null,
-      "implementedAt": null,
-      "feature": "odd/tasks/mview.md"
+      "implementedAt": "2026-11-11T00:04:25.297Z",
+      "feature": "odd/tasks/mview.md",
+      "note": "Svelte implementation in 944d3fe (+ fix c61cae0); verified in Chrome headless, S1–S9 pass.",
+      "previewUrl": "http://127.0.0.1:4317/?t=YdsKBh-MFrYriJUXsnGMMwmYEeMqhQKi"
     }
   }
 }

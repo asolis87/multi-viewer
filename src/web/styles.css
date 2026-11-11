@@ -9,8 +9,14 @@
   --target: 36px;
   color-scheme: light dark;
 }
+:root[data-theme="dark"] {
+    --bg: #0f1216; --surface: #161a1f; --surface-2: #1d2228; --surface-3: #262c33; --text: #e6e9ed; --muted: #9ba5af;
+    --border: #2c333b; --line: #6b7580; --accent: #6ea8ff; --accent-ink: #0b1220; --accent-soft: #1a2a44;
+    --ok: #4ac26b; --warn: #d4a72c; --danger: #ff8a80; --danger-soft: #3a1d1c; --focus: #8bb9ff;
+    --key: #d2a8ff; --str: #7ee2a8; --num: #ffa657; --bool: #79c0ff; --hit: #6b5a12; --grid: #2a3038;
+}
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #0f1216; --surface: #161a1f; --surface-2: #1d2228; --surface-3: #262c33; --text: #e6e9ed; --muted: #9ba5af;
     --border: #2c333b; --line: #6b7580; --accent: #6ea8ff; --accent-ink: #0b1220; --accent-soft: #1a2a44;
     --ok: #4ac26b; --warn: #d4a72c; --danger: #ff8a80; --danger-soft: #3a1d1c; --focus: #8bb9ff;
@@ -51,13 +57,13 @@ kbd { font-size: 12px; border: 1px solid var(--border); border-bottom-width: 2px
   background: var(--surface-2); font-size: 12px; color: var(--muted); white-space: nowrap; }
 .chip svg { width: 13px; height: 13px; }
 .spacer { flex: 1; }
-.type { display: flex; align-items: center; gap: 8px; }
-.type label { font-size: 12px; color: var(--muted); }
-.type select { min-height: var(--target); padding: 0 30px 0 10px; border: 1px solid var(--border); border-radius: 6px; background-color: var(--surface);
+.type, .theme { display: flex; align-items: center; gap: 8px; }
+.type label, .theme label { font-size: 12px; color: var(--muted); }
+.type select, .theme select { min-height: var(--target); padding: 0 30px 0 10px; border: 1px solid var(--border); border-radius: 6px; background-color: var(--surface);
   appearance: none; cursor: pointer; font-size: 13px;
   background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
   background-position: calc(100% - 15px) 52%, calc(100% - 10px) 52%; background-size: 5px 5px; background-repeat: no-repeat; }
-.type select:disabled { cursor: not-allowed; opacity: .6; }
+.type select:disabled, .theme select:disabled { cursor: not-allowed; opacity: .6; }
 .manual-tag { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--accent); border: 1px solid currentColor; border-radius: 4px; padding: 1px 5px; }
 
 /* Workspace: sidebar + main */
@@ -245,7 +251,7 @@ mark { background: var(--hit); color: inherit; border-radius: 2px; padding: 0 1p
 }
 @media (max-width: 899px) {
   .outline-btn { display: inline-flex; }
-  .brand span, .type label { display: none; }
+  .brand span, .type label, .theme label { display: none; }
   .brand { border-right: 0; padding-right: 0; }
   .workspace { grid-template-columns: minmax(0, 1fr); }
   .sidebar { position: fixed; top: 0; bottom: 0; left: 0; width: min(300px, 86vw); z-index: 40; transform: translateX(-100%); visibility: hidden;
@@ -260,3 +266,10 @@ mark { background: var(--hit); color: inherit; border-radius: 2px; padding: 0 1p
   .cv-hint { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; } }
+
+/* Remote image placeholder (S6, T11): shown instead of an image that would contact another host. */
+.remote-image { display: inline-flex; flex-direction: column; gap: 2px; max-width: 100%; margin: 4px 0; padding: 8px 12px;
+  border: 1px dashed var(--line); border-radius: 6px; background: var(--surface-2); color: var(--muted); font-size: 13px; line-height: 1.4; vertical-align: middle; }
+.remote-image-title { font-weight: 600; color: var(--text); }
+.remote-image-alt { color: var(--text); }
+.remote-image-url { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; word-break: break-all; }
