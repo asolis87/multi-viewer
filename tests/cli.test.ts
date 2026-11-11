@@ -50,10 +50,15 @@ function eventsUrl(pageUrl: string): string {
 function watchChanges(pageUrl: string): Promise<{ count(): number; close(): void }> {
   return new Promise((resolve, reject) => {
     let changes = 0;
+    let buffer = "";
     const req = request(eventsUrl(pageUrl), (res) => {
       res.setEncoding("utf8");
       res.on("data", (chunk: string) => {
-        changes += chunk.split("event: change").length - 1;
+        // SSE events end with a blank line; a chunk may hold part of one, so only count complete events.
+        buffer += chunk;
+        const events = buffer.split("\n\n");
+        buffer = events.pop() ?? "";
+        changes += events.filter((e) => e.split("\n").includes("event: change")).length;
       });
       resolve({ count: () => changes, close: () => req.destroy() });
     });
@@ -147,7 +152,7 @@ describe("mview CLI", () => {
     expect(doc).toEqual({ name: null, type: "markdown", content: "", source: "empty" });
   });
 
-  it("serves a file and reflects edits", async () => {
+  it("serves the current file content on every request (live reload over SSE is covered by T12)", async () => {
     const dir = mkdtempSync(join(tmpdir(), "mview-cli-"));
     const file = join(dir, "flow.mmd");
     writeFileSync(file, "flowchart LR\n A-->B");
@@ -194,8 +199,10 @@ describe("mview CLI", () => {
         unlinkSync(file);
         await waitFor(() => events.count() > beforeDelete);
         await waitFor(async () => (await fetch(docUrlOf())).status === 500);
+        const beforeRecreate = events.count();
         writeFileSync(file, "v2");
-        await waitFor(async () => (await content().catch(() => "")) === "v2");
+        await waitFor(() => events.count() > beforeRecreate);
+        expect(await content()).toBe("v2");
         const before = events.count();
         writeFileSync(file, "v3");
         await waitFor(() => events.count() > before);
