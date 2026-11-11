@@ -36,7 +36,7 @@ mview                   Open an empty page where you can paste (Cmd/Ctrl+V)
 -v, --version           Show the version
 ```
 
-Each run starts its own server; stop it with `Ctrl+C`. One file at a time (no tabs yet).
+If piped input never ends (for example a command that keeps running), mview says it is waiting for stdin; finish with `Ctrl+D` or cancel with `Ctrl+C`. Each run starts its own server; stop it with `Ctrl+C`. One file at a time (no tabs yet).
 
 ## Privacy and security
 

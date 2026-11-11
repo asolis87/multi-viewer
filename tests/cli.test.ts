@@ -112,6 +112,35 @@ describe("mview CLI", () => {
     expect(doc).toEqual({ name: null, type: "json", content: '{"a": 1}', source: "stdin" });
   });
 
+  it("tells the user it is waiting when piped stdin stays open, then serves it once it ends (T16)", async () => {
+    const proc = spawn(process.execPath, [CLI, "--no-open"], { stdio: ["pipe", "pipe", "pipe"] });
+    child = proc;
+    let out = "";
+    let err = "";
+    proc.stdout!.on("data", (c) => (out += c));
+    proc.stderr!.on("data", (c) => (err += c));
+    await waitFor(() => err.includes("waiting"), 4000);
+    expect(err).toBe("mview: waiting for input on stdin (press Ctrl+D to finish, Ctrl+C to cancel)\n");
+    expect(out).toBe("");
+    proc.stdin!.end("# late");
+    await waitFor(() => /t=\S+/.test(out), 4000);
+    const url = out.match(/mview: (http:\/\/127\.0\.0\.1:\d+\/\?t=\S+)/)![1]!;
+    expect(await (await fetch(docUrl(url))).json()).toEqual({ name: null, type: "markdown", content: "# late", source: "stdin" });
+  });
+
+  it("does not print the waiting notice when stdin ends quickly (T16)", async () => {
+    const proc = spawn(process.execPath, [CLI, "--no-open"], { stdio: ["pipe", "pipe", "pipe"] });
+    child = proc;
+    let err = "";
+    let out = "";
+    proc.stdout!.on("data", (c) => (out += c));
+    proc.stderr!.on("data", (c) => (err += c));
+    proc.stdin!.end("{}");
+    await waitFor(() => /t=\S+/.test(out), 4000);
+    await new Promise((r) => setTimeout(r, 1300));
+    expect(err).toBe("");
+  });
+
   it("empty piped stdin falls back to the empty paste page", async () => {
     const { url } = await startCli([], "  \n");
     const doc = await (await fetch(docUrl(url))).json();

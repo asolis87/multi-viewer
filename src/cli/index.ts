@@ -10,6 +10,7 @@ import { startServer } from "./server.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const WEB_ROOT = resolve(here, "../web");
+const STDIN_NOTICE_MS = 1000;
 
 async function main(argv: string[]): Promise<number> {
   const args = parseCliArgs(argv);
@@ -60,7 +61,12 @@ async function main(argv: string[]): Promise<number> {
     const doc = fromContent(text, "paste");
     getDoc = async () => doc;
   } else if (!process.stdin.isTTY) {
-    const text = await readStream(process.stdin);
+    // A pipe that stays open (e.g. launched from an IDE task) would otherwise hang silently.
+    const notice = setTimeout(
+      () => process.stderr.write("mview: waiting for input on stdin (press Ctrl+D to finish, Ctrl+C to cancel)\n"),
+      STDIN_NOTICE_MS,
+    );
+    const text = await readStream(process.stdin).finally(() => clearTimeout(notice));
     // Empty piped input (e.g. `mview < /dev/null`) gets the paste page instead of a blank document.
     const doc = text.trim() === "" ? emptyDoc() : fromContent(text, "stdin");
     getDoc = async () => doc;
