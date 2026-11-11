@@ -1,22 +1,5 @@
 /** Pure, cheap facts about Mermaid source: diagram keyword, outline entries and parse-error location. */
-
-/** First line that is not blank, a `%%` comment, or YAML front-matter (mirrors shared detection). */
-export function firstMeaningfulLine(source: string): string | null {
-  const lines = source.split(/\r?\n/);
-  let i = 0;
-  while (i < lines.length && lines[i]!.trim() === "") i++;
-  if (lines[i]?.trim() === "---") {
-    i++;
-    while (i < lines.length && lines[i]!.trim() !== "---") i++;
-    i++;
-  }
-  for (; i < lines.length; i++) {
-    const line = lines[i]!.trim();
-    if (line === "" || line.startsWith("%%")) continue;
-    return line;
-  }
-  return null;
-}
+import { firstMeaningfulLine } from "../../shared/detect.js";
 
 /** The diagram keyword, e.g. `sequenceDiagram` or `flowchart`; "diagram" when unknown. */
 export function diagramKeyword(source: string): string {
