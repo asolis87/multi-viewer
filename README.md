@@ -19,6 +19,8 @@ mview                        # empty page: paste with Cmd/Ctrl+V
 
 The file extension wins when it is known. You can always override the detected type from the selector in the page header.
 
+The **Theme** selector in the page header switches between System (follows your OS), Light and Dark. The choice is not remembered: every run starts on System.
+
 ## Usage
 
 ```text

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
   import Toolbar from "./components/Toolbar.svelte";
+  import { applyTheme, resolveDark, type ThemeChoice } from "./lib/theme.js";
   import Sidebar from "./components/Sidebar.svelte";
   import StatusBar from "./components/StatusBar.svelte";
   import MarkdownView from "./components/MarkdownView.svelte";
@@ -30,7 +31,10 @@
   let zoom = $state<number | null>(null);
   let lastCopied = $state<string | null>(null);
   let message = $state("");
-  let dark = $state(false);
+  let systemDark = $state(false);
+  let theme = $state<ThemeChoice>("system");
+  const dark = $derived(resolveDark(theme, systemDark));
+  $effect(() => applyTheme(theme, document.documentElement));
   let narrow = $state(false);
   let drawerOpen = $state(false);
 
@@ -183,9 +187,9 @@
   onMount(() => {
     const darkQuery = matchMedia("(prefers-color-scheme: dark)");
     const narrowQuery = matchMedia("(max-width: 899px)");
-    dark = darkQuery.matches;
+    systemDark = darkQuery.matches;
     narrow = narrowQuery.matches;
-    const onDark = () => (dark = darkQuery.matches);
+    const onDark = () => (systemDark = darkQuery.matches);
     const onNarrow = () => {
       narrow = narrowQuery.matches;
       if (!narrow) drawerOpen = false;
@@ -250,6 +254,8 @@
   bind:outlineButton
   ontoggleoutline={() => setDrawer(!drawerOpen)}
   onselect={onSelect}
+  {theme}
+  ontheme={(t) => (theme = t)}
 />
 
 <div class="workspace" class:drawer-open={drawerOpen}>
