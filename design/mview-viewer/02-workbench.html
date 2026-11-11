@@ -1,0 +1,1007 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="light dark" />
+<title>mview — Workbench</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --surface: #ffffff; --surface-2: #eef0f3; --surface-3: #e3e7eb; --text: #1b1f24; --muted: #57606a;
+    --border: #d5dae0; --line: #8c959f; --accent: #0b5fcc; --accent-ink: #ffffff; --accent-soft: #e2ecfb;
+    --ok: #1a7f37; --warn: #9a6700; --danger: #b42318; --danger-soft: #fdecea; --focus: #0b5fcc;
+    --key: #8250df; --str: #116329; --num: #a3480b; --bool: #0b5fcc; --hit: #ffe58a; --grid: #c4cbd3;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --target: 36px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1216; --surface: #161a1f; --surface-2: #1d2228; --surface-3: #262c33; --text: #e6e9ed; --muted: #9ba5af;
+      --border: #2c333b; --line: #6b7580; --accent: #6ea8ff; --accent-ink: #0b1220; --accent-soft: #1a2a44;
+      --ok: #4ac26b; --warn: #d4a72c; --danger: #ff8a80; --danger-soft: #3a1d1c; --focus: #8bb9ff;
+      --key: #d2a8ff; --str: #7ee2a8; --num: #ffa657; --bool: #79c0ff; --hit: #6b5a12; --grid: #2a3038;
+    }
+  }
+  @media (pointer: coarse) { :root { --target: 44px; } }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--bg); color: var(--text); font: 14px/1.5 var(--font);
+    display: grid; grid-template-rows: auto 1fr auto; overflow: hidden; }
+  button, select, input, textarea { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  [hidden] { display: none !important; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  code, kbd, pre { font-family: var(--mono); }
+
+  /* Buttons */
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: var(--target); min-width: var(--target);
+    padding: 0 12px; border: 1px solid var(--border); background: var(--surface); border-radius: 6px; cursor: pointer; font-size: 13px; white-space: nowrap; }
+  .btn:hover { background: var(--surface-2); }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+  .btn.primary:hover { filter: brightness(1.08); }
+  .btn.ghost { border-color: transparent; background: transparent; }
+  .btn.ghost:hover { background: var(--surface-2); }
+  .btn:disabled { cursor: not-allowed; opacity: .55; }
+  .btn svg { width: 16px; height: 16px; flex: none; }
+
+  /* Toolbar */
+  .toolbar { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 6px 12px; background: var(--surface); border-bottom: 1px solid var(--border); }
+  .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; letter-spacing: -0.02em; padding-right: 12px; border-right: 1px solid var(--border); }
+  .brand svg { width: 20px; height: 20px; }
+  .outline-btn { display: none; }
+  .file { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .file-name { font-weight: 600; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .file-path { color: var(--muted); font: 12px var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .chip { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 8px; border-radius: 12px; border: 1px solid var(--border);
+    background: var(--surface-2); font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .chip svg { width: 13px; height: 13px; }
+  .spacer { flex: 1; }
+  .type { display: flex; align-items: center; gap: 8px; }
+  .type label { font-size: 12px; color: var(--muted); }
+  .type select { min-height: var(--target); padding: 0 30px 0 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface);
+    appearance: none; cursor: pointer; font-size: 13px;
+    background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+    background-position: calc(100% - 15px) 52%, calc(100% - 10px) 52%; background-size: 5px 5px; background-repeat: no-repeat; }
+  .manual-tag { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--accent); border: 1px solid currentColor; border-radius: 4px; padding: 1px 5px; }
+
+  /* Body: sidebar + main */
+  .workspace { display: grid; grid-template-columns: 260px 1fr; min-height: 0; }
+  .sidebar { background: var(--surface); border-right: 1px solid var(--border); overflow: auto; display: flex; flex-direction: column; }
+  .side-head { padding: 14px 16px 6px; }
+  .side-head h2 { margin: 0; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+  .side-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .outline { list-style: none; margin: 0; padding: 4px 8px 16px; }
+  .outline button { width: 100%; display: flex; align-items: center; gap: 8px; min-height: var(--target); padding: 4px 8px 4px calc(8px + var(--lv, 0) * 14px);
+    border: 0; background: none; border-radius: 6px; cursor: pointer; text-align: left; font-size: 13px; }
+  .outline button:hover { background: var(--surface-2); }
+  .outline button[aria-current="true"] { background: var(--accent-soft); color: var(--text); box-shadow: inset 2px 0 var(--accent); font-weight: 600; }
+  .outline .o-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .outline .o-mono { font-family: var(--mono); font-size: 12.5px; }
+  .outline .o-meta { color: var(--muted); font: 11.5px var(--mono); font-variant-numeric: tabular-nums; }
+  .outline .o-ico { width: 14px; color: var(--muted); flex: none; text-align: center; font-size: 11px; }
+  .side-empty { padding: 8px 16px; color: var(--muted); font-size: 13px; }
+  .side-foot { margin-top: auto; padding: 12px 16px; border-top: 1px solid var(--border); font-size: 12px; color: var(--muted); }
+  .side-foot kbd { font-size: 11px; }
+  .backdrop { display: none; }
+
+  main { position: relative; overflow: auto; min-width: 0; min-height: 0; }
+  main:focus { outline: none; }
+
+  /* Markdown */
+  .md { max-width: 980px; padding: 28px 40px 64px; }
+  .md h1 { font-size: 28px; letter-spacing: -0.02em; line-height: 1.2; margin: 0 0 6px; }
+  .md h2 { font-size: 18px; margin: 32px 0 8px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+  .md h1:focus, .md h2:focus { outline: none; }
+  .md h1:focus-visible, .md h2:focus-visible { outline: 2px solid var(--focus); outline-offset: 4px; }
+  .md p { margin: 0 0 12px; max-width: 78ch; }
+  .md .lede { color: var(--muted); font-size: 15px; }
+  .md code { font-size: .88em; background: var(--surface-2); border: 1px solid var(--border); padding: 0 4px; border-radius: 4px; }
+  .md pre { font-size: 13px; line-height: 1.6; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; overflow-x: auto; margin: 0; }
+  .md pre code { background: none; border: 0; padding: 0; font-size: inherit; }
+  .tok-k { color: var(--key); } .tok-s { color: var(--str); } .tok-c { color: var(--muted); }
+  .md table { border-collapse: collapse; width: 100%; max-width: 760px; font-size: 13.5px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .md th, .md td { text-align: left; padding: 7px 12px; border-bottom: 1px solid var(--border); }
+  .md tr:last-child td { border-bottom: 0; }
+  .md th { background: var(--surface-2); font-weight: 600; font-size: 12px; color: var(--muted); }
+  .md a { color: var(--accent); }
+
+  .fig { margin: 12px 0 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+  .fig-bar { display: flex; align-items: center; gap: 4px; padding: 4px 6px 4px 12px; border-bottom: 1px solid var(--border); background: var(--surface-2); border-radius: 8px 8px 0 0; }
+  .fig-bar .fig-title { font: 12px var(--mono); color: var(--muted); flex: 1; }
+  .fig-bar .btn { min-height: 30px; min-width: 30px; padding: 0 8px; font-size: 12px; }
+  .fig-bar output { min-width: 44px; text-align: center; font: 12px var(--mono); color: var(--muted); }
+  .fig-scroll { overflow: auto; padding: 16px; }
+  .fig-scroll svg { display: block; width: 100%; min-width: 520px; }
+
+  /* Sequence diagram (shared by inline figure and canvas) */
+  .d text { fill: var(--text); font: 14px var(--font); text-anchor: middle; }
+  .d .d-label { font-size: 13px; fill: var(--muted); }
+  .p-box rect { fill: var(--surface); stroke: var(--line); stroke-width: 1.2; }
+  .p-box.hl rect { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 2.5; }
+  .p-box.hl text { font-weight: 700; }
+  .d-life { stroke: var(--line); stroke-dasharray: 4 5; fill: none; }
+  .d-msg { stroke: var(--accent); stroke-width: 1.6; fill: none; }
+  .d-reply { stroke-dasharray: 6 4; }
+  .d-head { fill: var(--accent); }
+
+  /* Mermaid canvas */
+  .view-fill { position: absolute; inset: 0; }
+  .canvas { position: absolute; inset: 0; overflow: hidden; cursor: grab; touch-action: none;
+    background-color: var(--bg); background-image: radial-gradient(var(--grid) 1px, transparent 1.2px); background-size: 16px 16px; }
+  .canvas.dragging { cursor: grabbing; }
+  .canvas:focus-visible { outline: 2px solid var(--focus); outline-offset: -4px; }
+  .viewport { position: absolute; left: 0; top: 0; transform-origin: 0 0; width: 760px; }
+  .viewport svg { display: block; width: 760px; height: 320px; }
+  .cv-tools { position: absolute; top: 12px; right: 12px; display: flex; align-items: center; gap: 4px; padding: 4px; background: var(--surface);
+    border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 4px 16px rgb(0 0 0 / .10); cursor: default; }
+  .cv-tools output { min-width: 52px; text-align: center; font: 12px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+  .cv-tools .sep { width: 1px; height: 22px; background: var(--border); margin: 0 4px; }
+  .cv-hint { position: absolute; left: 12px; bottom: 12px; font-size: 12px; color: var(--muted); background: var(--surface); border: 1px solid var(--border);
+    border-radius: 6px; padding: 4px 8px; cursor: default; }
+
+  /* JSON two-pane */
+  .json { display: grid; grid-template-columns: minmax(0, 1fr) 340px; position: absolute; inset: 0; }
+  .json-main { display: flex; flex-direction: column; min-width: 0; min-height: 0; border-right: 1px solid var(--border); }
+  .json-tools { display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--border); background: var(--surface); flex-wrap: wrap; }
+  .search { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 220px; max-width: 420px; height: var(--target); padding: 0 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); }
+  .search:focus-within { outline: 2px solid var(--focus); outline-offset: 1px; }
+  .search input { flex: 1; min-width: 0; border: 0; background: transparent; outline: none; font-size: 13px; }
+  .search svg { width: 14px; height: 14px; color: var(--muted); }
+  .q-status { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); }
+  .q-status .btn { min-height: 28px; padding: 0 8px; font-size: 12px; }
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+  .seg button { border: 0; background: var(--surface); padding: 0 12px; min-height: calc(var(--target) - 2px); cursor: pointer; font-size: 13px; color: var(--muted); }
+  .seg button + button { border-left: 1px solid var(--border); }
+  .seg button[aria-pressed="true"] { background: var(--surface-3); color: var(--text); font-weight: 600; }
+  .tree { flex: 1; overflow: auto; padding: 8px 8px 24px; font: 13px/1.5 var(--mono); }
+  .row { display: flex; align-items: center; min-height: 28px; padding-left: calc(var(--d, 0) * 18px); border-radius: 4px; }
+  .row:hover { background: var(--surface-2); }
+  .row.is-selected { background: var(--accent-soft); box-shadow: inset 2px 0 var(--accent); }
+  .twisty, .twisty-pad { flex: none; width: 24px; height: 24px; }
+  .twisty { border: 0; background: none; border-radius: 4px; cursor: pointer; color: var(--muted); padding: 0; display: grid; place-items: center; }
+  .twisty svg { width: 12px; height: 12px; transition: transform .12s; }
+  .twisty[aria-expanded="false"] svg { transform: rotate(-90deg); }
+  .sel { flex: 1; min-width: 0; text-align: left; border: 0; background: none; padding: 2px 6px; border-radius: 4px; cursor: pointer; font: inherit; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .k { color: var(--key); } .idx { color: var(--muted); } .s { color: var(--str); } .n { color: var(--num); } .b { color: var(--bool); } .nul { color: var(--muted); font-style: italic; }
+  .punc, .meta { color: var(--muted); }
+  .root { color: var(--muted); }
+  mark { background: var(--hit); color: inherit; border-radius: 2px; padding: 0 1px; }
+  .raw { flex: 1; margin: 0; overflow: auto; padding: 12px 16px; font: 13px/1.6 var(--mono); white-space: pre; }
+
+  .inspector { overflow: auto; background: var(--surface); padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+  .inspector h2 { margin: 0; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+  .field-label { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  .path-box { font: 13px var(--mono); background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; word-break: break-all; }
+  .ins-actions { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+  .ins-note { font-size: 12px; color: var(--muted); margin: 6px 0 0; }
+  .kv { display: grid; grid-template-columns: 56px 1fr; gap: 6px 10px; font-size: 13px; margin: 0; }
+  .kv dt { color: var(--muted); } .kv dd { margin: 0; font-family: var(--mono); word-break: break-all; }
+  .value-box { margin: 0; font: 12.5px/1.55 var(--mono); background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 10px; max-height: 260px; overflow: auto; white-space: pre-wrap; word-break: break-word; }
+
+  /* Mermaid error */
+  .err { max-width: 900px; padding: 28px 40px 64px; }
+  .err-box { border: 1px solid var(--danger); background: var(--danger-soft); border-radius: 8px; padding: 14px 16px; display: grid; grid-template-columns: 20px 1fr; gap: 4px 12px; }
+  .err-box svg { width: 20px; height: 20px; color: var(--danger); margin-top: 2px; }
+  .err-box h1 { margin: 0; font-size: 16px; }
+  .err-box p { margin: 0 0 6px; }
+  .err-box .err-meta { color: var(--muted); font-size: 13px; }
+  .err-box details { font-size: 12.5px; margin-top: 4px; }
+  .err-box details pre { margin: 6px 0 0; padding: 8px 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; overflow-x: auto; }
+  .err-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .src-wrap { margin-top: 20px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); overflow: hidden; }
+  .src-head { padding: 6px 12px; font: 12px var(--mono); color: var(--muted); background: var(--surface-2); border-bottom: 1px solid var(--border); }
+  .src { list-style: none; margin: 0; padding: 8px 0; font: 13px/1.7 var(--mono); counter-reset: ln; overflow-x: auto; }
+  .src li { counter-increment: ln; display: flex; white-space: pre; padding-right: 16px; }
+  .src li::before { content: counter(ln); width: 48px; flex: none; text-align: right; padding-right: 16px; color: var(--muted); user-select: none; }
+  .src li.bad { background: var(--danger-soft); box-shadow: inset 3px 0 var(--danger); }
+  .src li.bad::before { color: var(--danger); font-weight: 700; }
+  .src li.bad:focus { outline: 2px solid var(--focus); outline-offset: -2px; }
+  .src li.caret { color: var(--danger); background: var(--danger-soft); }
+  .src li.caret { counter-increment: none; }
+  .src li.caret::before { content: ""; }
+
+  /* Empty / paste */
+  .paste { max-width: 760px; padding: 40px 40px 64px; }
+  .paste h1 { font-size: 24px; margin: 0 0 6px; letter-spacing: -0.01em; }
+  .paste .lead { color: var(--muted); margin: 0 0 20px; font-size: 15px; }
+  kbd { font-size: 12px; border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 4px; padding: 1px 6px; background: var(--surface); color: var(--text); }
+  .paste label { display: block; font-weight: 600; font-size: 13px; margin-bottom: 6px; }
+  .paste textarea { width: 100%; min-height: 220px; resize: vertical; border: 1px solid var(--border); border-radius: 8px; padding: 12px; font: 13px/1.55 var(--mono); background: var(--surface); }
+  .paste-actions { display: flex; align-items: center; gap: 12px; margin-top: 10px; flex-wrap: wrap; }
+  .paste-msg { font-size: 13px; color: var(--danger); }
+  .paste-note { font-size: 12.5px; color: var(--muted); }
+  .ways { margin-top: 32px; border-top: 1px solid var(--border); padding-top: 16px; }
+  .ways h2 { font-size: 13px; margin: 0 0 8px; }
+  .ways dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0; font-size: 13px; }
+  .ways dt code { background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; font-size: 12.5px; }
+  .ways dd { margin: 0; color: var(--muted); }
+
+  /* Status bar */
+  .status { display: flex; align-items: center; gap: 0; min-height: 30px; background: var(--surface-2); border-top: 1px solid var(--border); font-size: 12px; color: var(--muted); flex-wrap: wrap; }
+  .status > * { display: flex; align-items: center; gap: 6px; padding: 4px 12px; border-right: 1px solid var(--border); white-space: nowrap; }
+  .status .grow { flex: 1; border-right: 0; justify-content: flex-end; }
+  .status code { color: var(--text); font-size: 12px; }
+  .status strong { color: var(--text); font-weight: 600; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); flex: none; }
+  .dot.off { background: transparent; border: 2px solid var(--warn); }
+  .dot.idle { background: transparent; border: 2px solid var(--line); }
+
+  /* Artboard-only state switcher (not product UI) */
+  .artboard-ctl { position: fixed; right: 16px; bottom: 44px; z-index: 50; font-size: 12px; border: 1px dashed var(--muted); border-radius: 10px; padding: 6px 8px;
+    background: var(--bg); display: grid; gap: 4px; }
+  .artboard-ctl div { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .artboard-ctl button { border: 1px solid var(--border); background: var(--surface); border-radius: 6px; padding: 3px 8px; cursor: pointer; font-size: 12px; }
+  .artboard-ctl button[aria-pressed="true"] { border-color: var(--text); font-weight: 600; }
+
+  @media (max-width: 1100px) {
+    .json { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) auto; }
+    .json-main { border-right: 0; border-bottom: 1px solid var(--border); }
+    .inspector { max-height: 42vh; }
+  }
+  @media (max-width: 899px) {
+    .outline-btn { display: inline-flex; }
+    .brand span, .file-path, .type label { display: none; }
+    .brand { border-right: 0; padding-right: 0; }
+    .workspace { grid-template-columns: 1fr; }
+    .sidebar { position: fixed; top: 0; bottom: 0; left: 0; width: min(300px, 86vw); z-index: 40; transform: translateX(-100%); visibility: hidden;
+      transition: transform .18s ease, visibility .18s; box-shadow: 0 0 40px rgb(0 0 0 / .25); }
+    body.drawer-open .sidebar { transform: none; visibility: visible; }
+    body.drawer-open .backdrop { display: block; position: fixed; inset: 0; z-index: 39; background: rgb(0 0 0 / .35); }
+    .md, .err, .paste { padding: 20px 16px 48px; }
+    .status .opt { display: none; }
+    .artboard-ctl { bottom: 70px; }
+  }
+  @media (max-width: 560px) {
+    .chip .chip-text { display: none; }
+    .cv-hint { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+<header class="toolbar">
+  <button class="btn outline-btn" type="button" id="outlineBtn" aria-controls="sidebar" aria-expanded="false">
+    <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4h12M2 8h12M2 12h8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>Outline
+  </button>
+  <div class="brand">
+    <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="1" y="3" width="18" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M5 13V7l2.5 3L10 7v6M13 7l2 6 2-6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+    <span>mview</span>
+  </div>
+  <div class="file">
+    <span class="file-name" id="docName">README.md</span>
+    <span class="chip" id="sourceChip" title="Where this content came from">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 1.5h5l3.5 3.5v9.5h-8.5z M9 1.5V5h3.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
+      <span class="sr">Source:</span><span class="chip-text" id="sourceText">file</span>
+    </span>
+    <span class="file-path" id="docPath">~/dev/orders-service/README.md</span>
+  </div>
+  <div class="spacer"></div>
+  <div class="type">
+    <label for="typeSel">Render as</label>
+    <select id="typeSel">
+      <option value="auto" id="autoOpt">Auto · Markdown</option>
+      <option value="markdown">Markdown</option>
+      <option value="mermaid">Mermaid</option>
+      <option value="json">JSON</option>
+    </select>
+    <span class="manual-tag" id="manualTag" title="Manual type is kept across live reloads until you change it" hidden>Manual</span>
+  </div>
+</header>
+
+<div class="workspace">
+  <nav class="sidebar" id="sidebar" aria-label="Outline">
+    <div class="side-head">
+      <h2>Outline</h2>
+      <div class="side-sub" id="outlineSub">Headings</div>
+    </div>
+    <ul class="outline" id="outline"></ul>
+    <p class="side-empty" id="outlineEmpty" hidden></p>
+    <div class="side-foot" id="sideFoot">Click an item to jump to it.</div>
+  </nav>
+  <div class="backdrop" id="backdrop"></div>
+
+  <main id="main" tabindex="-1">
+    <!-- Markdown -->
+    <section class="view" data-view="markdown" aria-label="Markdown document">
+      <article class="md">
+        <h1 id="h-orders" tabindex="-1">orders-service</h1>
+        <p class="lede">Handles checkout, order state and payment capture for the storefront.</p>
+        <h2 id="h-checkout" tabindex="-1">Checkout flow</h2>
+        <p>The storefront never talks to the payment provider directly. Every order goes through the gateway, which forwards it to <code>orders-service</code>.</p>
+        <figure class="fig" id="fig-checkout" tabindex="-1" aria-label="Diagram: checkout sequence">
+          <div class="fig-bar" role="toolbar" aria-label="Diagram tools">
+            <span class="fig-title">mermaid · sequenceDiagram</span>
+            <button class="btn ghost" type="button" id="fzOut" aria-label="Zoom out">−</button>
+            <output id="fzVal" aria-live="polite">100%</output>
+            <button class="btn ghost" type="button" id="fzIn" aria-label="Zoom in">+</button>
+            <button class="btn ghost" type="button" id="openCanvas">Open in canvas</button>
+            <button class="btn ghost" type="button" id="figExport">Export SVG</button>
+          </div>
+          <div class="fig-scroll" id="figScroll">
+            <svg id="figSvg" viewBox="0 0 760 320" role="img" aria-label="Sequence: Storefront sends POST /checkout to Gateway, Gateway calls createOrder on orders-service, orders-service captures payment, Storefront receives 201 Created">
+              <g class="d">
+                <path class="d-life" d="M90 50V310M285 50V310M480 50V310M675 50V310"/>
+                <g class="p-box"><rect x="20" y="10" width="140" height="40" rx="8"/><text x="90" y="35">Storefront</text></g>
+                <g class="p-box"><rect x="215" y="10" width="140" height="40" rx="8"/><text x="285" y="35">Gateway</text></g>
+                <g class="p-box"><rect x="410" y="10" width="140" height="40" rx="8"/><text x="480" y="35">orders-service</text></g>
+                <g class="p-box"><rect x="605" y="10" width="140" height="40" rx="8"/><text x="675" y="35">Payments</text></g>
+                <path class="d-msg" d="M90 90H277M285 130H472M480 170H667"/>
+                <path class="d-msg d-reply" d="M675 210H488M480 250H98"/>
+                <path class="d-head" d="M277 85l8 5-8 5zM472 125l8 5-8 5zM667 165l8 5-8 5zM488 205l-8 5 8 5zM98 245l-8 5 8 5z"/>
+                <text class="d-label" x="188" y="82">POST /checkout</text>
+                <text class="d-label" x="382" y="122">createOrder()</text>
+                <text class="d-label" x="577" y="162">capture(amount)</text>
+                <text class="d-label" x="577" y="202">captured</text>
+                <text class="d-label" x="285" y="242">201 Created · order_8F2K</text>
+              </g>
+            </svg>
+          </div>
+        </figure>
+        <h2 id="h-endpoints" tabindex="-1">Endpoints</h2>
+        <table>
+          <thead><tr><th scope="col">Method</th><th scope="col">Path</th><th scope="col">Purpose</th></tr></thead>
+          <tbody>
+            <tr><td><code>POST</code></td><td><code>/orders</code></td><td>Create an order from a cart</td></tr>
+            <tr><td><code>GET</code></td><td><code>/orders/:id</code></td><td>Read order state</td></tr>
+            <tr><td><code>POST</code></td><td><code>/orders/:id/cancel</code></td><td>Cancel before capture</td></tr>
+          </tbody>
+        </table>
+        <h2 id="h-try" tabindex="-1">Try it locally</h2>
+<pre><code><span class="tok-c"># create an order</span>
+curl -X POST localhost:8080/orders \
+  -H <span class="tok-s">"content-type: application/json"</span> \
+  -d <span class="tok-s">'{"cartId": "cart_19ab", "currency": "EUR"}'</span></code></pre>
+      </article>
+    </section>
+
+    <!-- Mermaid -->
+    <section class="view view-fill" data-view="mermaid" aria-label="Mermaid diagram" hidden>
+      <div class="canvas" id="canvas" tabindex="0" aria-label="Diagram canvas. Drag or use arrow keys to pan, scroll or plus and minus to zoom, 0 to fit." aria-describedby="cvHint">
+        <div class="viewport" id="viewport">
+          <svg id="cvSvg" viewBox="0 0 760 320" role="img" aria-label="Sequence: Storefront sends POST /checkout to Gateway, Gateway calls createOrder on orders-service, orders-service captures payment, Storefront receives 201 Created">
+            <g class="d">
+              <path class="d-life" d="M90 50V310M285 50V310M480 50V310M675 50V310"/>
+              <g class="p-box" id="p-0"><rect x="20" y="10" width="140" height="40" rx="8"/><text x="90" y="35">Storefront</text></g>
+              <g class="p-box" id="p-1"><rect x="215" y="10" width="140" height="40" rx="8"/><text x="285" y="35">Gateway</text></g>
+              <g class="p-box" id="p-2"><rect x="410" y="10" width="140" height="40" rx="8"/><text x="480" y="35">orders-service</text></g>
+              <g class="p-box" id="p-3"><rect x="605" y="10" width="140" height="40" rx="8"/><text x="675" y="35">Payments</text></g>
+              <path class="d-msg" d="M90 90H277M285 130H472M480 170H667"/>
+              <path class="d-msg d-reply" d="M675 210H488M480 250H98"/>
+              <path class="d-head" d="M277 85l8 5-8 5zM472 125l8 5-8 5zM667 165l8 5-8 5zM488 205l-8 5 8 5zM98 245l-8 5 8 5z"/>
+              <text class="d-label" x="188" y="82">POST /checkout</text>
+              <text class="d-label" x="382" y="122">createOrder()</text>
+              <text class="d-label" x="577" y="162">capture(amount)</text>
+              <text class="d-label" x="577" y="202">captured</text>
+              <text class="d-label" x="285" y="242">201 Created · order_8F2K</text>
+            </g>
+          </svg>
+        </div>
+        <div class="cv-tools" role="toolbar" aria-label="Diagram controls">
+          <button class="btn ghost" type="button" id="zOut" aria-label="Zoom out">−</button>
+          <output id="zVal" aria-live="polite">100%</output>
+          <button class="btn ghost" type="button" id="zIn" aria-label="Zoom in">+</button>
+          <button class="btn ghost" type="button" id="zFit">Fit</button>
+          <button class="btn ghost" type="button" id="z100">100%</button>
+          <span class="sep" aria-hidden="true"></span>
+          <button class="btn" type="button" id="cvExport">Export SVG</button>
+        </div>
+        <div class="cv-hint" id="cvHint">Drag to pan · Scroll to zoom · <kbd>0</kbd> fits</div>
+      </div>
+    </section>
+
+    <!-- JSON -->
+    <section class="view view-fill" data-view="json" aria-label="JSON document" hidden>
+      <div class="json">
+        <div class="json-main">
+          <div class="json-tools">
+            <label class="search">
+              <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+              <span class="sr">Search keys and values</span>
+              <input id="q" type="search" placeholder="Search keys and values" autocomplete="off" />
+            </label>
+            <div class="q-status" id="qStatus" hidden>
+              <span id="qCount" role="status"></span>
+              <button class="btn" type="button" id="qClear">Clear search</button>
+            </div>
+            <div class="spacer"></div>
+            <span id="treeTools" style="display:contents">
+              <button class="btn" type="button" id="expandAll">Expand all</button>
+              <button class="btn" type="button" id="collapseAll">Collapse all</button>
+            </span>
+            <div class="seg" role="group" aria-label="JSON view">
+              <button type="button" id="asTree" aria-pressed="true">Tree</button>
+              <button type="button" id="asRaw" aria-pressed="false">Raw</button>
+            </div>
+          </div>
+          <div class="tree" id="tree" role="group" aria-label="JSON tree. Arrow keys move, Right and Left expand and collapse, C copies the path."></div>
+          <pre class="raw" id="raw" tabindex="0" aria-label="Raw JSON" hidden></pre>
+        </div>
+        <aside class="inspector" aria-labelledby="insTitle">
+          <h2 id="insTitle">Inspector</h2>
+          <div>
+            <div class="field-label" id="pathLabel">Path</div>
+            <div class="path-box" id="insPath" aria-labelledby="pathLabel"></div>
+            <div class="ins-actions">
+              <button class="btn primary" type="button" id="copyPath" aria-describedby="copyNote">Copy path</button>
+              <button class="btn" type="button" id="copyValue">Copy value</button>
+            </div>
+            <p class="ins-note" id="copyNote">Tip: press <kbd>C</kbd> on a focused row to copy its path.</p>
+          </div>
+          <dl class="kv">
+            <dt>Key</dt><dd id="insKey"></dd>
+            <dt>Type</dt><dd id="insType"></dd>
+          </dl>
+          <div>
+            <div class="field-label">Value</div>
+            <pre class="value-box" id="insValue" tabindex="0" aria-label="Selected value"></pre>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- Mermaid parse error -->
+    <section class="view" data-view="error" aria-label="Mermaid error" hidden>
+      <div class="err">
+        <div class="err-box" role="alert">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2l8.5 15h-17z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M10 8v4M10 14.5v.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          <div>
+            <h1>Can’t render checkout.mmd — parse error on line 7</h1>
+            <p><code>G-O</code> is not a valid arrow. Use <code>-&gt;&gt;</code> for a request or <code>--&gt;&gt;</code> for a reply, for example <code>G-&gt;&gt;O: createOrder()</code>.</p>
+            <p class="err-meta">The file is still being watched. Save a fix and the diagram renders again automatically.</p>
+            <details>
+              <summary>Parser output</summary>
+<pre>Parse error on line 7:
+...ers-service  G-O: createOrder()
+-------------------^
+Expecting 'SOLID_OPEN_ARROW', 'DOTTED_OPEN_ARROW', 'SOLID_ARROW',
+'DOTTED_ARROW', got 'TXT'</pre>
+            </details>
+            <div class="err-actions">
+              <button class="btn" type="button" id="jumpLine">Go to line 7</button>
+              <button class="btn" type="button" id="copyErr">Copy error</button>
+            </div>
+          </div>
+        </div>
+        <div class="src-wrap">
+          <div class="src-head">checkout.mmd · source</div>
+          <ol class="src" aria-label="Diagram source">
+            <li>sequenceDiagram</li>
+            <li>  participant S as Storefront</li>
+            <li>  participant G as Gateway</li>
+            <li>  participant O as orders-service</li>
+            <li>  participant P as Payments</li>
+            <li>  S-&gt;&gt;G: POST /checkout</li>
+            <li class="bad" id="badLine" tabindex="-1"><span class="sr">Error on this line: </span>  G-O: createOrder()</li>
+            <li class="caret" aria-hidden="true">   ^ expected -&gt;&gt; or --&gt;&gt;</li>
+            <li>  O-&gt;&gt;P: capture(amount)</li>
+            <li>  P--&gt;&gt;O: captured</li>
+            <li>  O--&gt;&gt;S: 201 Created · order_8F2K</li>
+          </ol>
+        </div>
+      </div>
+    </section>
+
+    <!-- Empty / paste -->
+    <section class="view" data-view="empty" aria-label="Paste content" hidden>
+      <div class="paste">
+        <h1>Paste to view</h1>
+        <p class="lead">Press <kbd>⌘</kbd> <kbd>V</kbd> on macOS or <kbd>Ctrl</kbd> <kbd>V</kbd> elsewhere, anywhere in this window. mview detects Markdown, Mermaid or JSON.</p>
+        <label for="pasteBox">Or paste or type here</label>
+        <textarea id="pasteBox" spellcheck="false" aria-describedby="pasteNote pasteMsg" placeholder="sequenceDiagram&#10;  Storefront->>Gateway: POST /checkout"></textarea>
+        <div class="paste-actions">
+          <button class="btn primary" type="button" id="renderPaste">Render</button>
+          <span class="paste-msg" id="pasteMsg" role="status"></span>
+          <span class="paste-note" id="pasteNote">Pasted content stays in this tab only. Reloading the page clears it.</span>
+        </div>
+        <div class="ways">
+          <h2>Other ways in</h2>
+          <dl>
+            <dt><code>mview notes.md</code></dt><dd>Open a file and reload when it changes on disk</dd>
+            <dt><code>mview --paste</code></dt><dd>Render what is on the clipboard</dd>
+            <dt><code>cat out.json | mview</code></dt><dd>Render piped input</dd>
+          </dl>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<footer class="status" aria-label="Status">
+  <div id="stLive"><span class="dot" id="stDot" aria-hidden="true"></span><span id="stLiveText">Live · watching README.md</span></div>
+  <div id="stType">Markdown · auto-detected</div>
+  <div class="opt" id="stZoom" hidden>Zoom <strong id="stZoomVal">100%</strong></div>
+  <div id="stCopied">Last copied: <code id="stCopiedVal">items[0].sku</code></div>
+  <div class="grow" id="stMsg" role="status" aria-live="polite"></div>
+</footer>
+
+<div class="artboard-ctl" aria-label="Artboard state (not part of the product)">
+  <div>Artboard state:
+    <button type="button" data-demo="file" aria-pressed="true">File</button>
+    <button type="button" data-demo="empty" aria-pressed="false">Empty page</button>
+    <button type="button" data-demo="error" aria-pressed="false">Mermaid error</button>
+  </div>
+  <div>Connection:
+    <button type="button" data-conn="live" aria-pressed="true">Live</button>
+    <button type="button" data-conn="off" aria-pressed="false">Disconnected</button>
+    <button type="button" data-conn="stdin" aria-pressed="false">From stdin</button>
+    <button type="button" id="simSave">Simulate save</button>
+  </div>
+</div>
+
+<template id="chevronTpl"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></template>
+
+<script>
+/* ---------- helpers (DOM construction only: createElement / textContent / append) ---------- */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+function h(tag, attrs, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v === null || v === undefined || v === false) continue;
+    if (k === "class") e.className = v;
+    else if (k.startsWith("on")) e.addEventListener(k.slice(2), v);
+    else e.setAttribute(k, v === true ? "" : String(v));
+  }
+  e.append(...kids.flat().filter(k => k !== null && k !== undefined && k !== false));
+  return e;
+}
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+let msgTimer;
+function announce(text) { const m = $("#stMsg"); m.textContent = text; clearTimeout(msgTimer); msgTimer = setTimeout(() => { m.textContent = ""; }, 3000); }
+function copyText(text) { navigator.clipboard?.writeText(text).catch(() => {}); }
+
+/* ---------- demo content ---------- */
+const ORDER = {
+  id: "order_8F2K", status: "captured", createdAt: "2026-11-10T14:32:08Z",
+  customer: { id: "cus_311", email: "lucia.romero@example.com", "x-segment": "returning" },
+  items: [
+    { sku: "TSHIRT-BLK-M", name: "Logo T-shirt", qty: 2, unitPrice: 24.9 },
+    { sku: "MUG-WHT", name: "Ceramic mug", qty: 1, unitPrice: 12.5 }
+  ],
+  totals: { subtotal: 62.3, shipping: 4.99, tax: 13.08, total: 80.37, currency: "EUR" },
+  "shipping.address": { line1: "Av. Corrientes 1234", city: "Buenos Aires", country: "AR" },
+  giftWrap: false, coupon: null
+};
+const LABEL = { markdown: "Markdown", mermaid: "Mermaid", json: "JSON" };
+const FILES = {
+  markdown: { name: "README.md", path: "~/dev/orders-service/README.md" },
+  mermaid: { name: "checkout.mmd", path: "~/dev/orders-service/docs/checkout.mmd" },
+  json: { name: "order.json", path: "~/dev/orders-service/fixtures/order.json" }
+};
+const PARTICIPANTS = [
+  { name: "Storefront", alias: "S", x: 90 }, { name: "Gateway", alias: "G", x: 285 },
+  { name: "orders-service", alias: "O", x: 480 }, { name: "Payments", alias: "P", x: 675 }
+];
+const HEADINGS = [
+  { label: "orders-service", lv: 0, target: "h-orders" },
+  { label: "Checkout flow", lv: 1, target: "h-checkout" },
+  { label: "sequenceDiagram", lv: 2, target: "fig-checkout", diagram: true },
+  { label: "Endpoints", lv: 1, target: "h-endpoints" },
+  { label: "Try it locally", lv: 1, target: "h-try" }
+];
+
+/* ---------- app state ---------- */
+const state = { demo: "file", type: "markdown", detected: "markdown", manual: false, source: "file", conn: "live", name: "README.md", path: FILES.markdown.path, lastCopied: "items[0].sku", zoom: 1 };
+const currentView = () => state.demo === "empty" ? "empty" : state.demo === "error" ? "error" : state.type;
+
+function render() {
+  const view = currentView();
+  $$(".view").forEach(v => { v.hidden = v.dataset.view !== view; });
+  $("#docName").textContent = state.name;
+  $("#docPath").textContent = state.path || "";
+  $("#docPath").hidden = !state.path;
+  $("#sourceText").textContent = state.source === "empty" ? "no input" : state.source;
+
+  const sel = $("#typeSel");
+  $("#autoOpt").textContent = state.demo === "empty" ? "Auto · waiting" : "Auto · " + LABEL[state.detected];
+  sel.value = state.manual ? state.type : "auto";
+  sel.disabled = state.demo === "empty";
+  $("#manualTag").hidden = !state.manual;
+
+  // status bar
+  const dot = $("#stDot"); dot.className = "dot";
+  let live;
+  if (state.source === "file" && state.conn === "off") { dot.classList.add("off"); live = "Disconnected — retrying in 3s"; }
+  else if (state.source === "file") live = "Live · watching " + state.name;
+  else if (state.source === "stdin") { dot.classList.add("idle"); live = "Not watching · read from stdin"; }
+  else if (state.source === "paste") { dot.classList.add("idle"); live = "Not watching · pasted in this tab"; }
+  else { dot.classList.add("idle"); live = "Waiting for input"; }
+  $("#stLiveText").textContent = live;
+  $("#stType").textContent = view === "empty" ? "Type: waiting for paste"
+    : view === "error" ? "Mermaid · parse error (line 7)"
+    : LABEL[state.type] + (state.manual ? " · manual" : " · auto-detected");
+  $("#stZoom").hidden = view !== "mermaid";
+  $("#stCopiedVal").textContent = state.lastCopied || "—";
+
+  $$("[data-demo]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.demo === state.demo)));
+  $$("[data-conn]").forEach(b => b.setAttribute("aria-pressed", String(
+    (b.dataset.conn === "stdin" && state.source === "stdin") || (state.source === "file" && b.dataset.conn === state.conn))));
+
+  buildOutline();
+  if (view === "mermaid") requestAnimationFrame(fit);
+}
+
+/* ---------- outline ---------- */
+let activeOutline = null;
+function buildOutline() {
+  const view = currentView(), list = $("#outline"), empty = $("#outlineEmpty");
+  const items = [];
+  let sub = "", foot = "Click an item to jump to it.";
+  if (view === "markdown") {
+    sub = "Headings · " + HEADINGS.filter(x => !x.diagram).length;
+    for (const it of HEADINGS) items.push({ id: it.target, lv: it.lv, label: it.label, icon: it.diagram ? "◇" : "#", mono: it.diagram, go: () => jumpTo(it.target) });
+  } else if (view === "json") {
+    const entries = isObj(DATA) ? entriesOf(DATA) : [];
+    sub = "Top-level " + (Array.isArray(DATA) ? "items" : "keys") + " · " + entries.length;
+    for (const [k, v] of entries) {
+      const p = childPath("", k);
+      items.push({ id: p, lv: 0, label: String(k), mono: true, meta: shortMeta(v), icon: Array.isArray(v) ? "[ ]" : isObj(v) ? "{ }" : "·", go: () => selectPath(p, true) });
+    }
+    foot = "Selects the key in the tree and shows it in the Inspector.";
+  } else if (view === "mermaid") {
+    sub = "Participants · " + PARTICIPANTS.length;
+    PARTICIPANTS.forEach((pt, i) => items.push({ id: "p-" + i, lv: 0, label: pt.name, mono: true, meta: pt.alias, icon: "▭", go: () => focusParticipant(i) }));
+    foot = "Highlights the participant and centers it on the canvas.";
+  } else if (view === "error") {
+    sub = "Diagram did not parse";
+    items.push({ id: "badLine", lv: 0, label: "Line 7 · invalid arrow", icon: "!", go: () => jumpTo("badLine") });
+    foot = "Fix the file and save; the outline returns when the diagram parses.";
+  }
+  $("#outlineSub").textContent = sub;
+  $("#sideFoot").textContent = foot;
+  list.replaceChildren(...items.map(it => h("li", null,
+    h("button", { type: "button", style: "--lv:" + it.lv, "data-id": it.id, "aria-current": it.id === activeOutline ? "true" : null,
+      onclick: () => { activeOutline = it.id; markOutline(); it.go(); closeDrawerAfterPick(); } },
+      h("span", { class: "o-ico", "aria-hidden": "true" }, it.icon || ""),
+      h("span", { class: "o-label" + (it.mono ? " o-mono" : "") }, it.label),
+      it.meta ? h("span", { class: "o-meta" }, it.meta) : null))));
+  empty.hidden = items.length > 0;
+  empty.textContent = view === "empty" ? "Nothing to outline yet. Paste content to see its headings, keys or participants." : "";
+}
+function markOutline() { $$("#outline button").forEach(b => b.setAttribute("aria-current", String(b.dataset.id === activeOutline))); }
+function jumpTo(id) {
+  const el = document.getElementById(id); if (!el) return;
+  el.scrollIntoView({ block: "start", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  el.focus({ preventScroll: true });
+}
+// scroll spy for Markdown headings
+$("#main").addEventListener("scroll", () => {
+  if (currentView() !== "markdown") return;
+  const top = $("#main").getBoundingClientRect().top + 24;
+  let cur = HEADINGS[0].target;
+  for (const it of HEADINGS) { const el = document.getElementById(it.target); if (el.getBoundingClientRect().top <= top) cur = it.target; }
+  if (cur !== activeOutline) { activeOutline = cur; markOutline(); }
+}, { passive: true });
+
+/* ---------- narrow screens: outline drawer ---------- */
+const narrow = matchMedia("(max-width: 899px)");
+function setDrawer(open, returnFocus = true) {
+  document.body.classList.toggle("drawer-open", open);
+  $("#outlineBtn").setAttribute("aria-expanded", String(open));
+  if (open) ($("#outline button") || $("#sidebar")).focus();
+  else if (returnFocus) $("#outlineBtn").focus();
+}
+function closeDrawerAfterPick() { if (narrow.matches && document.body.classList.contains("drawer-open")) setDrawer(false, false); }
+$("#outlineBtn").addEventListener("click", () => setDrawer(!document.body.classList.contains("drawer-open")));
+$("#backdrop").addEventListener("click", () => setDrawer(false));
+document.addEventListener("keydown", e => { if (e.key === "Escape" && document.body.classList.contains("drawer-open")) setDrawer(false); });
+narrow.addEventListener("change", () => { if (!narrow.matches) setDrawer(false, false); });
+
+/* ---------- type selector ---------- */
+// Artboard: picking a type loads that type's demo document so every view can be reviewed.
+$("#typeSel").addEventListener("change", e => {
+  const v = e.target.value;
+  if (v === "auto") { state.manual = false; state.type = state.detected; }
+  else { state.manual = true; state.type = v; state.detected = v; Object.assign(state, FILES[v]); }
+  activeOutline = null; render();
+});
+
+/* ---------- JSON tree ---------- */
+let DATA = ORDER;
+const index = new Map();
+let collapsed = new Set(), qFlip = new Set(), qMode = null, selected = 'customer["x-segment"]';
+const ident = /^[A-Za-z_$][\w$]*$/;
+const isObj = v => v !== null && typeof v === "object";
+const entriesOf = v => Array.isArray(v) ? v.map((x, i) => [i, x]) : Object.entries(v);
+const childPath = (p, k) => typeof k === "number" ? `${p}[${k}]` : ident.test(k) ? (p ? `${p}.${k}` : k) : `${p}[${JSON.stringify(k)}]`;
+function indexAll(v, path, key, parent) {
+  index.set(path, { key, value: v, parent });
+  if (isObj(v)) for (const [k, x] of entriesOf(v)) indexAll(x, childPath(path, k), k, path);
+}
+function typeLabel(v) {
+  if (v === null) return "null";
+  if (Array.isArray(v)) return `array · ${v.length} ${v.length === 1 ? "item" : "items"}`;
+  if (isObj(v)) { const n = Object.keys(v).length; return `object · ${n} ${n === 1 ? "key" : "keys"}`; }
+  return typeof v;
+}
+function shortMeta(v) {
+  if (Array.isArray(v)) return `[${v.length}]`;
+  if (isObj(v)) return `{${Object.keys(v).length}}`;
+  return v === null ? "null" : typeof v;
+}
+function hl(text, q) {
+  const s = String(text), f = document.createDocumentFragment();
+  const i = q ? s.toLowerCase().indexOf(q) : -1;
+  if (i < 0) { f.append(s); return f; }
+  f.append(s.slice(0, i), h("mark", null, s.slice(i, i + q.length)), s.slice(i + q.length));
+  return f;
+}
+function valueNode(v, q) {
+  if (v === null) return h("span", { class: "nul" }, "null");
+  if (typeof v === "string") return h("span", { class: "s" }, '"', hl(v, q), '"');
+  if (typeof v === "number") return h("span", { class: "n" }, hl(v, q));
+  return h("span", { class: "b" }, hl(String(v), q));
+}
+const selfMatch = (key, v, q) => !!q && ((key !== null && String(key).toLowerCase().includes(q)) || (!isObj(v) && String(v).toLowerCase().includes(q)));
+const getQ = () => $("#q").value.trim();
+
+function renderTree(focus) {
+  const raw = getQ(), q = raw.toLowerCase();
+  let hits = 0;
+  function node(key, v, path, depth) {
+    const self = selfMatch(key, v, q); if (self) hits++;
+    const label = key === null ? "root" : String(key);
+    const keyPart = key === null ? h("span", { class: "root" }, "root")
+      : typeof key === "number" ? h("span", { class: "idx" }, String(key))
+      : h("span", { class: "k" }, '"', hl(key, q), '"');
+    const wrap = h("div", { class: "node" });
+    const row = h("div", { class: "row" + (path === selected ? " is-selected" : ""), style: "--d:" + depth });
+    let anyHit = self;
+    if (isObj(v)) {
+      const kids = [];
+      let kidsHit = false;
+      for (const [k, x] of entriesOf(v)) { const r = node(k, x, childPath(path, k), depth + 1); kids.push(r.el); kidsHit = kidsHit || r.hit; }
+      anyHit = anyHit || kidsHit;
+      const base = q ? (qMode === "expand" ? true : qMode === "collapse" ? false : kidsHit) !== qFlip.has(path) : !collapsed.has(path);
+      const open = path === "" ? true : base;
+      const n = entriesOf(v).length, arr = Array.isArray(v);
+      row.append(
+        path === "" ? h("span", { class: "twisty-pad" }) :
+        h("button", { class: "twisty", type: "button", tabindex: "-1", "aria-expanded": String(open), "aria-label": (open ? "Collapse " : "Expand ") + label, "data-path": path, onclick: () => toggle(path) },
+          chevron()),
+        h("button", { class: "sel", type: "button", "data-path": path, "data-open": String(open), "aria-current": path === selected ? "true" : null, "aria-expanded": path === "" ? null : String(open) },
+          keyPart, key === null ? " " : h("span", { class: "punc" }, ": "),
+          h("span", { class: "meta" }, `${arr ? "[" : "{"} ${n} ${arr ? (n === 1 ? "item" : "items") : (n === 1 ? "key" : "keys")} ${arr ? "]" : "}"}`)));
+      wrap.append(row);
+      if (open) wrap.append(h("div", { class: "children", role: "group" }, kids));
+    } else {
+      row.append(h("span", { class: "twisty-pad" }),
+        h("button", { class: "sel", type: "button", "data-path": path, "aria-current": path === selected ? "true" : null },
+          keyPart, h("span", { class: "punc" }, ": "), valueNode(v, q)));
+      wrap.append(row);
+    }
+    return { el: wrap, hit: anyHit };
+  }
+  $("#tree").replaceChildren(node(null, DATA, "", 0).el);
+  // roving tabindex: one tab stop in the tree (the selected row, or the first row)
+  const sels = $$("#tree .sel"), stop = findSel(selected) || sels[0];
+  sels.forEach(b => { b.tabIndex = b === stop ? 0 : -1; });
+  $("#qStatus").hidden = !raw;
+  $("#qCount").textContent = raw ? (hits ? `${hits} ${hits === 1 ? "match" : "matches"}` : `No matches for “${raw}”`) : "";
+  if (focus) { const b = findSel(focus); if (b) b.focus(); }
+}
+function chevron() {
+  // static SVG chevron built from a template element; no markup strings
+  return $("#chevronTpl").content.firstElementChild.cloneNode(true);
+}
+const findSel = p => $(`#tree .sel[data-path="${CSS.escape(p)}"]`);
+function toggle(path, keepFocus = true) {
+  if (getQ()) { qFlip.has(path) ? qFlip.delete(path) : qFlip.add(path); }
+  else { collapsed.has(path) ? collapsed.delete(path) : collapsed.add(path); }
+  renderTree(keepFocus ? path : null);
+}
+function selectPath(path, reveal) {
+  selected = path;
+  if (reveal) {
+    if (getQ()) { $("#q").value = ""; qFlip.clear(); qMode = null; }
+    let p = index.get(path)?.parent;
+    while (p !== null && p !== undefined) { collapsed.delete(p); p = index.get(p)?.parent; }
+  }
+  renderTree(path);
+  findSel(path)?.scrollIntoView({ block: "nearest" });
+  activeOutline = index.get(path)?.parent === "" ? path : activeOutline; markOutline();
+  updateInspector();
+}
+function updateInspector() {
+  const n = index.get(selected); if (!n) return;
+  const isRoot = selected === "";
+  $("#insPath").textContent = isRoot ? "(root)" : selected;
+  $("#insKey").textContent = n.key === null ? "—" : typeof n.key === "number" ? "index " + n.key : n.key;
+  $("#insType").textContent = typeLabel(n.value);
+  $("#insValue").textContent = JSON.stringify(n.value, null, 2);
+  $("#copyPath").disabled = isRoot;
+  $("#copyNote").replaceChildren(...(isRoot
+    ? ["The root has no path to copy. Select a key or item."]
+    : ["Tip: press ", h("kbd", null, "C"), " on a focused row to copy its path."]));
+}
+function copyPath(path) {
+  if (!path) { announce("The root has no path to copy"); return; }
+  copyText(path); state.lastCopied = path; $("#stCopiedVal").textContent = path;
+  announce("Copied path " + path);
+  const b = $("#copyPath"); b.textContent = "Copied ✓"; clearTimeout(b._t); b._t = setTimeout(() => { b.textContent = "Copy path"; }, 1400);
+}
+
+$("#tree").addEventListener("click", e => { const b = e.target.closest(".sel"); if (b) selectPath(b.dataset.path, false); });
+$("#tree").addEventListener("dblclick", e => { const b = e.target.closest(".sel"); if (b) copyPath(b.dataset.path); });
+$("#tree").addEventListener("keydown", e => {
+  const cur = e.target.closest(".sel"); if (!cur) return;
+  const all = $$("#tree .sel"), i = all.indexOf(cur), p = cur.dataset.path;
+  let handled = true;
+  if (e.key === "ArrowDown") all[i + 1]?.focus();
+  else if (e.key === "ArrowUp") all[i - 1]?.focus();
+  else if (e.key === "Home") all[0]?.focus();
+  else if (e.key === "End") all[all.length - 1]?.focus();
+  else if (e.key === "ArrowRight") { if (cur.dataset.open === "false") toggle(p); else all[i + 1]?.focus(); }
+  else if (e.key === "ArrowLeft") {
+    if (cur.dataset.open === "true" && p !== "") toggle(p);
+    else { const par = index.get(p)?.parent; if (par !== null && par !== undefined) findSel(par)?.focus(); }
+  }
+  else if (e.key === "c" || e.key === "C") { if (!e.metaKey && !e.ctrlKey) copyPath(p); else handled = false; }
+  else handled = false;
+  if (handled) e.preventDefault();
+});
+// keep roving focus: only the selected row is in the tab order
+$("#tree").addEventListener("focusin", e => { const b = e.target.closest(".sel"); if (b) $$("#tree .sel").forEach(x => x.tabIndex = x === b ? 0 : -1); });
+
+$("#q").addEventListener("input", () => { qFlip.clear(); qMode = null; renderTree(); });
+$("#q").addEventListener("keydown", e => { if (e.key === "Escape" && getQ()) { e.stopPropagation(); clearSearch(); } });
+function clearSearch() { $("#q").value = ""; qFlip.clear(); qMode = null; renderTree(); $("#q").focus(); }
+$("#qClear").addEventListener("click", clearSearch);
+$("#expandAll").addEventListener("click", () => { collapsed.clear(); qFlip.clear(); qMode = "expand"; renderTree(); });
+$("#collapseAll").addEventListener("click", () => {
+  collapsed = new Set([...index].filter(([p, n]) => p !== "" && isObj(n.value)).map(([p]) => p));
+  qFlip.clear(); qMode = "collapse"; renderTree();
+});
+function setJsonMode(raw) {
+  $("#tree").hidden = raw; $("#raw").hidden = !raw; $("#treeTools").hidden = raw;
+  $(".search").hidden = raw; $("#qStatus").hidden = raw || !getQ();
+  $("#asTree").setAttribute("aria-pressed", String(!raw)); $("#asRaw").setAttribute("aria-pressed", String(raw));
+}
+$("#asTree").addEventListener("click", () => setJsonMode(false));
+$("#asRaw").addEventListener("click", () => setJsonMode(true));
+$("#copyPath").addEventListener("click", () => copyPath(selected));
+$("#copyValue").addEventListener("click", () => { const n = index.get(selected); if (n) { copyText(JSON.stringify(n.value, null, 2)); announce("Copied value of " + (selected || "root")); } });
+
+function setData(v) {
+  DATA = v; index.clear(); indexAll(v, "", null, null);
+  collapsed = new Set(); qFlip.clear(); qMode = null; $("#q").value = "";
+  selected = index.has('customer["x-segment"]') ? 'customer["x-segment"]' : "";
+  $("#raw").textContent = JSON.stringify(v, null, 2);
+  renderTree(); updateInspector();
+}
+
+/* ---------- Mermaid canvas: zoom, pan, fit, export ---------- */
+const cv = $("#canvas"), vp = $("#viewport"), DW = 760, DH = 320;
+let tx = 0, ty = 0;
+function applyView() {
+  vp.style.transform = `translate(${tx}px, ${ty}px) scale(${state.zoom})`;
+  cv.style.backgroundPosition = `${tx}px ${ty}px`;
+  cv.style.backgroundSize = `${16 * state.zoom}px ${16 * state.zoom}px`;
+  const pct = Math.round(state.zoom * 100) + "%";
+  $("#zVal").textContent = pct; $("#stZoomVal").textContent = pct;
+}
+function zoomAt(f, cx, cy) {
+  const nz = clamp(state.zoom * f, 0.25, 4), k = nz / state.zoom;
+  tx = cx - (cx - tx) * k; ty = cy - (cy - ty) * k; state.zoom = nz; applyView();
+}
+const center = () => { const r = cv.getBoundingClientRect(); return [r.width / 2, r.height / 2]; };
+function fit() {
+  const r = cv.getBoundingClientRect(); if (!r.width) return;
+  state.zoom = clamp(Math.min((r.width - 96) / DW, (r.height - 120) / DH), 0.25, 4);
+  tx = (r.width - DW * state.zoom) / 2; ty = (r.height - DH * state.zoom) / 2; applyView();
+}
+function actualSize() { const [cx, cy] = center(); zoomAt(1 / state.zoom, cx, cy); }
+function focusParticipant(i) {
+  $$("#cvSvg .p-box").forEach((g, j) => g.classList.toggle("hl", j === i));
+  const r = cv.getBoundingClientRect();
+  tx = r.width / 2 - PARTICIPANTS[i].x * state.zoom; applyView();
+  announce(PARTICIPANTS[i].name + " highlighted");
+}
+$("#zIn").addEventListener("click", () => zoomAt(1.25, ...center()));
+$("#zOut").addEventListener("click", () => zoomAt(1 / 1.25, ...center()));
+$("#zFit").addEventListener("click", fit);
+$("#z100").addEventListener("click", actualSize);
+cv.addEventListener("wheel", e => {
+  if (e.target.closest(".cv-tools, .cv-hint")) return;
+  e.preventDefault(); const r = cv.getBoundingClientRect();
+  zoomAt(e.deltaY < 0 ? 1.1 : 1 / 1.1, e.clientX - r.left, e.clientY - r.top);
+}, { passive: false });
+let drag = null;
+cv.addEventListener("pointerdown", e => {
+  if (e.target.closest(".cv-tools, .cv-hint") || e.button !== 0) return;
+  drag = { x: e.clientX, y: e.clientY }; cv.setPointerCapture(e.pointerId); cv.classList.add("dragging");
+});
+cv.addEventListener("pointermove", e => { if (!drag) return; tx += e.clientX - drag.x; ty += e.clientY - drag.y; drag = { x: e.clientX, y: e.clientY }; applyView(); });
+const endDrag = () => { drag = null; cv.classList.remove("dragging"); };
+cv.addEventListener("pointerup", endDrag); cv.addEventListener("pointercancel", endDrag);
+cv.addEventListener("keydown", e => {
+  if (e.target !== cv) return;
+  const step = 48, map = { ArrowLeft: [step, 0], ArrowRight: [-step, 0], ArrowUp: [0, step], ArrowDown: [0, -step] };
+  if (map[e.key]) { tx += map[e.key][0]; ty += map[e.key][1]; applyView(); }
+  else if (e.key === "+" || e.key === "=") zoomAt(1.25, ...center());
+  else if (e.key === "-") zoomAt(1 / 1.25, ...center());
+  else if (e.key === "0") fit();
+  else return;
+  e.preventDefault();
+});
+function exportSvg(svg, filename) {
+  const blob = new Blob([new XMLSerializer().serializeToString(svg)], { type: "image/svg+xml" });
+  const url = URL.createObjectURL(blob);
+  const a = h("a", { href: url, download: filename }); document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  announce("Exported " + filename);
+}
+$("#cvExport").addEventListener("click", () => exportSvg($("#cvSvg"), "checkout.svg"));
+$("#figExport").addEventListener("click", () => exportSvg($("#figSvg"), "README-checkout-flow.svg"));
+$("#openCanvas").addEventListener("click", () => { state.manual = false; state.type = state.detected = "mermaid"; Object.assign(state, FILES.mermaid); activeOutline = null; render(); cv.focus(); });
+
+// inline figure zoom (scroll container pans)
+let fz = 1;
+function setFz(v) { fz = clamp(v, 0.5, 3); $("#figSvg").style.width = fz * 100 + "%"; $("#fzVal").textContent = Math.round(fz * 100) + "%"; }
+$("#fzIn").addEventListener("click", () => setFz(fz * 1.25));
+$("#fzOut").addEventListener("click", () => setFz(fz / 1.25));
+new ResizeObserver(() => { if (currentView() === "mermaid") fit(); }).observe($("#main"));
+
+/* ---------- Mermaid error ---------- */
+$("#jumpLine").addEventListener("click", () => jumpTo("badLine"));
+$("#copyErr").addEventListener("click", () => { copyText("checkout.mmd line 7: G-O is not a valid arrow. Use ->> or -->>."); announce("Copied error message"); });
+
+/* ---------- paste ---------- */
+const MERMAID_START = /^(graph|flowchart|sequenceDiagram|classDiagram|stateDiagram(-v2)?|erDiagram|gantt|pie|journey|gitGraph|mindmap|timeline|quadrantChart|sankey-beta|xychart-beta|block-beta)\b/;
+function detect(text) {
+  const s = text.trim();
+  try { const v = JSON.parse(s); if (isObj(v)) return { type: "json", value: v }; } catch (_) { /* not JSON */ }
+  const lines = s.split("\n").map(l => l.trim());
+  let i = 0;
+  if (lines[0] === "---") { i = lines.indexOf("---", 1) + 1 || lines.length; }
+  const first = lines.slice(i).find(l => l && !l.startsWith("%%"));
+  return { type: first && MERMAID_START.test(first) ? "mermaid" : "markdown" };
+}
+function applyPaste(text) {
+  if (!text || !text.trim()) { $("#pasteMsg").textContent = "Nothing to render: the pasted text is empty."; return; }
+  $("#pasteMsg").textContent = "";
+  const d = detect(text);
+  // Artboard: JSON renders the pasted data; Markdown and Mermaid show the demo view of that type.
+  if (d.type === "json") setData(d.value);
+  Object.assign(state, { demo: "file", source: "paste", type: d.type, detected: d.type, manual: false, name: "Pasted content", path: "" });
+  activeOutline = null; render(); $("#main").focus();
+  announce("Rendered pasted content as " + LABEL[d.type]);
+}
+window.addEventListener("paste", e => {
+  if (state.demo !== "empty" || e.target === $("#pasteBox")) return;
+  e.preventDefault(); applyPaste(e.clipboardData?.getData("text/plain") || "");
+});
+$("#renderPaste").addEventListener("click", () => applyPaste($("#pasteBox").value));
+
+/* ---------- artboard-only controls ---------- */
+function loadFileDemo() {
+  setData(ORDER);
+  Object.assign(state, { demo: "file", source: "file", type: "markdown", detected: "markdown", manual: false }, FILES.markdown);
+}
+$$("[data-demo]").forEach(b => b.addEventListener("click", () => {
+  const d = b.dataset.demo;
+  if (d === "file") loadFileDemo();
+  else if (d === "empty") Object.assign(state, { demo: "empty", source: "empty", name: "Untitled", path: "", manual: false });
+  else Object.assign(state, { demo: "error", source: "file", type: "mermaid", detected: "mermaid", manual: false }, FILES.mermaid);
+  activeOutline = null; render();
+}));
+$$("[data-conn]").forEach(b => b.addEventListener("click", () => {
+  const c = b.dataset.conn;
+  if (state.demo === "empty") loadFileDemo();
+  if (c === "stdin") Object.assign(state, { source: "stdin", name: "stdin", path: "" });
+  else { if (state.source !== "file") Object.assign(state, { source: "file" }, FILES[state.type]); state.conn = c; }
+  render();
+}));
+$("#simSave").addEventListener("click", () => {
+  if (state.source !== "file" || state.conn !== "live") { announce("Live reload needs a watched file and a live connection"); return; }
+  const t = new Date().toTimeString().slice(0, 8);
+  announce(`Reloaded ${state.name} · ${t}` + (state.manual ? ` · still rendering as ${LABEL[state.type]}` : ""));
+});
+
+/* ---------- init ---------- */
+setData(ORDER);
+render();
+</script>
+</body>
+</html>

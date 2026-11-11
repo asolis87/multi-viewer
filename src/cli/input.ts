@@ -1,15 +1,10 @@
 import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
-import { detectType, type DocType } from "../shared/detect.js";
+import { detectType } from "../shared/detect.js";
+import { emptyDoc, type Doc, type DocSource } from "../shared/doc.js";
 
-export type DocSource = "file" | "paste" | "stdin" | "empty";
-
-export interface Doc {
-  name: string | null;
-  type: DocType;
-  content: string;
-  source: DocSource;
-}
+export { emptyDoc };
+export type { Doc, DocSource };
 
 /** A file is re-read on every request so live reload always shows the latest content. */
 export async function readFileDoc(path: string): Promise<Doc> {
@@ -19,10 +14,6 @@ export async function readFileDoc(path: string): Promise<Doc> {
 
 export function fromContent(content: string, source: DocSource, name: string | null = null): Doc {
   return { name, type: detectType(content, name), content, source };
-}
-
-export function emptyDoc(): Doc {
-  return { name: null, type: "markdown", content: "", source: "empty" };
 }
 
 export async function readStream(stream: NodeJS.ReadableStream): Promise<string> {

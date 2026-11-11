@@ -1,0 +1,722 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="dark light" />
+<title>mview — Focus canvas</title>
+<style>
+  /* Dark-first tokens; light follows the system preference. */
+  :root {
+    --bg: #0e0f11; --bg-2: #16181b; --ink: #ecebe6; --muted: #a6a49c; --line: #2b2e33;
+    --pill: #1c1e22; --pill-line: #3a3d43; --pill-hover: #272a2f; --pill-on: #ecebe6; --pill-on-ink: #111214;
+    --accent: #9db7ff; --ok: #6fd39b; --warn: #ff8f7a; --focus: #ffcc4d; --sel: rgb(157 183 255 / .16); --sel-bar: #9db7ff;
+    --hit: #6b5a12; --hit-ink: #fff3c4; --key: #d7a6f5; --str: #8fdcae; --num: #f2a774; --bool: #9db7ff; --dot: #2c2f35;
+    --scrim: rgb(5 6 8 / .62); --shadow: 0 18px 50px rgb(0 0 0 / .55), 0 2px 6px rgb(0 0 0 / .4);
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f7f6f2; --bg-2: #efede7; --ink: #17181a; --muted: #57554f; --line: #dcd8ce;
+      --pill: #ffffff; --pill-line: #cfcbc0; --pill-hover: #f0eee8; --pill-on: #17181a; --pill-on-ink: #ffffff;
+      --accent: #2747b8; --ok: #1d7346; --warn: #b42318; --focus: #b45309; --sel: rgb(39 71 184 / .11); --sel-bar: #2747b8;
+      --hit: #ffe58a; --hit-ink: #17181a; --key: #7a2fa8; --str: #1d7346; --num: #a64b17; --bool: #2747b8; --dot: #d2cec3;
+      --scrim: rgb(23 24 26 / .32); --shadow: 0 18px 50px rgb(30 28 20 / .16), 0 2px 6px rgb(30 28 20 / .1);
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--bg); color: var(--ink); font: 17px/1.6 var(--font); overflow-x: hidden; }
+  button, input, textarea { font: inherit; color: inherit; }
+  /* Focus: amber ring, never the selection tint. */
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 6px; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  [hidden] { display: none !important; }
+  kbd { font: 600 0.8em var(--mono); border: 1px solid var(--pill-line); border-bottom-width: 2px; border-radius: 6px; padding: 1px 6px; background: var(--bg-2); color: var(--ink); }
+
+  /* ---------- Markdown: full-bleed editorial ---------- */
+  .md { padding: 14vh 24px 200px; }
+  .prose { max-width: 700px; margin: 0 auto; font-family: var(--serif); font-size: 21px; line-height: 1.72; }
+  .prose .eyebrow { font: 600 13px/1 var(--font); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin: 0 0 20px; }
+  .prose h1, .prose h2 { font-family: var(--font); letter-spacing: -0.03em; line-height: 1.1; }
+  .prose h1 { font-size: 76px; margin: 0 0 20px; font-weight: 750; }
+  .prose h2 { font-size: 32px; margin: 72px 0 16px; letter-spacing: -0.02em; }
+  .prose .lede { color: var(--muted); font-size: 25px; line-height: 1.5; margin: 0 0 8px; }
+  .prose code { font-family: var(--mono); font-size: .8em; background: var(--bg-2); padding: 2px 6px; border-radius: 5px; }
+  .prose pre { font: 15px/1.7 var(--mono); background: var(--bg-2); border-radius: 12px; padding: 20px 22px; overflow-x: auto; }
+  .prose pre code { background: none; padding: 0; font-size: inherit; }
+  .tok-s { color: var(--str); } .tok-c { color: var(--muted); }
+  .prose table { width: 100%; border-collapse: collapse; font: 16px/1.5 var(--font); }
+  .prose th, .prose td { text-align: left; padding: 12px 14px 12px 0; border-bottom: 1px solid var(--line); }
+  .prose th { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; font-weight: 600; }
+  .fig { margin: 40px calc(50% - min(48vw, 560px)); position: relative; border-radius: 18px; padding: 56px 32px 28px;
+    background-color: var(--bg-2); background-image: radial-gradient(var(--dot) 1.2px, transparent 1.3px); background-size: 22px 22px; }
+  .fig svg { display: block; width: 100%; max-width: 900px; margin: 0 auto; }
+  .fig-bar { position: absolute; top: 12px; left: 16px; right: 12px; display: flex; align-items: center; gap: 6px; font: 13px var(--font); color: var(--muted); }
+  .fig-bar .grow { flex: 1; }
+  .ghost { min-height: 36px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--pill-line); background: var(--pill); cursor: pointer; font-size: 14px; }
+  .ghost:hover { background: var(--pill-hover); }
+  mark.hit { background: var(--hit); color: var(--hit-ink); border-radius: 3px; padding: 0 1px; }
+
+  /* Diagram ink */
+  .d-text { fill: currentColor; font-family: var(--font); }
+  .d-box { fill: var(--bg); stroke: var(--muted); stroke-width: 1.3; }
+  .d-life { stroke: var(--muted); stroke-opacity: .5; stroke-dasharray: 4 5; fill: none; }
+  .d-arrow { stroke: var(--accent); stroke-width: 1.7; fill: none; }
+  .d-head { fill: var(--accent); }
+  .d-lbl { fill: var(--accent); font-family: var(--font); }
+
+  /* ---------- Mermaid: infinite dot-grid canvas ---------- */
+  .canvas { position: fixed; inset: 0; overflow: hidden; cursor: grab; touch-action: none;
+    background-color: var(--bg); background-image: radial-gradient(var(--dot) 1.3px, transparent 1.4px); }
+  .canvas.dragging { cursor: grabbing; }
+  .canvas:focus-visible { outline-offset: -6px; border-radius: 0; }
+  .world { position: absolute; left: 0; top: 0; transform-origin: 0 0; color: var(--ink); }
+  .world svg { display: block; }
+  .canvas-hint { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); font-size: 13px; color: var(--muted); pointer-events: none; white-space: nowrap; }
+
+  /* ---------- JSON: full width, large mono ---------- */
+  .json { padding: 10vh 8vw 200px; font: 19px/1.85 var(--mono); }
+  .json .title { font: 600 13px/1 var(--font); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin: 0 0 28px; }
+  .node { padding-left: 28px; }
+  .tree > .node { padding-left: 0; }
+  .row { display: flex; align-items: center; gap: 4px; border-radius: 8px; padding: 0 8px; position: relative; min-height: 40px; flex-wrap: wrap; }
+  .row:hover { background: color-mix(in srgb, var(--ink) 5%, transparent); }
+  .row.selected { background: var(--sel); }
+  .row.selected::before { content: ""; position: absolute; left: -6px; top: 8px; bottom: 8px; width: 3px; border-radius: 2px; background: var(--sel-bar); }
+  .twisty { width: 32px; height: 36px; border: 0; background: none; cursor: pointer; color: var(--muted); padding: 0; font: inherit; border-radius: 6px; flex: none; }
+  .twisty.leaf { cursor: default; }
+  .pathbtn { border: 0; background: none; padding: 2px 4px; cursor: copy; font: inherit; border-radius: 6px; text-align: left; }
+  .k { color: var(--key); } .s { color: var(--str); } .n { color: var(--num); } .b { color: var(--bool); } .nul { color: var(--muted); font-style: italic; }
+  .punct { color: var(--muted); }
+  .meta { color: var(--muted); font-size: 15px; font-family: var(--font); margin-left: 6px; }
+  .collapsed > .children { display: none; }
+  .raw { white-space: pre; font: 18px/1.75 var(--mono); margin: 0; overflow-x: auto; }
+  .noresults { font: 17px var(--font); color: var(--muted); margin: 0 0 20px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+
+  /* ---------- Empty page ---------- */
+  .empty { min-height: 100vh; display: grid; place-items: center; padding: 48px 24px 180px; text-align: center; }
+  .empty h1 { font-size: clamp(56px, 9vw, 120px); letter-spacing: -0.045em; line-height: 1; margin: 0 0 24px; font-weight: 750; }
+  .empty .sub { font-size: 22px; color: var(--muted); margin: 0 0 40px; }
+  .paste-box { width: min(640px, 100%); margin: 0 auto; text-align: left; }
+  .paste-box label { display: block; font-size: 14px; color: var(--muted); margin-bottom: 8px; }
+  .paste-box textarea { width: 100%; min-height: 120px; border-radius: 14px; border: 1px solid var(--pill-line); background: var(--bg-2); padding: 14px 16px; font: 15px/1.55 var(--mono); resize: vertical; }
+  .paste-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 10px; flex-wrap: wrap; }
+  .paste-row .note { font-size: 14px; color: var(--muted); }
+  .primary { min-height: 44px; padding: 0 18px; border-radius: 12px; border: 0; background: var(--pill-on); color: var(--pill-on-ink); font-weight: 600; cursor: pointer; }
+  .primary:disabled { opacity: .45; cursor: not-allowed; }
+  .hints { display: flex; justify-content: center; gap: 28px; margin-top: 40px; color: var(--muted); font-size: 15px; flex-wrap: wrap; }
+  .hints code { font-family: var(--mono); color: var(--ink); background: var(--bg-2); padding: 3px 8px; border-radius: 6px; }
+
+  /* ---------- Error banner (file unreadable) ---------- */
+  .banner { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 8; width: min(640px, calc(100% - 24px));
+    background: var(--pill); border: 1px solid var(--warn); border-radius: 14px; padding: 14px 18px; box-shadow: var(--shadow); font-size: 15px; }
+  .banner strong { color: var(--warn); }
+  .banner p { margin: 4px 0 0; color: var(--muted); }
+  .banner code { font-family: var(--mono); color: var(--ink); }
+
+  /* ---------- Command pill ---------- */
+  .pill { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 10; display: flex; align-items: center; gap: 4px;
+    padding: 6px; background: var(--pill); border: 1px solid var(--pill-line); border-radius: 24px; box-shadow: var(--shadow); max-width: calc(100% - 24px); }
+  .pill .sep { width: 1px; height: 26px; background: var(--pill-line); margin: 0 4px; flex: none; }
+  .pbtn { min-height: 44px; min-width: 44px; padding: 0 14px; border: 0; border-radius: 18px; background: transparent; cursor: pointer; font-size: 15px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap; }
+  .pbtn:hover { background: var(--pill-hover); }
+  .pbtn svg { width: 18px; height: 18px; flex: none; }
+  .file { display: flex; align-items: center; gap: 10px; padding: 0 12px 0 14px; min-height: 44px; min-width: 0; }
+  .file-name { font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 260px; }
+  .live { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: var(--muted); white-space: nowrap; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--ok); position: relative; flex: none; }
+  .live.reloaded { color: var(--ok); }
+  .live.reloaded .dot::after { content: ""; position: absolute; inset: -5px; border-radius: 50%; border: 2px solid var(--ok); animation: ping 1s ease-out 2; }
+  .live.missing { color: var(--warn); }
+  .live.missing .dot { background: var(--warn); border-radius: 2px; }
+  @keyframes ping { from { transform: scale(.5); opacity: 1; } to { transform: scale(1.6); opacity: 0; } }
+  .types { display: inline-flex; gap: 2px; padding: 3px; border-radius: 20px; background: var(--bg-2); }
+  .types .pbtn { min-height: 38px; padding: 0 12px; font-size: 14px; color: var(--muted); border-radius: 16px; }
+  .types .pbtn[aria-pressed="true"] { background: var(--pill-on); color: var(--pill-on-ink); font-weight: 600; }
+  .types .short { display: none; }
+  .search { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 6px 0 12px; border-radius: 18px; background: var(--bg-2); }
+  .search:focus-within { outline: 2px solid var(--focus); outline-offset: 1px; }
+  .search svg { width: 16px; height: 16px; color: var(--muted); flex: none; }
+  .search input { width: 190px; border: 0; background: transparent; outline: none; font-size: 15px; }
+  .search input::placeholder { color: var(--muted); opacity: 1; }
+  .search input::-webkit-search-cancel-button { display: none; }
+  .count { font-size: 13px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .zoom { display: inline-flex; align-items: center; gap: 2px; }
+  .zoom output { min-width: 54px; text-align: center; font-size: 14px; font-variant-numeric: tabular-nums; color: var(--muted); }
+  .kbtn { background: var(--bg-2); font-family: var(--mono); font-weight: 600; font-size: 14px; }
+  .back { color: var(--muted); }
+
+  /* ---------- Command palette ---------- */
+  .scrim { position: fixed; inset: 0; z-index: 30; background: var(--scrim); display: flex; justify-content: center; align-items: flex-start; padding: 16vh 16px 16px; }
+  .palette { width: min(640px, 100%); background: var(--pill); border: 1px solid var(--pill-line); border-radius: 18px; box-shadow: var(--shadow); overflow: hidden; }
+  .palette-in { display: flex; align-items: center; gap: 12px; padding: 0 18px; border-bottom: 1px solid var(--pill-line); }
+  .palette-in svg { width: 18px; height: 18px; color: var(--muted); flex: none; }
+  .palette-in input { flex: 1; height: 60px; border: 0; background: transparent; outline: none; font-size: 19px; }
+  .palette-in input::placeholder { color: var(--muted); opacity: 1; }
+  .palette-in:focus-within { box-shadow: inset 0 -2px 0 var(--focus); }
+  .plist { list-style: none; margin: 0; padding: 8px; max-height: 52vh; overflow-y: auto; }
+  .pgroup { font: 600 12px/1 var(--font); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); padding: 14px 12px 8px; }
+  .opt { display: flex; align-items: center; gap: 12px; min-height: 46px; padding: 0 12px; border-radius: 10px; cursor: pointer; }
+  .opt .lbl { flex: 1; }
+  .opt .why, .opt .tag { font-size: 13px; color: var(--muted); }
+  .opt .tag { border: 1px solid var(--pill-line); border-radius: 999px; padding: 1px 8px; }
+  .opt[aria-selected="true"] { background: var(--sel); box-shadow: inset 3px 0 0 var(--sel-bar); }
+  .opt[aria-disabled="true"] .lbl { color: var(--muted); }
+  .palette-foot { display: flex; gap: 18px; padding: 10px 18px; border-top: 1px solid var(--pill-line); font-size: 13px; color: var(--muted); flex-wrap: wrap; }
+  .pempty { padding: 18px 12px; color: var(--muted); }
+
+  /* ---------- Toast ---------- */
+  .toast { position: fixed; left: 50%; bottom: 100px; transform: translate(-50%, 10px); opacity: 0; z-index: 20; pointer-events: none;
+    background: var(--pill-on); color: var(--pill-on-ink); padding: 10px 16px; border-radius: 12px; font-size: 15px; transition: opacity .18s, transform .18s; max-width: calc(100% - 32px); }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+  .toast code { font-family: var(--mono); font-weight: 600; }
+
+  /* ---------- Artboard-only state switcher (NOT product UI) ---------- */
+  .artboard-ctl { position: fixed; left: 16px; bottom: 16px; z-index: 40; display: flex; flex-direction: column; gap: 6px; font: 12px var(--font);
+    border: 1.5px dashed var(--muted); border-radius: 10px; padding: 8px 10px; background: var(--bg); color: var(--muted); max-width: 210px; }
+  .artboard-ctl div { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .artboard-ctl button { border: 1px solid var(--pill-line); background: var(--bg-2); border-radius: 6px; padding: 4px 8px; cursor: pointer; font-size: 12px; color: var(--ink); }
+  .artboard-ctl button[aria-pressed="true"] { border-color: var(--ink); font-weight: 600; }
+
+  /* ---------- Narrow: pill wraps into two rows; secondary controls move to the palette ---------- */
+  @media (max-width: 720px) {
+    .pill { flex-wrap: wrap; justify-content: space-between; width: calc(100% - 16px); bottom: 8px; border-radius: 20px; row-gap: 6px; }
+    .pill .sep, .secondary { display: none !important; }
+    .file { flex: 1; order: 1; } .kbtn { order: 2; } .back { order: 0; }
+    .types, .search, .zoom { order: 3; }
+    .types { flex: none; } .search { flex: 1; } .search input { width: 100%; min-width: 60px; }
+    .types .long { display: none; } .types .short { display: inline; }
+    .file-name { max-width: 46vw; }
+    .prose h1 { font-size: 46px; } .prose { font-size: 18px; } .prose .lede { font-size: 20px; }
+    .fig { margin: 32px -8px; padding: 52px 12px 16px; }
+    .json { padding: 8vh 16px 220px; font-size: 16px; } .node { padding-left: 18px; }
+    .toast { bottom: 140px; }
+    .artboard-ctl { top: 8px; bottom: auto; left: 8px; }
+    .canvas-hint { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::after { transition: none !important; animation: none !important; }
+  }
+</style>
+</head>
+<body>
+<main id="main">
+  <!-- Markdown view -->
+  <section class="view md" data-view="markdown" aria-label="Markdown document">
+    <article class="prose" id="prose">
+      <p class="eyebrow">README.md</p>
+      <h1>orders-service</h1>
+      <p class="lede">Handles checkout, order state and payment capture for the storefront.</p>
+      <h2>Checkout flow</h2>
+      <p>The storefront never talks to the payment provider directly. Every order goes through the gateway, which forwards it to <code>orders-service</code>.</p>
+      <figure class="fig" aria-label="Diagram 1: checkout sequence">
+        <div class="fig-bar">
+          <span>mermaid · sequenceDiagram</span><span class="grow"></span>
+          <button class="ghost" type="button" id="openCanvas">Open on canvas</button>
+          <button class="ghost" type="button" id="figExport">Export SVG</button>
+        </div>
+        <svg id="figSvg" viewBox="0 0 760 300" role="img" aria-label="Sequence: Storefront posts checkout to Gateway, Gateway calls createOrder on orders-service, orders-service captures the amount with Payments, Payments replies captured, Storefront receives 201 Created order_8F2K">
+        </svg>
+      </figure>
+      <h2>Endpoints</h2>
+      <table>
+        <thead><tr><th>Method</th><th>Path</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr><td><code>POST</code></td><td><code>/orders</code></td><td>Create an order from a cart</td></tr>
+          <tr><td><code>GET</code></td><td><code>/orders/:id</code></td><td>Read order state</td></tr>
+          <tr><td><code>POST</code></td><td><code>/orders/:id/cancel</code></td><td>Cancel before capture</td></tr>
+        </tbody>
+      </table>
+      <h2>Try it locally</h2>
+<pre><code><span class="tok-c"># create an order</span>
+curl -X POST localhost:8080/orders \
+  -H <span class="tok-s">"content-type: application/json"</span> \
+  -d <span class="tok-s">'{"cartId": "cart_19ab", "currency": "EUR"}'</span></code></pre>
+    </article>
+  </section>
+
+  <!-- Mermaid view -->
+  <section class="view" data-view="mermaid" aria-label="Mermaid diagram" hidden>
+    <div class="canvas" id="canvas" tabindex="0" role="application" aria-roledescription="diagram canvas"
+         aria-label="Diagram canvas. Drag or use arrow keys to pan; plus and minus to zoom; 0 to fit." aria-describedby="diagDesc">
+      <div class="world" id="world">
+        <svg id="flowSvg" width="760" height="360" viewBox="0 0 760 360" aria-hidden="true">
+          <g font-size="15">
+            <rect class="d-box" x="20" y="150" width="150" height="56" rx="10"/><path class="d-box" d="M300 110l70 68-70 68-70-68z"/>
+            <rect class="d-box" x="480" y="60" width="200" height="56" rx="10"/><rect class="d-box" x="480" y="240" width="200" height="56" rx="10"/>
+            <path class="d-arrow" d="M170 178H222M370 178C420 178 420 88 472 88M370 178C420 178 420 268 472 268"/>
+            <path class="d-head" d="M222 173l8 5-8 5zM472 83l8 5-8 5zM472 263l8 5-8 5z"/>
+            <text class="d-text" x="95" y="183" text-anchor="middle">Cart submitted</text>
+            <text class="d-text" x="300" y="183" text-anchor="middle">Stock ok?</text>
+            <text class="d-text" x="580" y="93" text-anchor="middle">Reserve and capture</text>
+            <text class="d-text" x="580" y="273" text-anchor="middle">Notify: out of stock</text>
+            <text class="d-lbl" x="430" y="120" font-size="13">yes</text><text class="d-lbl" x="430" y="248" font-size="13">no</text>
+          </g>
+        </svg>
+        <svg id="seqSvg" width="760" height="300" viewBox="0 0 760 300" aria-hidden="true" hidden>
+          <g id="seqDiagram" font-size="14">
+            <rect class="d-box" x="20" y="10" width="140" height="40" rx="8"/><rect class="d-box" x="215" y="10" width="140" height="40" rx="8"/>
+            <rect class="d-box" x="410" y="10" width="140" height="40" rx="8"/><rect class="d-box" x="605" y="10" width="140" height="40" rx="8"/>
+            <path class="d-life" d="M90 50V290M285 50V290M480 50V290M675 50V290"/>
+            <text class="d-text" x="90" y="35" text-anchor="middle">Storefront</text><text class="d-text" x="285" y="35" text-anchor="middle">Gateway</text>
+            <text class="d-text" x="480" y="35" text-anchor="middle">orders-service</text><text class="d-text" x="675" y="35" text-anchor="middle">Payments</text>
+            <path class="d-arrow" d="M90 90H277M285 130H472M480 170H667"/><path class="d-arrow" d="M675 210H488M480 250H98" stroke-dasharray="6 4"/>
+            <path class="d-head" d="M277 85l8 5-8 5zM472 125l8 5-8 5zM667 165l8 5-8 5zM488 205l-8 5 8 5zM98 245l-8 5 8 5z"/>
+            <text class="d-text" x="188" y="82" text-anchor="middle" font-size="13">POST /checkout</text>
+            <text class="d-text" x="382" y="122" text-anchor="middle" font-size="13">createOrder()</text>
+            <text class="d-text" x="577" y="162" text-anchor="middle" font-size="13">capture(amount)</text>
+            <text class="d-text" x="577" y="202" text-anchor="middle" font-size="13">captured</text>
+            <text class="d-text" x="285" y="242" text-anchor="middle" font-size="13">201 Created · order_8F2K</text>
+          </g>
+        </svg>
+      </div>
+      <p class="sr" id="diagDesc">Flowchart: Cart submitted leads to the decision Stock ok? If yes, Reserve and capture. If no, Notify: out of stock.</p>
+    </div>
+    <p class="canvas-hint" aria-hidden="true">Drag to pan · scroll to zoom · <kbd>0</kbd> fit</p>
+  </section>
+
+  <!-- JSON view -->
+  <section class="view json" data-view="json" aria-label="JSON document" hidden>
+    <p class="title" id="jsonTitle">order.json · click any key or value to copy its path</p>
+    <div class="noresults" id="noResults" hidden></div>
+    <div class="tree" id="tree" aria-label="JSON tree"></div>
+    <pre class="raw" id="raw" hidden tabindex="0" aria-label="Raw JSON"></pre>
+  </section>
+
+  <!-- Empty page -->
+  <section class="view empty" data-view="empty" aria-labelledby="emptyTitle" hidden>
+    <div>
+      <h1 id="emptyTitle">Paste anything</h1>
+      <p class="sub">Markdown, a Mermaid diagram or JSON. Press <kbd class="mod">⌘</kbd> <kbd>V</kbd> anywhere on this page.</p>
+      <div class="paste-box">
+        <label for="pasteBox">Or type or paste here</label>
+        <textarea id="pasteBox" spellcheck="false" placeholder="{ &quot;id&quot;: &quot;order_8F2K&quot; }  ·  sequenceDiagram  ·  # Notes"></textarea>
+        <div class="paste-row">
+          <span class="note">Stays in this tab only — lost if you reload the page.</span>
+          <button class="primary" type="button" id="renderPaste" disabled>Render</button>
+        </div>
+      </div>
+      <div class="hints"><span>From a file: <code>mview notes.md</code></span><span>From the clipboard: <code>mview --paste</code></span></div>
+    </div>
+  </section>
+</main>
+
+<div class="banner" id="banner" role="alert" hidden>
+  <strong>Can’t read README.md</strong>
+  <p><code>ENOENT: no such file or directory, open '~/dev/orders-service/README.md'</code></p>
+  <p>Showing the last version that loaded. The page updates when the file is back.</p>
+</div>
+
+<!-- Command pill: the only chrome -->
+<nav class="pill" id="pill" aria-label="Viewer controls">
+  <button class="pbtn back" type="button" id="backBtn" hidden aria-label="Back to README.md">
+    <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12 4l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </button>
+  <div class="file">
+    <span class="file-name" id="fileName">README.md</span>
+    <span class="live" id="live"><span class="dot" aria-hidden="true"></span><span id="liveText">Live</span></span>
+  </div>
+  <span class="sep" aria-hidden="true" id="sep1"></span>
+  <div class="types" role="group" aria-label="Render as" id="types">
+    <button class="pbtn" type="button" data-type="markdown" aria-pressed="true"><span class="long">Markdown</span><span class="short" aria-hidden="true">MD</span></button>
+    <button class="pbtn" type="button" data-type="mermaid" aria-pressed="false"><span class="long">Mermaid</span><span class="short" aria-hidden="true">MMD</span></button>
+    <button class="pbtn" type="button" data-type="json" aria-pressed="false">JSON</button>
+  </div>
+  <span class="sep" aria-hidden="true" id="sep2"></span>
+  <label class="search" id="searchWrap">
+    <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M13.5 13.5L18 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+    <span class="sr">Search keys and values</span>
+    <input id="q" type="search" placeholder="Search" autocomplete="off" aria-describedby="count" aria-keyshortcuts="/" />
+    <span class="count" id="count" aria-live="polite"></span>
+    <kbd aria-hidden="true" id="slashHint">/</kbd>
+  </label>
+  <div class="zoom" role="group" aria-label="Zoom" id="zoomGroup" hidden>
+    <button class="pbtn" type="button" id="zOut" aria-label="Zoom out"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+    <output id="zVal" aria-live="polite" aria-label="Zoom level">100%</output>
+    <button class="pbtn" type="button" id="zIn" aria-label="Zoom in"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12M10 4v12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+    <button class="pbtn secondary" type="button" id="zFit">Fit</button>
+  </div>
+  <button class="pbtn secondary" type="button" id="exportBtn" hidden>
+    <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v10M6 9l4 4 4-4M4 16h12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Export SVG
+  </button>
+  <span class="sep" aria-hidden="true"></span>
+  <button class="pbtn kbtn" type="button" id="kBtn" aria-haspopup="dialog" aria-keyshortcuts="Meta+K Control+K" aria-label="Open command palette"><span class="mod">⌘</span>K</button>
+</nav>
+
+<!-- Command palette -->
+<div class="scrim" id="scrim" hidden>
+  <div class="palette" role="dialog" aria-modal="true" aria-labelledby="palTitle">
+    <h2 class="sr" id="palTitle">Command palette</h2>
+    <div class="palette-in">
+      <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M13.5 13.5L18 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      <input id="palInput" type="text" role="combobox" aria-expanded="true" aria-controls="palList" aria-autocomplete="list" placeholder="Type a command" autocomplete="off" aria-label="Command" />
+    </div>
+    <ul class="plist" id="palList" role="listbox" aria-label="Commands"></ul>
+    <div class="palette-foot" aria-hidden="true"><span><kbd>↑</kbd> <kbd>↓</kbd> move</span><span><kbd>Enter</kbd> run</span><span><kbd>Esc</kbd> close</span></div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<p class="sr" id="announcer" aria-live="polite"></p>
+
+<!-- Artboard-only controls: NOT part of the product -->
+<div class="artboard-ctl" role="group" aria-label="Artboard state (not part of the product)">
+  <div>Artboard state:
+    <button type="button" data-demo="file" aria-pressed="true">File</button>
+    <button type="button" data-demo="empty" aria-pressed="false">Empty page</button>
+    <button type="button" data-demo="palette" aria-pressed="false">Palette open</button>
+  </div>
+  <div>Simulate:
+    <button type="button" id="simReload">File changed</button>
+    <button type="button" id="simMissing">File deleted</button>
+  </div>
+</div>
+
+<script>
+const ORDER = {
+  id: "order_8F2K", status: "captured", createdAt: "2026-11-10T14:32:08Z",
+  customer: { id: "cus_311", email: "lucia.romero@example.com", "x-segment": "returning" },
+  items: [
+    { sku: "TSHIRT-BLK-M", name: "Logo T-shirt", qty: 2, unitPrice: 24.9 },
+    { sku: "MUG-WHT", name: "Ceramic mug", qty: 1, unitPrice: 12.5 }
+  ],
+  totals: { subtotal: 62.3, shipping: 4.99, tax: 13.08, total: 80.37, currency: "EUR" },
+  "shipping.address": { line1: "Av. Corrientes 1234", city: "Buenos Aires", country: "AR" },
+  giftWrap: false, coupon: null
+};
+const LABEL = { markdown: "Markdown", mermaid: "Mermaid", json: "JSON" };
+const NAMES = { markdown: "README.md", mermaid: "checkout.mmd", json: "order.json" };
+const $ = (s) => document.querySelector(s);
+const $$ = (s) => Array.from(document.querySelectorAll(s));
+const h = (tag, cls, ...kids) => { const e = document.createElement(tag); if (cls) e.className = cls; e.append(...kids); return e; };
+const isMac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+if (!isMac) $$(".mod").forEach(m => m.textContent = "Ctrl ");
+
+const state = { view: "markdown", detected: "markdown", source: "file", name: "README.md", data: ORDER, raw: false,
+  selected: null, collapsed: new Set(), diagram: "flow", fromDoc: false, missing: false };
+
+/* ---------- Feedback ---------- */
+function toast(msg, code) {
+  const t = $("#toast"); t.replaceChildren(msg); if (code) t.append(h("code", "", code));
+  t.classList.add("show"); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), 2000);
+}
+function setLive(mode) {
+  const live = $("#live"), txt = $("#liveText");
+  live.classList.remove("reloaded", "missing");
+  if (mode === "reloaded") { live.classList.add("reloaded"); txt.textContent = "Reloaded just now";
+    $("#announcer").textContent = state.name + " reloaded";
+    clearTimeout(live._h); live._h = setTimeout(() => setLive("live"), 3000); }
+  else if (mode === "missing") { live.classList.add("missing"); txt.textContent = "File missing"; }
+  else txt.textContent = "Live";
+}
+
+/* ---------- View switching ---------- */
+function show(view) {
+  state.view = view;
+  $$(".view").forEach(v => v.hidden = v.dataset.view !== view);
+  const empty = view === "empty";
+  $$("#types [data-type]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.type === view)));
+  $("#types").hidden = empty; $("#sep1").hidden = empty; $("#sep2").hidden = empty;
+  $("#fileName").textContent = empty ? "No input — waiting for paste" : state.fromDoc ? "README.md · diagram 1" : state.name;
+  $("#live").hidden = empty || state.source !== "file";
+  $("#backBtn").hidden = !(view === "mermaid" && state.fromDoc);
+  $("#searchWrap").hidden = !(view === "json" || view === "markdown");
+  $("#zoomGroup").hidden = view !== "mermaid";
+  $("#exportBtn").hidden = view !== "mermaid";
+  $("#q").setAttribute("placeholder", view === "json" ? "Search keys and values" : "Search document");
+  $("#searchWrap .sr").textContent = view === "json" ? "Search keys and values" : "Search document";
+  if (view === "mermaid") { $("#flowSvg").hidden = state.diagram !== "flow"; $("#seqSvg").hidden = state.diagram !== "seq";
+    $("#diagDesc").textContent = state.diagram === "flow"
+      ? "Flowchart: Cart submitted leads to the decision Stock ok? If yes, Reserve and capture. If no, Notify: out of stock."
+      : "Sequence: Storefront posts checkout to Gateway, Gateway calls createOrder on orders-service, orders-service captures with Payments, Storefront receives 201 Created.";
+    requestAnimationFrame(fit); }
+  runSearch();
+}
+function renderAs(type) {
+  state.fromDoc = false; state.diagram = "flow";
+  if (state.source === "file") state.name = NAMES[type];
+  show(type);
+}
+$$("#types [data-type]").forEach(b => b.addEventListener("click", () => renderAs(b.dataset.type)));
+
+/* ---------- JSON tree ---------- */
+const ident = /^[A-Za-z_$][\w$]*$/;
+const childPath = (p, k) => typeof k === "number" ? `${p}[${k}]` : ident.test(k) ? (p ? `${p}.${k}` : k) : `${p}["${k.replace(/"/g, '\\"')}"]`;
+function hl(text, q) {
+  const s = String(text), f = document.createDocumentFragment(); const low = s.toLowerCase(); let i = 0, j;
+  if (!q) { f.append(s); return f; }
+  while ((j = low.indexOf(q, i)) >= 0) { f.append(s.slice(i, j), h("mark", "hit", s.slice(j, j + q.length))); i = j + q.length; }
+  f.append(s.slice(i)); return f;
+}
+const scalarHit = (k, v, q) => !!q && ((typeof k === "string" && k.toLowerCase().includes(q)) || (v !== null && typeof v !== "object" && String(v).toLowerCase().includes(q)));
+function subtreeHit(k, v, q) {
+  if (scalarHit(k, v, q)) return true;
+  if (v && typeof v === "object") return (Array.isArray(v) ? v.map((x, i) => [i, x]) : Object.entries(v)).some(([ck, cv]) => subtreeHit(ck, cv, q));
+  return false;
+}
+let hits = 0;
+function pathButton(path, label, kids, cls) {
+  const b = h("button", "pathbtn " + cls, ...kids); b.type = "button"; b.dataset.path = path;
+  b.setAttribute("aria-label", `${label} — copy path ${path}`); return b;
+}
+function valueKids(v, q) {
+  if (v === null) return [h("span", "nul", "null")];
+  if (typeof v === "string") return [h("span", "s", '"', hl(v, q), '"')];
+  if (typeof v === "number") return [h("span", "n", hl(v, q))];
+  return [h("span", "b", hl(String(v), q))];
+}
+function build(key, v, path, q, depth) {
+  const node = h("div", "node"); const isObj = v && typeof v === "object";
+  if (scalarHit(key, v, q)) hits++;
+  const row = h("div", "row"); if (path && path === state.selected) row.classList.add("selected");
+  const keyLabel = key === null ? null : typeof key === "number" ? `index ${key}` : `key ${key}`;
+  const keyEl = key === null ? null : pathButton(path, keyLabel, typeof key === "number" ? [h("span", "n", String(key))] : [h("span", "k", '"', hl(key, q), '"')], "");
+  if (!isObj) {
+    row.append(h("span", "twisty leaf"), keyEl, h("span", "punct", ": "), pathButton(path, `value ${v === null ? "null" : String(v)}`, valueKids(v, q), ""));
+    node.append(row); return node;
+  }
+  const entries = Array.isArray(v) ? v.map((x, i) => [i, x]) : Object.entries(v);
+  const open = q ? entries.some(([ck, cv]) => subtreeHit(ck, cv, q)) : !state.collapsed.has(path);
+  if (!open && depth > 0) node.classList.add("collapsed");
+  const tw = h("button", "twisty", open || depth === 0 ? "▾" : "▸"); tw.type = "button";
+  tw.setAttribute("aria-expanded", String(open || depth === 0));
+  tw.setAttribute("aria-label", (open ? "Collapse " : "Expand ") + (path || "root"));
+  if (depth === 0) { tw.disabled = true; tw.classList.add("leaf"); tw.textContent = ""; }
+  tw.addEventListener("click", () => { if (state.collapsed.has(path)) state.collapsed.delete(path); else state.collapsed.add(path); renderTree(); focusPath(path, ".twisty"); });
+  const brace = Array.isArray(v) ? ["[", "]"] : ["{", "}"];
+  const meta = h("span", "meta", `${brace[0]} ${entries.length} ${Array.isArray(v) ? (entries.length === 1 ? "item" : "items") : "keys"} ${brace[1]}`);
+  row.append(tw); if (keyEl) row.append(keyEl, h("span", "punct", ":")); row.append(meta);
+  const kids = h("div", "children");
+  for (const [k, x] of entries) kids.append(build(k, x, childPath(path, k), q, depth + 1));
+  row.dataset.node = path; node.append(row, kids); return node;
+}
+function focusPath(path, sel) { const r = $$("#tree .row").find(r => r.dataset.node === path); r?.querySelector(sel)?.focus(); }
+function renderTree() {
+  const q = state.view === "json" ? $("#q").value.trim().toLowerCase() : ""; hits = 0;
+  $("#tree").replaceChildren(build(null, state.data, "", q, 0));
+  const nr = $("#noResults");
+  if (q && !hits) {
+    const clear = h("button", "ghost", "Clear search"); clear.type = "button"; clear.addEventListener("click", clearSearch);
+    nr.replaceChildren(h("span", "", `No keys or values match “${$("#q").value.trim()}”.`), clear); nr.hidden = false;
+  } else nr.hidden = true;
+  if (state.view === "json") $("#count").textContent = q ? (hits ? `${hits} match${hits === 1 ? "" : "es"}` : "0 matches") : "";
+}
+function copyPath(path) {
+  state.selected = path; renderTree(); focusPath(path, "[data-path]");
+  const btn = $$("#tree [data-path]").find(b => b.dataset.path === path); btn?.focus();
+  navigator.clipboard?.writeText(path).then(() => toast("Copied path ", path), () => toast("Selected — copy blocked by the browser: ", path));
+  if (!navigator.clipboard) toast("Selected ", path);
+}
+$("#tree").addEventListener("click", (e) => { const t = e.target.closest("[data-path]"); if (t && t.dataset.path) copyPath(t.dataset.path); });
+function allObjPaths(v, p, out) { if (v && typeof v === "object") { if (p) out.push(p); (Array.isArray(v) ? v.map((x, i) => [i, x]) : Object.entries(v)).forEach(([k, x]) => allObjPaths(x, childPath(p, k), out)); } return out; }
+function expandAll() { state.collapsed.clear(); renderTree(); toast("Expanded all nodes"); }
+function collapseAll() { state.collapsed = new Set(allObjPaths(state.data, "", [])); renderTree(); toast("Collapsed all nodes"); }
+function toggleRaw() { state.raw = !state.raw; $("#raw").textContent = JSON.stringify(state.data, null, 2);
+  $("#tree").hidden = state.raw; $("#raw").hidden = !state.raw; toast(state.raw ? "Showing raw JSON" : "Showing tree"); }
+
+/* ---------- Markdown search ---------- */
+function clearMarks(root) { root.querySelectorAll("mark.hit").forEach(m => m.replaceWith(document.createTextNode(m.textContent))); root.normalize(); }
+function markProse(q) {
+  const root = $("#prose"); clearMarks(root); if (!q) return 0;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, { acceptNode: n => n.parentElement.closest("svg, .fig-bar") ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT });
+  const nodes = []; while (walker.nextNode()) nodes.push(walker.currentNode);
+  let n = 0; nodes.forEach(t => { if (t.data.toLowerCase().includes(q)) { const f = hl(t.data, q); n += f.querySelectorAll("mark").length; t.replaceWith(f); } });
+  root.querySelector("mark.hit")?.scrollIntoView({ block: "center", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  return n;
+}
+function runSearch() {
+  const raw = $("#q").value.trim(), q = raw.toLowerCase();
+  if (state.view === "markdown") { const n = markProse(q); $("#count").textContent = q ? (n ? `${n} match${n === 1 ? "" : "es"}` : "0 matches") : ""; }
+  else { clearMarks($("#prose")); }
+  if (state.view === "json") renderTree();
+  if (state.view !== "json" && state.view !== "markdown") $("#count").textContent = "";
+  $("#slashHint").hidden = !!raw || document.activeElement === $("#q");
+}
+function clearSearch() { $("#q").value = ""; runSearch(); $("#q").focus(); }
+$("#q").addEventListener("input", runSearch);
+$("#q").addEventListener("focus", runSearch); $("#q").addEventListener("blur", runSearch);
+$("#q").addEventListener("keydown", (e) => { if (e.key === "Escape") { e.preventDefault(); if ($("#q").value) clearSearch(); else $("#q").blur(); } });
+
+/* ---------- Canvas: zoom + pan ---------- */
+const cv = { z: 1, x: 0, y: 0 };
+function size() { const s = state.diagram === "flow" ? $("#flowSvg") : $("#seqSvg"); return { w: +s.getAttribute("width"), h: +s.getAttribute("height") }; }
+function apply() {
+  $("#world").style.transform = `translate(${cv.x}px, ${cv.y}px) scale(${cv.z})`;
+  const g = 24 * cv.z; const c = $("#canvas"); c.style.backgroundSize = `${g}px ${g}px`; c.style.backgroundPosition = `${cv.x}px ${cv.y}px`;
+  $("#zVal").textContent = Math.round(cv.z * 100) + "%";
+}
+function fit() {
+  const c = $("#canvas").getBoundingClientRect(); if (!c.width) return; const { w, h: hh } = size();
+  cv.z = Math.min(2, (c.width - 160) / w, (c.height - 240) / hh); cv.x = (c.width - w * cv.z) / 2; cv.y = (c.height - hh * cv.z) / 2 - 30; apply();
+}
+function zoomAt(f, px, py) {
+  const c = $("#canvas").getBoundingClientRect(); px ??= c.width / 2; py ??= c.height / 2;
+  const nz = Math.min(5, Math.max(0.2, cv.z * f)); const k = nz / cv.z;
+  cv.x = px - (px - cv.x) * k; cv.y = py - (py - cv.y) * k; cv.z = nz; apply();
+}
+$("#zIn").onclick = () => zoomAt(1.25); $("#zOut").onclick = () => zoomAt(1 / 1.25); $("#zFit").onclick = fit;
+$("#canvas").addEventListener("wheel", (e) => { e.preventDefault(); zoomAt(Math.exp(-e.deltaY * 0.0015), e.clientX, e.clientY); }, { passive: false });
+let drag = null;
+$("#canvas").addEventListener("pointerdown", (e) => { drag = { x: e.clientX - cv.x, y: e.clientY - cv.y }; $("#canvas").setPointerCapture(e.pointerId); $("#canvas").classList.add("dragging"); });
+$("#canvas").addEventListener("pointermove", (e) => { if (!drag) return; cv.x = e.clientX - drag.x; cv.y = e.clientY - drag.y; apply(); });
+const endDrag = () => { drag = null; $("#canvas").classList.remove("dragging"); };
+$("#canvas").addEventListener("pointerup", endDrag); $("#canvas").addEventListener("pointercancel", endDrag);
+$("#canvas").addEventListener("keydown", (e) => {
+  const step = e.shiftKey ? 120 : 40, m = { ArrowLeft: [step, 0], ArrowRight: [-step, 0], ArrowUp: [0, step], ArrowDown: [0, -step] }[e.key];
+  if (m) { e.preventDefault(); cv.x += m[0]; cv.y += m[1]; apply(); }
+  else if (e.key === "+" || e.key === "=") { e.preventDefault(); zoomAt(1.25); }
+  else if (e.key === "-") { e.preventDefault(); zoomAt(1 / 1.25); }
+  else if (e.key === "0") { e.preventDefault(); fit(); }
+});
+addEventListener("resize", () => state.view === "mermaid" && fit());
+function exportSvg() {
+  const file = state.view === "markdown" || state.fromDoc ? "README-diagram-1.svg" : "checkout.svg";
+  toast("Saved ", file);
+}
+$("#exportBtn").onclick = exportSvg; $("#figExport").onclick = exportSvg;
+$("#openCanvas").onclick = () => { state.fromDoc = true; state.diagram = "seq"; show("mermaid"); $("#canvas").focus(); };
+$("#backBtn").onclick = () => { state.fromDoc = false; state.diagram = "flow"; show("markdown"); $("#openCanvas").focus(); };
+
+/* ---------- Paste ---------- */
+const MERMAID = /^(graph|flowchart|sequenceDiagram|classDiagram|stateDiagram(-v2)?|erDiagram|gantt|pie|journey|gitGraph|mindmap|timeline)\b/;
+function detect(text) {
+  try { const v = JSON.parse(text); if (v && typeof v === "object") return { type: "json", data: v }; } catch {}
+  const first = text.split("\n").map(l => l.trim()).find(l => l && !l.startsWith("%%") && l !== "---");
+  return { type: first && MERMAID.test(first) ? "mermaid" : "markdown" };
+}
+function renderPasted(text) {
+  if (!text.trim()) { toast("Nothing to render — the clipboard is empty"); return; }
+  const d = detect(text); state.source = "paste"; state.name = "Clipboard"; state.fromDoc = false; state.diagram = "flow";
+  state.detected = d.type; if (d.data) { state.data = d.data; state.selected = null; state.collapsed.clear(); }
+  show(d.type); toast(`Detected ${LABEL[d.type]} from the clipboard`);
+}
+document.addEventListener("paste", (e) => {
+  if (state.view !== "empty" || e.target === $("#pasteBox")) return;
+  e.preventDefault(); renderPasted(e.clipboardData.getData("text"));
+});
+$("#pasteBox").addEventListener("input", () => $("#renderPaste").disabled = !$("#pasteBox").value.trim());
+$("#renderPaste").onclick = () => renderPasted($("#pasteBox").value);
+async function pasteFromClipboard() {
+  try { renderPasted(await navigator.clipboard.readText()); }
+  catch { toast("Clipboard access was blocked — press " + (isMac ? "⌘V" : "Ctrl+V") + " on the empty page instead"); }
+}
+
+/* ---------- Command palette ---------- */
+const COMMANDS = [
+  { group: "Render as", label: "Render as Markdown", run: () => renderAs("markdown"), tag: () => tagFor("markdown"), off: needDoc },
+  { group: "Render as", label: "Render as Mermaid", run: () => renderAs("mermaid"), tag: () => tagFor("mermaid"), off: needDoc },
+  { group: "Render as", label: "Render as JSON", run: () => renderAs("json"), tag: () => tagFor("json"), off: needDoc },
+  { group: "JSON", label: "Expand all", run: expandAll, off: needJson },
+  { group: "JSON", label: "Collapse all", run: collapseAll, off: needJson },
+  { group: "JSON", label: "Copy path of selection", run: () => copyPath(state.selected), off: () => needJson() || (state.selected ? null : "Select a key or value first"), hint: () => state.selected || "" },
+  { group: "JSON", label: "Toggle raw JSON", run: toggleRaw, off: needJson },
+  { group: "JSON", label: "Search", run: () => $("#q").focus(), off: () => state.view === "json" || state.view === "markdown" ? null : "Only in Markdown and JSON", hint: () => "/" },
+  { group: "Diagram", label: "Export SVG", run: exportSvg, off: () => state.view === "mermaid" || state.view === "markdown" ? null : "No diagram in this view", hint: () => state.view === "markdown" ? "diagram 1" : "" },
+  { group: "Diagram", label: "Fit diagram", run: fit, off: needMermaid, hint: () => "0" },
+  { group: "Diagram", label: "Zoom in", run: () => zoomAt(1.25), off: needMermaid, hint: () => "+" },
+  { group: "Diagram", label: "Zoom out", run: () => zoomAt(1 / 1.25), off: needMermaid, hint: () => "−" },
+  { group: "Input", label: "Paste from clipboard", run: pasteFromClipboard, off: () => null, hint: () => state.source === "file" && state.view !== "empty" ? "replaces the file view" : "" },
+];
+function needDoc() { return state.view === "empty" ? "Paste something first" : null; }
+function needJson() { return state.view === "json" ? null : "Only when rendering JSON"; }
+function needMermaid() { return state.view === "mermaid" ? null : "Only on the diagram canvas"; }
+function tagFor(t) { return state.view === t ? "Current" : state.detected === t ? "Detected" : ""; }
+let palItems = [], active = 0, returnFocus = null;
+function renderPalette() {
+  const q = $("#palInput").value.trim().toLowerCase(); const list = $("#palList"); list.replaceChildren();
+  palItems = COMMANDS.filter(c => c.label.toLowerCase().includes(q));
+  if (!palItems.length) { const li = h("li", "pempty", `No commands match “${$("#palInput").value.trim()}”`); li.setAttribute("role", "presentation"); list.append(li); $("#palInput").removeAttribute("aria-activedescendant"); return; }
+  active = Math.min(active, palItems.length - 1);
+  let lastGroup = null;
+  palItems.forEach((c, i) => {
+    if (c.group !== lastGroup) { const g = h("li", "pgroup", c.group); g.setAttribute("role", "presentation"); list.append(g); lastGroup = c.group; }
+    const reason = c.off(); const opt = h("li", "opt", h("span", "lbl", c.label));
+    opt.id = "cmd-" + i; opt.setAttribute("role", "option"); opt.setAttribute("aria-selected", String(i === active));
+    const tag = c.tag?.(); if (tag) opt.append(h("span", "tag", tag));
+    if (reason) { opt.setAttribute("aria-disabled", "true"); opt.append(h("span", "why", reason)); }
+    else { const hint = c.hint?.(); if (hint) opt.append(h("span", "why", hint)); }
+    opt.addEventListener("mousemove", () => { if (active !== i) { active = i; markActive(); } });
+    opt.addEventListener("click", () => runAt(i));
+    list.append(opt);
+  });
+  markActive();
+}
+function markActive() {
+  $$("#palList .opt").forEach((o, i) => o.setAttribute("aria-selected", String(i === active)));
+  const el = $("#cmd-" + active); $("#palInput").setAttribute("aria-activedescendant", el ? el.id : "");
+  el?.scrollIntoView({ block: "nearest" });
+}
+function openPalette() {
+  if (!$("#scrim").hidden) return;
+  returnFocus = document.activeElement && document.activeElement !== document.body ? document.activeElement : $("#kBtn");
+  $("#scrim").hidden = false; $("#palInput").value = ""; active = 0; renderPalette(); $("#palInput").focus();
+}
+const visible = (el) => el && el.isConnected && el.getClientRects().length > 0;
+function closePalette() {
+  $("#scrim").hidden = true;
+  (visible(returnFocus) ? returnFocus : $("#kBtn")).focus(); syncDemo();
+}
+function runAt(i) {
+  const c = palItems[i]; if (!c) return; const reason = c.off();
+  if (reason) { toast(`${c.label}: ${reason.toLowerCase()}`); return; }
+  /* Return focus to the trigger first; if the command moves focus itself (Search, Copy path) it wins;
+     if the command hides the trigger (view change), fall back to the ⌘K button. */
+  closePalette(); c.run();
+  if (!visible(document.activeElement) || document.activeElement === document.body) $("#kBtn").focus();
+}
+$("#kBtn").addEventListener("click", openPalette);
+$("#palInput").addEventListener("input", () => { active = 0; renderPalette(); });
+$("#palInput").addEventListener("keydown", (e) => {
+  if (e.key === "ArrowDown") { e.preventDefault(); active = (active + 1) % Math.max(1, palItems.length); markActive(); }
+  else if (e.key === "ArrowUp") { e.preventDefault(); active = (active - 1 + palItems.length) % Math.max(1, palItems.length); markActive(); }
+  else if (e.key === "Home") { e.preventDefault(); active = 0; markActive(); }
+  else if (e.key === "End") { e.preventDefault(); active = palItems.length - 1; markActive(); }
+  else if (e.key === "Enter") { e.preventDefault(); runAt(active); }
+  else if (e.key === "Escape") { e.preventDefault(); closePalette(); }
+  else if (e.key === "Tab") { e.preventDefault(); } /* focus stays in the dialog */
+});
+$("#scrim").addEventListener("mousedown", (e) => { if (e.target === $("#scrim")) closePalette(); });
+
+/* ---------- Global shortcuts ---------- */
+document.addEventListener("keydown", (e) => {
+  const typing = e.target.closest?.("input, textarea");
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); $("#scrim").hidden ? openPalette() : closePalette(); return; }
+  if (!$("#scrim").hidden || typing) return;
+  if (e.key === "/" && !e.metaKey && !e.ctrlKey) {
+    if (state.view === "json" || state.view === "markdown") { e.preventDefault(); $("#q").focus(); $("#q").select(); }
+  }
+});
+
+/* ---------- Live reload + error simulation ---------- */
+function simulateReload() {
+  if (state.view === "empty") show("markdown");
+  state.missing = false; document.body.classList.remove("stale"); $("#banner").hidden = true;
+  state.source = "file"; $("#live").hidden = false; setLive("reloaded"); /* chosen type is kept across reloads (S8) */
+}
+$("#simReload").onclick = simulateReload;
+$("#simMissing").onclick = () => {
+  if (state.view === "empty") show("markdown");
+  state.missing = true; document.body.classList.add("stale"); $("#banner").hidden = false; setLive("missing");
+};
+
+/* ---------- Artboard switcher (not product UI) ---------- */
+function syncDemo(which) {
+  const cur = which || (state.view === "empty" ? "empty" : "file");
+  $$("[data-demo]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.demo === cur && (cur !== "palette" || !$("#scrim").hidden))));
+}
+$$("[data-demo]").forEach(b => b.addEventListener("click", () => {
+  const d = b.dataset.demo; $("#banner").hidden = true; document.body.classList.remove("stale"); setLive("live");
+  if (d === "empty") { state.source = "empty"; state.fromDoc = false; show("empty"); syncDemo("empty"); $("#pasteBox").focus(); return; }
+  state.source = "file"; state.data = ORDER; state.detected = d === "palette" ? "json" : "markdown";
+  if (d === "palette") { state.name = NAMES.json; state.selected = 'customer["x-segment"]'; renderAs("json"); returnFocus = $("#kBtn"); $("#kBtn").focus(); openPalette(); syncDemo("palette"); }
+  else { renderAs("markdown"); syncDemo("file"); }
+}));
+
+{ const g = $("#seqDiagram").cloneNode(true); g.removeAttribute("id"); $("#figSvg").append(g); }
+renderTree(); show("markdown"); setTimeout(() => setLive("reloaded"), 900);
+</script>
+</body>
+</html>
