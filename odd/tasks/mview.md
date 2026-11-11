@@ -15,7 +15,7 @@ Local CLI (`mview`) that opens the browser on a 127.0.0.1 server and renders Mar
   - JSON tree with collapse/expand. Search matches keys and values case-insensitively, highlights matches and expands their ancestors. Copy path: the root has no prefix; identifier keys use `.key`; other keys use `["x.y"]`; array indices use `[3]` (e.g. `a.b[3].c`, `a["x.y"]`).
   - Mermaid diagrams (raw documents and fenced blocks) support zoom, pan and Export SVG.
   - Manual type selector (markdown/mermaid/json) overrides detection; the chosen type is kept across live reloads until the user changes it.
-  - Light/dark theme following the system.
+  - Theme: a compact theme control in the toolbar, next to the type selector, styled like the Workbench toolbar (L11), with three options — System / Light / Dark. Default is System (follows `prefers-color-scheme`). The choice switches the whole UI, code highlighting and Mermaid diagrams immediately, without refetching the document. It is not remembered: every run starts on System (L11).
 - **S9 — Frontend design.** User (L6): "el frontend tenemos que diseñarlo con gentle-design , para eso esta la herramienta, me haces 3 diseño y vamos trabajandolos." The frontend is implemented from an artboard chosen by the user under `design/mview-viewer/`; no frontend code before that choice.
 
 ### Server contract (shared by CLI and frontend)
@@ -39,6 +39,7 @@ Local CLI (`mview`) that opens the browser on a 127.0.0.1 server and renders Mar
 - [x] T5 — Frontend: JSON tree (collapse, search, copy path) · S1,S8 · implements 02-workbench · commit: 944d3fe
 - [x] T6 — Frontend: empty-page paste area, type selector, theme · S3,S8 · implements 02-workbench · commit: 944d3fe
 - [x] T7 — README + `--help` · S2,S3,S6 · commit: caea53c (`--help` in 6ec1371)
+- [x] T10 — Manual theme control (System / Light / Dark) in the toolbar · S8 · commit: 400d7a9
 
 ## Log
 
@@ -51,3 +52,6 @@ Local CLI (`mview`) that opens the browser on a 127.0.0.1 server and renders Mar
 - L7 (design, T9): gentle-design directions written to `design/mview-viewer/`: `01-reader.html` (Reader), `02-workbench.html` (Workbench), `03-focus-canvas.html` (Focus canvas). No artboard chosen yet.
 - L8 (user, design handoff): "Implement the design artboard design/mview-viewer/02-workbench.html" — Chosen artboard: `02-workbench.html` (Workbench); `01-reader.html` and `03-focus-canvas.html` remain alternatives. T8 and T4–T6 implement it in Svelte; the artboard is the visual spec (not copied verbatim). Artboard demo shortcuts are not product behavior: the type selector re-renders the current content as the chosen type (S8), and pasted Markdown/Mermaid/JSON all render.
 - L9 (evidence, independent verify after 944d3fe): S1–S9 pass in Chrome headless under the server CSP (Mermaid renders, malicious Markdown neutralized, JSON path `customer["x-segment"]`, override kept across live reload, live reload without page reload). Minor findings: (1) CSP `img-src https:` lets documents load remote images (tracking-pixel privacy risk) — pending user decision; (2) Mermaid SVG not re-sanitized (defence in depth only); (3) empty piped stdin rendered a blank page — fixed in c61cae0 (now shows the paste page). Not verified: `--paste` with a real clipboard, automatic browser open, default free port, `npm pack`, Firefox/Safari.
+- L10 (user): "se ve bastante bien, podriamos agregarle la opcion dark mode/light mode?" — Proposed S8 theme control and T10, pending user approval. Open decision: each run uses a different port, so browser storage (per origin) does not remember the choice between runs; options are no persistence plus a `--theme` flag / `MVIEW_THEME` env default, or a config file written by the server.
+- L11 (user, answers to L10): "No recordar nada" and "Seguir el toolbar del Workbench" — No persistence and no CLI flag; theme control follows the Workbench toolbar style, no new artboard. S8 theme bullet rewritten; T10 approved.
+- L12 (evidence, T10 400d7a9): theme.test.ts RED (module missing) then GREEN; 90/90 tests, check clean, build ok. Chrome headless on the preview: System light bg rgb(246,247,249) → Dark rgb(15,18,22) with data-theme="dark" and Mermaid redrawn dark; Light holds while the OS is dark; back to System follows the OS; after a page reload the selector is back on System (not persisted); no console errors.
