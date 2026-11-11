@@ -97,3 +97,70 @@ describe("markdown pipeline", () => {
     expect(el.querySelector("pre code .hljs-keyword")?.textContent).toBe("const");
   });
 });
+
+describe("remote images are blocked (T11, S6)", () => {
+  function placeholders(html: string) {
+    return [...dom(html).querySelectorAll(".remote-image")].map((el) => ({
+      title: el.querySelector(".remote-image-title")?.textContent ?? null,
+      alt: el.querySelector(".remote-image-alt")?.textContent ?? null,
+      url: el.querySelector(".remote-image-url")?.textContent ?? null,
+      label: el.getAttribute("aria-label"),
+    }));
+  }
+
+  it("replaces a Markdown image with a remote URL by a placeholder showing alt text and the URL as plain text", () => {
+    const { html } = renderMarkdown("![Build status](https://img.shields.io/badge/build-passing-green.svg)");
+    expect(dom(html).querySelector("img")).toBeNull();
+    expect(placeholders(html)).toEqual([
+      {
+        title: "Remote image blocked",
+        alt: "Build status",
+        url: "https://img.shields.io/badge/build-passing-green.svg",
+        label: "Remote image blocked: Build status",
+      },
+    ]);
+    // Plain text, never a link: no request and no navigation target.
+    expect(dom(html).querySelector(".remote-image a, .remote-image [href], .remote-image [src]")).toBeNull();
+  });
+
+  it("covers raw HTML <img>, http:, protocol-relative, mixed case and surrounding spaces", () => {
+    const { html } = renderMarkdown(
+      [
+        '<img src="http://example.com/a.png" alt="a">',
+        '<img src="  HTTPS://Example.com/b.png  " alt="b">',
+        '<img src="//cdn.example.com/c.png" alt="c">',
+        '<img src="/\\evil.example/d.png" alt="d">',
+      ].join("\n"),
+    );
+    expect(dom(html).querySelector("img")).toBeNull();
+    expect(placeholders(html).map((p) => p.alt)).toEqual(["a", "b", "c", "d"]);
+  });
+
+  it("omits the alt line when the image has no alt text", () => {
+    const { html } = renderMarkdown('<img src="https://example.com/pixel.gif">');
+    expect(placeholders(html)).toEqual([
+      { title: "Remote image blocked", alt: null, url: "https://example.com/pixel.gif", label: "Remote image blocked" },
+    ]);
+  });
+
+  it("keeps data: and local relative images", () => {
+    const dataUri = "data:image/png;base64,iVBORw0KGgo=";
+    const el = dom(renderMarkdown(`![dot](${dataUri}) ![shot](./docs/shot.png)`).html);
+    expect([...el.querySelectorAll("img")].map((i) => i.getAttribute("src"))).toEqual([dataUri, "./docs/shot.png"]);
+    expect(el.querySelector(".remote-image")).toBeNull();
+  });
+
+  it("removes remote srcset values and remote <picture><source> elements", () => {
+    const el = dom(
+      renderMarkdown(
+        '<img src="local.png" srcset="https://evil.example/x.png 2x, small.png 1x" alt="l">\n\n' +
+          '<picture><source srcset="https://evil.example/y.webp"><source srcset="ok.webp"><img src="fallback.png" alt="f"></picture>',
+      ).html,
+    );
+    const local = el.querySelector('img[alt="l"]')!;
+    expect(local.getAttribute("src")).toBe("local.png");
+    expect(local.hasAttribute("srcset")).toBe(false);
+    expect([...el.querySelectorAll("source")].map((s) => s.getAttribute("srcset"))).toEqual(["ok.webp"]);
+    expect(el.innerHTML).not.toContain("evil.example");
+  });
+});

@@ -45,6 +45,7 @@ Rendered content is often pasted or AI-generated, so mview treats it as untruste
 - The server listens on `127.0.0.1` only and rejects requests with a foreign `Host` header.
 - Every run uses a random token in the URL; API requests without it get `403`.
 - Markdown HTML is sanitized with DOMPurify, Mermaid runs with `securityLevel: 'strict'`, and the page ships a strict Content-Security-Policy.
+- Remote images are never loaded, so a document cannot report that you opened it. They are replaced by a "Remote image blocked" box with the alt text and the URL. `data:` images still render; local relative images (`./img.png`) are not served yet.
 - Everything is bundled: no CDN, no telemetry, works offline.
 
 ## Development
