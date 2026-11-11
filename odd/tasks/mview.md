@@ -24,7 +24,7 @@ Local CLI (`mview`) that opens the browser on a 127.0.0.1 server and renders Mar
 - Token delivery: the CLI prints and opens `/?t=<token>`; the frontend reads it from `location.search`. Without a token, or with an invalid one, the page shows "This page needs the link printed by mview".
 - `GET /api/doc?t=<token>` → `Doc` = `{ name: string|null, type: "markdown"|"mermaid"|"json", content: string, source: "file"|"paste"|"stdin"|"empty" }`; read failure → `500 { error: string }`.
 - `GET /api/events?t=<token>` → SSE; emits `event: change` when the watched file changes. The token goes in the query string because `EventSource` cannot set headers.
-- Only `/api/*` requires the token: missing/wrong → `403`. Every route accepts exactly `Host: 127.0.0.1:<port>` and `Host: localhost:<port>`; any other value (including the host without a port, or `[::1]`) gets `403` (DNS-rebinding guard). Unknown path → `404`.
+- Only `/api/*` requires the token: missing/wrong → `403`. Every route accepts exactly `Host: 127.0.0.1:<port>` and `Host: localhost:<port>`, compared case-insensitively as HTTP requires (T14); any other value (including the host without a port, or `[::1]`) gets `403` (DNS-rebinding guard). Unknown path → `404`.
 - Shared code lives in `src/shared/`: `detect.ts` (`detectType(content, filename?)`, `firstMeaningfulLine` — T13) and `doc.ts` (`Doc`, `DocSource`, empty doc). Both CLI and frontend import them; neither redefines them.
 
 ## Tasks

@@ -70,7 +70,8 @@ export function startServer(options: ServerOptions): Promise<RunningServer> {
     res.setHeader("Referrer-Policy", "no-referrer");
 
     // Reject DNS-rebinding: a page on another origin resolving to 127.0.0.1 sends its own Host.
-    if (!allowedHosts.has(req.headers.host ?? "")) return sendText(res, 403, "Forbidden");
+    // Host names are case-insensitive in HTTP; the allowed set is lowercase.
+    if (!allowedHosts.has((req.headers.host ?? "").toLowerCase())) return sendText(res, 403, "Forbidden");
     if (req.method !== "GET" && req.method !== "HEAD") return sendText(res, 405, "Method Not Allowed");
 
     const url = new URL(req.url ?? "/", `http://${HOST}`);
