@@ -161,12 +161,22 @@ function getPurifier(): Purifier {
  * protocol-relative `//` (browsers also read `/\` and `\\` as `//`). Trimmed, case-insensitive.
  */
 export function isRemoteUrl(url: string): boolean {
-  const u = url.trim().toLowerCase().replace(/\\/g, "/");
+  // Same normalization as the WHATWG URL parser: drop tabs/newlines anywhere, then leading and
+  // trailing C0 controls and spaces; `\` counts as `/` for http(s)-like URLs.
+  const u = url
+    .replace(/[\t\n\r]/g, "")
+    .replace(/^[\x00-\x20]+|[\x00-\x20]+$/g, "")
+    .toLowerCase()
+    .replace(/\\/g, "/");
   return u.startsWith("http:") || u.startsWith("https:") || u.startsWith("//");
 }
 
 function hasRemoteCandidate(srcset: string): boolean {
-  return srcset.split(",").some((candidate) => isRemoteUrl(candidate.trim().split(/\s+/)[0] ?? ""));
+  // Conservative: drop tabs/newlines first so a URL split by them is still recognized as remote.
+  return srcset
+    .replace(/[\t\n\r]/g, "")
+    .split(",")
+    .some((candidate) => isRemoteUrl(candidate.replace(/^[\x00-\x20]+/, "").split(/[ \f]+/)[0] ?? ""));
 }
 
 /** Placeholder shown instead of a remote image (S6, T11): alt text and the URL as plain text. */

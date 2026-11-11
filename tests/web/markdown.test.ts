@@ -136,6 +136,25 @@ describe("remote images are blocked (T11, S6)", () => {
     expect(placeholders(html).map((p) => p.alt)).toEqual(["a", "b", "c", "d"]);
   });
 
+  it("reads URLs like the browser: leading control characters and tabs/newlines inside the URL are ignored", () => {
+    const { html } = renderMarkdown(
+      [
+        '<img src="&#1;https://example.com/a.png" alt="a">',
+        '<img src="ht&#9;tps://example.com/b.png" alt="b">',
+        '<img src="ht&#10;tps://example.com/c.png" alt="c">',
+        '<img src="/&#9;/example.com/d.png" alt="d">',
+        '<img src="local.png" srcset="&#1;https://example.com/e.png 2x" alt="e">',
+        '<picture><source srcset="h&#13;ttps://example.com/f.webp"><img src="fallback.png" alt="f"></picture>',
+      ].join("\n"),
+    );
+    const el = dom(html);
+    expect(placeholders(html).map((p) => p.alt)).toEqual(["a", "b", "c", "d"]);
+    expect(el.querySelector('img[alt="e"]')?.hasAttribute("srcset")).toBe(false);
+    expect(el.querySelector("source")).toBeNull();
+    expect(el.innerHTML).not.toContain("example.com/e.png");
+    expect(el.innerHTML).not.toContain("f.webp");
+  });
+
   it("omits the alt line when the image has no alt text", () => {
     const { html } = renderMarkdown('<img src="https://example.com/pixel.gif">');
     expect(placeholders(html)).toEqual([
