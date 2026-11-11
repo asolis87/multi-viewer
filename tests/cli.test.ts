@@ -50,10 +50,15 @@ function eventsUrl(pageUrl: string): string {
 function watchChanges(pageUrl: string): Promise<{ count(): number; close(): void }> {
   return new Promise((resolve, reject) => {
     let changes = 0;
+    let buffer = "";
     const req = request(eventsUrl(pageUrl), (res) => {
       res.setEncoding("utf8");
       res.on("data", (chunk: string) => {
-        changes += chunk.split("event: change").length - 1;
+        // SSE events end with a blank line; a chunk may hold part of one, so only count complete events.
+        buffer += chunk;
+        const events = buffer.split("\n\n");
+        buffer = events.pop() ?? "";
+        changes += events.filter((e) => e.split("\n").includes("event: change")).length;
       });
       resolve({ count: () => changes, close: () => req.destroy() });
     });
@@ -98,10 +103,47 @@ describe("mview CLI", () => {
     expect(r.stderr).toBe("mview: file not found: nope-404.md\n");
   });
 
+  it("a directory is rejected before starting the server (T15)", () => {
+    const dir = mkdtempSync(join(tmpdir(), "mview-dir-"));
+    const r = spawnSync(process.execPath, [CLI, "--no-open", dir], { encoding: "utf8", timeout: 5000, killSignal: "SIGINT" });
+    expect(r.status).toBe(1);
+    expect(r.stdout).toBe("");
+    expect(r.stderr).toBe(`mview: not a file: ${dir}\n`);
+  });
+
   it("serves stdin content with detected type", async () => {
     const { url } = await startCli([], '{"a": 1}');
     const doc = await (await fetch(docUrl(url))).json();
     expect(doc).toEqual({ name: null, type: "json", content: '{"a": 1}', source: "stdin" });
+  });
+
+  it("tells the user it is waiting when piped stdin stays open, then serves it once it ends (T16)", async () => {
+    const proc = spawn(process.execPath, [CLI, "--no-open"], { stdio: ["pipe", "pipe", "pipe"] });
+    child = proc;
+    let out = "";
+    let err = "";
+    proc.stdout!.on("data", (c) => (out += c));
+    proc.stderr!.on("data", (c) => (err += c));
+    await waitFor(() => err.includes("waiting"), 4000);
+    expect(err).toBe("mview: waiting for input on stdin (press Ctrl+D to finish, Ctrl+C to cancel)\n");
+    expect(out).toBe("");
+    proc.stdin!.end("# late");
+    await waitFor(() => /t=\S+/.test(out), 4000);
+    const url = out.match(/mview: (http:\/\/127\.0\.0\.1:\d+\/\?t=\S+)/)![1]!;
+    expect(await (await fetch(docUrl(url))).json()).toEqual({ name: null, type: "markdown", content: "# late", source: "stdin" });
+  });
+
+  it("does not print the waiting notice when stdin ends quickly (T16)", async () => {
+    const proc = spawn(process.execPath, [CLI, "--no-open"], { stdio: ["pipe", "pipe", "pipe"] });
+    child = proc;
+    let err = "";
+    let out = "";
+    proc.stdout!.on("data", (c) => (out += c));
+    proc.stderr!.on("data", (c) => (err += c));
+    proc.stdin!.end("{}");
+    await waitFor(() => /t=\S+/.test(out), 4000);
+    await new Promise((r) => setTimeout(r, 1300));
+    expect(err).toBe("");
   });
 
   it("empty piped stdin falls back to the empty paste page", async () => {
@@ -110,7 +152,7 @@ describe("mview CLI", () => {
     expect(doc).toEqual({ name: null, type: "markdown", content: "", source: "empty" });
   });
 
-  it("serves a file and reflects edits", async () => {
+  it("serves the current file content on every request (live reload over SSE is covered by T12)", async () => {
     const dir = mkdtempSync(join(tmpdir(), "mview-cli-"));
     const file = join(dir, "flow.mmd");
     writeFileSync(file, "flowchart LR\n A-->B");
@@ -157,8 +199,10 @@ describe("mview CLI", () => {
         unlinkSync(file);
         await waitFor(() => events.count() > beforeDelete);
         await waitFor(async () => (await fetch(docUrlOf())).status === 500);
+        const beforeRecreate = events.count();
         writeFileSync(file, "v2");
-        await waitFor(async () => (await content().catch(() => "")) === "v2");
+        await waitFor(() => events.count() > beforeRecreate);
+        expect(await content()).toBe("v2");
         const before = events.count();
         writeFileSync(file, "v3");
         await waitFor(() => events.count() > before);

@@ -73,6 +73,12 @@ describe("server", () => {
     expect(asset.status).toBe(403);
   });
 
+  it("compares the Host header case-insensitively, as HTTP requires (T14)", async () => {
+    expect((await get(server.port, `/api/doc?t=${TOKEN}`, `LOCALHOST:${server.port}`)).status).toBe(200);
+    expect((await get(server.port, `/api/doc?t=${TOKEN}`, `LocalHost:${server.port}`)).status).toBe(200);
+    expect((await get(server.port, `/api/doc?t=${TOKEN}`, `EVIL.EXAMPLE:${server.port}`)).status).toBe(403);
+  });
+
   it("accepts localhost as Host", async () => {
     const res = await get(server.port, `/api/doc?t=${TOKEN}`, `localhost:${server.port}`);
     expect(res.status).toBe(200);

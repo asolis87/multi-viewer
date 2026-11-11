@@ -10,7 +10,7 @@
       "implementedAt": "2026-11-11T00:04:25.297Z",
       "feature": "odd/tasks/mview.md",
       "note": "Svelte implementation in 944d3fe (+ fix c61cae0); verified in Chrome headless, S1–S9 pass.",
-      "previewUrl": "http://127.0.0.1:4317/?t=YdsKBh-MFrYriJUXsnGMMwmYEeMqhQKi"
+      "previewUrl": "http://127.0.0.1:4317/"
     }
   }
 }

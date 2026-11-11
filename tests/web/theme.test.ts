@@ -1,8 +1,16 @@
 // @vitest-environment jsdom
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { applyTheme, resolveDark, THEME_OPTIONS } from "../../src/web/lib/theme.js";
 
 describe("theme", () => {
+  afterEach(() => {
+    // Each test starts from a page with no manual theme (T22: no state shared between tests).
+    applyTheme("system", document.documentElement);
+    vi.restoreAllMocks();
+    localStorage.clear();
+    sessionStorage.clear();
+  });
+
   it("offers System, Light and Dark, defaulting to System", () => {
     expect(THEME_OPTIONS).toEqual([
       { value: "system", label: "System" },
@@ -31,8 +39,13 @@ describe("theme", () => {
     expect(root.style.colorScheme).toBe("");
   });
 
-  it("is not persisted between page loads", () => {
-    applyTheme("dark", document.documentElement);
+  it("is not persisted between page loads (no storage writes, no cookies)", () => {
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    const cookieBefore = document.cookie;
+    for (const choice of ["dark", "light", "system"] as const) applyTheme(choice, document.documentElement);
+    expect(setItem).not.toHaveBeenCalled();
     expect(localStorage.length).toBe(0);
+    expect(sessionStorage.length).toBe(0);
+    expect(document.cookie).toBe(cookieBefore);
   });
 });

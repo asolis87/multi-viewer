@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { access } from "node:fs/promises";
+import { stat } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { HELP, parseCliArgs } from "./args.js";
@@ -10,6 +10,7 @@ import { startServer } from "./server.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const WEB_ROOT = resolve(here, "../web");
+const STDIN_NOTICE_MS = 1000;
 
 async function main(argv: string[]): Promise<number> {
   const args = parseCliArgs(argv);
@@ -31,10 +32,15 @@ async function main(argv: string[]): Promise<number> {
 
   if (args.file) {
     const path = resolve(args.file);
+    let info;
     try {
-      await access(path);
+      info = await stat(path);
     } catch {
       process.stderr.write(`mview: file not found: ${args.file}\n`);
+      return 1;
+    }
+    if (!info.isFile()) {
+      process.stderr.write(`mview: not a file: ${args.file}\n`);
       return 1;
     }
     watchPath = path;
@@ -55,7 +61,12 @@ async function main(argv: string[]): Promise<number> {
     const doc = fromContent(text, "paste");
     getDoc = async () => doc;
   } else if (!process.stdin.isTTY) {
-    const text = await readStream(process.stdin);
+    // A pipe that stays open (e.g. launched from an IDE task) would otherwise hang silently.
+    const notice = setTimeout(
+      () => process.stderr.write("mview: waiting for input on stdin (press Ctrl+D to finish, Ctrl+C to cancel)\n"),
+      STDIN_NOTICE_MS,
+    );
+    const text = await readStream(process.stdin).finally(() => clearTimeout(notice));
     // Empty piped input (e.g. `mview < /dev/null`) gets the paste page instead of a blank document.
     const doc = text.trim() === "" ? emptyDoc() : fromContent(text, "stdin");
     getDoc = async () => doc;

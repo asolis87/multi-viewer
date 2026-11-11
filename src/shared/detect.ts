@@ -12,9 +12,11 @@ const EXTENSIONS: Record<string, DocType> = {
 
 const MERMAID_KEYWORDS = [
   "flowchart",
+  "flowchart-elk",
   "graph",
   "sequenceDiagram",
   "classDiagram",
+  "classDiagram-v2",
   "stateDiagram",
   "stateDiagram-v2",
   "erDiagram",
@@ -37,6 +39,9 @@ const MERMAID_KEYWORDS = [
   "packet-beta",
   "kanban",
   "architecture-beta",
+  "radar-beta",
+  "treemap-beta",
+  "zenuml",
 ];
 
 /**
@@ -73,7 +78,8 @@ function isJsonDocument(content: string): boolean {
 function startsWithMermaidKeyword(content: string): boolean {
   const line = firstMeaningfulLine(content);
   if (!line) return false;
-  const word = line.split(/[\s;]/, 1)[0] ?? "";
+  // A keyword may be followed by whitespace, `;` or `:` (e.g. `graph TD;`, `gitGraph:`).
+  const word = line.split(/[\s;:]/, 1)[0] ?? "";
   return MERMAID_KEYWORDS.includes(word);
 }
 

@@ -3,7 +3,7 @@ import { firstMeaningfulLine } from "../../shared/detect.js";
 
 /** The diagram keyword, e.g. `sequenceDiagram` or `flowchart`; "diagram" when unknown. */
 export function diagramKeyword(source: string): string {
-  return firstMeaningfulLine(source)?.split(/[\s;]/, 1)[0] || "diagram";
+  return firstMeaningfulLine(source)?.split(/[\s;:]/, 1)[0] || "diagram";
 }
 
 export interface MermaidOutlineItem {

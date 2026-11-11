@@ -57,6 +57,17 @@ describe("detectType by content", () => {
     expect(detectType(content)).toBe("mermaid");
   });
 
+  it.each([
+    "classDiagram-v2\n  A <|-- B",
+    "flowchart-elk TD\n  A --> B",
+    "gitGraph:\n  commit",
+    "zenuml\n  A.method()",
+    "radar-beta\n  axis a, b",
+    "treemap-beta\n  \"Root\"",
+  ])("mermaid variant keyword (T17): %s", (content) => {
+    expect(detectType(content)).toBe("mermaid");
+  });
+
   it("skips leading blank lines and mermaid comments/front-matter", () => {
     expect(detectType("\n\n%% comment\nflowchart LR\n A-->B")).toBe("mermaid");
     expect(detectType("---\ntitle: X\n---\nflowchart LR\n A-->B")).toBe("mermaid");
