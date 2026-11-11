@@ -74,6 +74,12 @@ describe("mview CLI", () => {
     expect(doc).toEqual({ name: null, type: "json", content: '{"a": 1}', source: "stdin" });
   });
 
+  it("empty piped stdin falls back to the empty paste page", async () => {
+    const { url } = await startCli([], "  \n");
+    const doc = await (await fetch(docUrl(url))).json();
+    expect(doc).toEqual({ name: null, type: "markdown", content: "", source: "empty" });
+  });
+
   it("serves a file and reflects edits", async () => {
     const dir = mkdtempSync(join(tmpdir(), "mview-cli-"));
     const file = join(dir, "flow.mmd");

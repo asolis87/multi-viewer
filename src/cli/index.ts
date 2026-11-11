@@ -55,7 +55,9 @@ async function main(argv: string[]): Promise<number> {
     const doc = fromContent(text, "paste");
     getDoc = async () => doc;
   } else if (!process.stdin.isTTY) {
-    const doc = fromContent(await readStream(process.stdin), "stdin");
+    const text = await readStream(process.stdin);
+    // Empty piped input (e.g. `mview < /dev/null`) gets the paste page instead of a blank document.
+    const doc = text.trim() === "" ? emptyDoc() : fromContent(text, "stdin");
     getDoc = async () => doc;
   } else {
     getDoc = async () => emptyDoc();
