@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   childPath,
-  highlightParts,
   indexJson,
   parseJson,
   searchJson,
@@ -77,13 +76,14 @@ describe("searchJson", () => {
     expect(searchJson(index, "zzz").hits.size).toBe(0);
   });
 
-  it("splits text so every occurrence can be marked", () => {
-    expect(highlightParts("Mug-mug", "MUG")).toEqual([
-      { text: "Mug", hit: true },
-      { text: "-", hit: false },
-      { text: "mug", hit: true },
+  it("search hits are the texts the shared highlighter marks (highlightParts moved to text.ts)", async () => {
+    const { highlightParts } = await import("../../src/web/lib/text.js");
+    expect([...searchJson(index, "mug").hits]).toEqual(["items[1].sku"]);
+    expect(highlightParts("MUG-WHT", "mug")).toEqual([
+      { text: "MUG", hit: true },
+      { text: "-WHT", hit: false },
     ]);
-    expect(highlightParts("abc", "")).toEqual([{ text: "abc", hit: false }]);
+    expect("highlightParts" in (await import("../../src/web/lib/json.js"))).toBe(false);
   });
 });
 

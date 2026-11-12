@@ -198,6 +198,48 @@ mark { background: var(--hit); color: inherit; border-radius: 2px; padding: 0 1p
 .kv dt { color: var(--muted); } .kv dd { margin: 0; font-family: var(--mono); word-break: break-all; }
 .value-box { margin: 0; font: 12.5px/1.55 var(--mono); background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 10px; max-height: 260px; overflow: auto; white-space: pre-wrap; word-break: break-word; }
 
+/* CSV table + row inspector (S13; design/mview-csv/03-table-inspector.html). The table reuses the
+   Markdown table colours and padding (.md th/td) and adds the sticky header and the cell width cap. */
+.csv-view { position: absolute; inset: 0; display: grid; grid-template-columns: minmax(0, 1fr) 0px; transition: grid-template-columns 240ms cubic-bezier(.2, .8, .2, 1); }
+.csv-view.has-inspector { grid-template-columns: minmax(0, 1fr) 340px; }
+.csv-main { display: flex; flex-direction: column; min-width: 0; min-height: 0; border-right: 1px solid var(--border); }
+.grid-scroll { flex: 1; overflow: auto; min-height: 0; background: var(--surface); }
+.t { border-collapse: separate; border-spacing: 0; min-width: 100%; font-size: 13.5px; background: var(--surface); }
+.t th, .t td { text-align: left; padding: 7px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.t th { position: sticky; top: 0; z-index: 2; padding: 0; background: var(--surface-2); font-weight: 600; font-size: 12px; color: var(--muted); }
+.t td.num, .t th.num { text-align: right; }
+.t td.num { font-variant-numeric: tabular-nums; }
+.t .cell { max-width: 320px; overflow: hidden; text-overflow: ellipsis; }
+.th-btn { display: flex; align-items: center; gap: 6px; width: 100%; min-height: var(--target); padding: 0 12px; border: 0; background: none;
+  cursor: pointer; font: inherit; color: inherit; text-align: left; white-space: nowrap; }
+th.num .th-btn { justify-content: flex-end; }
+.th-btn:hover { background: var(--surface-3); color: var(--text); }
+.th-btn:focus-visible { outline-offset: -2px; }
+.t th[aria-sort] { color: var(--text); }
+.sort-ico { width: 12px; height: 12px; flex: none; opacity: .5; }
+.t th[aria-sort] .sort-ico { color: var(--accent); opacity: 1; }
+.t th.is-target { background: var(--accent-soft); color: var(--text); box-shadow: inset 0 -2px var(--accent); }
+.t tbody tr { cursor: pointer; }
+.t tbody tr:hover td { background: var(--surface-2); }
+.t tbody tr:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.t tbody tr.is-selected td { background: var(--accent-soft); }
+.t tbody tr.is-selected td:first-child { box-shadow: inset 2px 0 var(--accent); }
+.t td.none { color: var(--muted); padding: 28px 16px; white-space: normal; cursor: default; }
+.t td.none .btn { margin-left: 8px; min-height: 28px; padding: 0 8px; font-size: 12px; }
+.t tbody tr:has(td.none) { cursor: default; }
+.t tbody tr:has(td.none):hover td { background: none; }
+.csv-view .inspector { overflow: hidden; min-width: 0; padding: 0; opacity: 0; transform: translateX(24px); visibility: hidden;
+  transition: opacity 160ms ease, transform 240ms cubic-bezier(.2, .8, .2, 1), visibility 0s linear 240ms; }
+.csv-view.has-inspector .inspector { padding: 16px; overflow: auto; opacity: 1; transform: none; visibility: visible; transition-delay: 0s, 0s, 0s; }
+.ins-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.ins-close { min-width: var(--target); min-height: var(--target); border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--muted);
+  font-size: 16px; line-height: 1; cursor: pointer; }
+.ins-close:hover { background: var(--surface-2); color: var(--text); }
+.csv-view .kv { grid-template-columns: minmax(64px, max-content) 1fr; }
+.csv-view .kv dt { overflow-wrap: anywhere; }
+.csv-view .kv dd { word-break: normal; overflow-wrap: anywhere; white-space: pre-wrap; }
+.csv-view .ins-note { margin: 0; }
+
 /* Error states (Mermaid parse error, JSON parse error, load error) */
 .err { max-width: 900px; padding: 28px 40px 64px; }
 .err-box { border: 1px solid var(--danger); background: var(--danger-soft); border-radius: 8px; padding: 14px 16px; display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 4px 12px; }
@@ -249,6 +291,23 @@ mark { background: var(--hit); color: inherit; border-radius: 2px; padding: 0 1p
   .json-main { border-right: 0; border-bottom: 1px solid var(--border); }
   .inspector { max-height: 42vh; }
 }
+@media (max-width: 1100px) {
+  .csv-view, .csv-view.has-inspector { grid-template-columns: minmax(0, 1fr); }
+  .csv-view { grid-template-rows: minmax(0, 1fr) 0px; transition: grid-template-rows 240ms cubic-bezier(.2, .8, .2, 1); }
+  .csv-view.has-inspector { grid-template-rows: minmax(0, 1fr) 42vh; }
+  .csv-view .inspector { transform: translateY(24px); }
+  .csv-view .csv-main { border-right: 0; border-bottom: 1px solid var(--border); }
+}
+/* Wide screens, CSV only (L38): the outline is a collapsible column behind the toolbar button. */
+@media (min-width: 900px) {
+  .outline-btn.always { display: inline-flex; }
+  .workspace.collapsible { grid-template-columns: 0px minmax(0, 1fr); transition: grid-template-columns 240ms cubic-bezier(.2, .8, .2, 1); }
+  .workspace.collapsible.outline-open { grid-template-columns: 260px minmax(0, 1fr); }
+  .workspace.collapsible .sidebar { border-right-width: 0; overflow: hidden; min-width: 0; opacity: 0; transform: translateX(-24px); visibility: hidden;
+    transition: opacity 160ms ease, transform 240ms cubic-bezier(.2, .8, .2, 1), visibility 0s linear 240ms; }
+  .workspace.collapsible.outline-open .sidebar { border-right-width: 1px; overflow: auto; opacity: 1; transform: none; visibility: visible; transition-delay: 0s, 0s, 0s; }
+}
+.outline-btn.always[aria-expanded="true"] { background: var(--accent-soft); border-color: var(--accent); }
 @media (max-width: 899px) {
   .outline-btn { display: inline-flex; }
   .brand span, .type label, .theme label { display: none; }

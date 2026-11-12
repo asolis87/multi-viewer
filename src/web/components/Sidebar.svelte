@@ -5,13 +5,15 @@
     outline: SideOutline;
     active: string | null;
     element?: HTMLElement;
+    /** Collapsed (CSV outline on wide screens): out of the tab order and hidden from assistive tech. */
+    inert?: boolean;
     onpick: (item: SideItem) => void;
   }
 
-  let { outline, active, element = $bindable(), onpick }: Props = $props();
+  let { outline, active, element = $bindable(), inert = false, onpick }: Props = $props();
 </script>
 
-<nav class="sidebar" id="sidebar" aria-label="Outline" bind:this={element} tabindex="-1">
+<nav class="sidebar" id="sidebar" aria-label="Outline" bind:this={element} tabindex="-1" {inert}>
   <div class="side-head">
     <h2>Outline</h2>
     {#if outline.sub}<div class="side-sub">{outline.sub}</div>{/if}

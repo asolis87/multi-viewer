@@ -10,6 +10,8 @@
     detected: DocType | null;
     value: SelectValue;
     drawerOpen: boolean;
+    /** Show the Outline button on wide screens too (CSV, S13). */
+    outlineAlways?: boolean;
     outlineButton?: HTMLButtonElement;
     ontoggleoutline: () => void;
     onselect: (value: SelectValue) => void;
@@ -17,13 +19,15 @@
     ontheme: (theme: ThemeChoice) => void;
   }
 
-  let { name, sourceLabel, detected, value, drawerOpen, outlineButton = $bindable(), ontoggleoutline, onselect, theme, ontheme }: Props = $props();
+  let { name, sourceLabel, detected, value, drawerOpen, outlineAlways = false, outlineButton = $bindable(), ontoggleoutline, onselect, theme, ontheme }: Props = $props();
 </script>
 
 <header class="toolbar">
   <button
     class="btn outline-btn"
+    class:always={outlineAlways}
     type="button"
+    title={outlineAlways ? "Show or hide the column outline" : undefined}
     bind:this={outlineButton}
     aria-controls="sidebar"
     aria-expanded={drawerOpen}

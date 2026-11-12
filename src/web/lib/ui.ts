@@ -1,4 +1,5 @@
 /** Small UI contracts shared by the shell (App) and the views. */
+import type { DocType } from "./doc.js";
 
 export interface SideItem {
   id: string;
@@ -40,4 +41,12 @@ export function reveal(el: HTMLElement | null, block: ScrollLogicalPosition = "s
 
 export function themeBackground(): string {
   return getComputedStyle(document.documentElement).getPropertyValue("--surface").trim() || "#ffffff";
+}
+
+/**
+ * CSV documents get a collapsible outline on wide screens (S13, L38): closed on load and
+ * toggled by the toolbar's Outline button. Other types keep the always-visible sidebar.
+ */
+export function collapsibleOutline(type: DocType): boolean {
+  return type === "csv";
 }
