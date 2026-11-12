@@ -30,7 +30,7 @@ Installing straight from the source (`pnpm add -g github:asolis87/multi-viewer`)
 | Markdown | `.md`, `.markdown`, or anything that is not JSON/Mermaid/CSV | Tables, highlighted code, ```` ```mermaid ```` blocks rendered as diagrams |
 | Mermaid | `.mmd`, `.mermaid`, or content starting with a diagram keyword (`flowchart`, `sequenceDiagram`, …) | Zoom, pan, export SVG |
 | JSON | `.json`, or content that parses as a JSON object/array | Collapsible tree, search, click to copy a path like `a.b[3].c` |
-| CSV / TSV | `.csv`, `.tsv`, or content whose first records split evenly on tab, `;` or `,` (first row is the header) | Table with sticky header, click a header to sort, search, row inspector, column outline; draws at most 5,000 rows |
+| CSV / TSV | `.csv`, `.tsv`, or content whose first records split evenly on tab, `;` or `,` (first row is the header) | Table with sticky header, click a header to sort, search, row inspector, column outline; large files are shown in pages of 200 rows |
 
 The file extension wins when it is known. You can always override the detected type from the selector in the page header.
 

@@ -44,6 +44,7 @@
   .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: var(--target); min-width: var(--target);
     padding: 0 12px; border: 1px solid var(--border); background: var(--surface); border-radius: 6px; cursor: pointer; font-size: 13px; white-space: nowrap; }
   .btn:hover { background: var(--surface-2); }
+  .btn:disabled { cursor: not-allowed; opacity: .55; }
   .btn svg { width: 16px; height: 16px; flex: none; }
 
   .toolbar { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 6px 12px; background: var(--surface); border-bottom: 1px solid var(--border); }
@@ -103,7 +104,7 @@
   mark { background: var(--hit); color: inherit; border-radius: 2px; padding: 0 1px; }
 
   /* Table: Markdown table colours and padding (.md th/td) + sticky header + cell width cap. */
-  .grid-scroll { flex: 1; overflow: auto; min-height: 0; background: var(--surface); }
+  .grid-scroll { flex: 1; overflow: auto; min-height: 0; background: var(--surface); scroll-padding-top: var(--target); /* rows revealed by ↑/↓ or sort stay below the sticky header */ }
   .t { border-collapse: separate; border-spacing: 0; min-width: 100%; font-size: 13.5px; background: var(--surface); }
   .t th, .t td { text-align: left; padding: 7px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
   .t th { position: sticky; top: 0; z-index: 2; padding: 0; background: var(--surface-2); font-weight: 600; font-size: 12px; color: var(--muted); }
@@ -124,6 +125,11 @@
   .t tbody tr:hover td { background: var(--surface-2); }
   .t td.none { color: var(--muted); padding: 28px 16px; white-space: normal; }
   .t td.none .btn { margin-left: 8px; min-height: 28px; padding: 0 8px; font-size: 12px; }
+
+  /* Pager below the table: the diagram toolbar pattern (.fig-bar, small .btn, mono output) from src/web/styles.css. */
+  .pager { display: flex; align-items: center; justify-content: center; gap: 4px; padding: 4px 6px; border-top: 1px solid var(--border); background: var(--surface-2); flex-wrap: wrap; }
+  .pager .btn { min-height: 30px; min-width: 30px; padding: 0 8px; font-size: 12px; }
+  .pager .pg-label { min-width: 44px; padding: 0 8px; text-align: center; font: 12px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 
   /* Direction 03 — table + inspector: the JSON two-pane layout; the selected row uses the tree's
      .row.is-selected look and its full values show in the Inspector. */
@@ -255,6 +261,13 @@
             <tbody id="tbody"></tbody>
           </table>
         </div>
+        <div class="pager" id="pager" role="toolbar" aria-label="Table pages" aria-controls="table" hidden>
+          <button class="btn" type="button" data-pg="first" aria-label="First page" title="First page">«</button>
+          <button class="btn" type="button" data-pg="prev" aria-label="Previous page" title="Previous page">‹</button>
+          <span class="pg-label" id="pgLabel" aria-live="polite"></span>
+          <button class="btn" type="button" data-pg="next" aria-label="Next page" title="Next page">›</button>
+          <button class="btn" type="button" data-pg="last" aria-label="Last page" title="Last page">»</button>
+        </div>
       </div>
       <aside class="inspector" id="inspector" aria-labelledby="insTitle" aria-hidden="true" inert>
         <div class="ins-head">
@@ -357,7 +370,7 @@ const HEADER_ONLY = { name: "orders-template.csv", header: SMALL.header, rows: [
 
 /* ---------- S13 model: ragged rows, Column <n>, numeric columns ---------- */
 const NUM = /^[+-]?(\d+(\.\d*)?|\.\d+)$/;
-const CAP = 5000;
+const PAGE_SIZE = 200;
 const collator = new Intl.Collator(undefined, { sensitivity: "base" });
 function buildModel(ds) {
   let width = ds.header.length;
@@ -372,7 +385,7 @@ function buildModel(ds) {
   return { name: ds.name, cols, numeric, rows: ds.rows };
 }
 
-const state = { ds: "small", model: buildModel(SMALL), sort: { col: 3, dir: "ascending" }, q: "", target: 3, selected: null };
+const state = { ds: "small", model: buildModel(SMALL), sort: { col: 3, dir: "ascending" }, q: "", target: 3, selected: null, page: 0, list: [] };
 const cell = (r, i) => r[i] ?? "";
 
 function visibleRows() {
@@ -392,8 +405,10 @@ function visibleRows() {
       return sign * (isNum ? parseFloat(x) - parseFloat(y) : collator.compare(x, y));
     });
   }
-  return { matched: idx.length, drawn: idx.length > CAP ? idx.slice(0, CAP) : idx };
+  return idx; // every shown row, in sort order
 }
+const pageCount = () => Math.max(1, Math.ceil(state.list.length / PAGE_SIZE));
+const reducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 function highlight(text, q) {
   const f = document.createDocumentFragment();
@@ -421,9 +436,18 @@ function renderHead() {
   });
   $("#thead").replaceChildren(tr);
 }
-function renderBody() {
+/* mode: "follow" — the page follows the selected row when it is shown, else `reset` (search/sort → page 1)
+   or clamp (data reload); "pager" — keep state.page as set by a pager button. */
+function renderBody({ mode = "follow", reset = false } = {}) {
   const { rows, cols, numeric } = state.model, q = state.q.trim().toLowerCase();
-  const { matched, drawn } = visibleRows();
+  const before = state.page;
+  state.list = visibleRows();
+  const matched = state.list.length;
+  const pos = state.selected === null ? -1 : state.list.indexOf(state.selected);
+  if (mode === "follow" && pos !== -1) state.page = Math.floor(pos / PAGE_SIZE);
+  else if (mode === "follow" && reset) state.page = 0;
+  state.page = Math.min(state.page, pageCount() - 1);
+  const drawn = state.list.slice(state.page * PAGE_SIZE, (state.page + 1) * PAGE_SIZE);
   const span = cols.length + (DIRECTION.gutter ? 1 : 0);
   const frag = document.createDocumentFragment();
   if (!rows.length) frag.append(h("tr", null, h("td", { class: "none", colspan: span }, "No rows")));
@@ -441,14 +465,36 @@ function renderBody() {
   }
   $("#tbody").replaceChildren(frag);
   if (DIRECTION.inspector && !$("#tbody tr[tabindex='0']")) { const f = $("#tbody tr[data-row]"); if (f) f.tabIndex = 0; }
-  // Status override: "<shown> of <total> rows" (+ the 5,000-row notice).
-  let text = `${fmt(matched)} of ${fmt(rows.length)} rows`;
-  if (matched > CAP) text += " — showing the first 5,000; refine the search to see more";
-  $("#stRows").textContent = text;
+  // Status override: "<shown> of <total> rows".
+  $("#stRows").textContent = `${fmt(matched)} of ${fmt(rows.length)} rows`;
+  renderPager();
   const s = state.sort.col === null ? "file order" : `sorted by ${cols[state.sort.col]} ${state.sort.dir}`;
   $("#caption").textContent = `${state.model.name}, ${s}`;
   $("#qStatus").hidden = !state.q.trim();
   if (DIRECTION.inspector) renderInspector();
+  return { pageChanged: state.page !== before, followed: mode === "follow" && pos !== -1 };
+}
+function renderPager() {
+  const n = state.list.length, last = pageCount() - 1, p = state.page;
+  $("#pager").hidden = n <= PAGE_SIZE;
+  const a = p * PAGE_SIZE + 1, b = Math.min(n, (p + 1) * PAGE_SIZE);
+  $("#pgLabel").textContent = n > PAGE_SIZE ? `Rows ${fmt(a)}–${fmt(b)} of ${fmt(n)}` : "";
+  const can = { first: p > 0, prev: p > 0, next: p < last, last: p < last };
+  const active = document.activeElement;
+  $$("#pager [data-pg]").forEach(btn => { btn.disabled = !can[btn.dataset.pg]; });
+  // A pager button that just became disabled keeps focus inside the pager (on the enabled side).
+  if (active && active.matches("#pager [data-pg]:disabled")) ($("#pager [data-pg]:not(:disabled)") || $("#q")).focus();
+}
+$$("#pager [data-pg]").forEach(btn => btn.addEventListener("click", () => {
+  const last = pageCount() - 1, go = btn.dataset.pg;
+  state.page = go === "first" ? 0 : go === "prev" ? Math.max(0, state.page - 1) : go === "next" ? Math.min(last, state.page + 1) : last;
+  renderBody({ mode: "pager" });
+  $("#scroller").scrollTop = 0;
+}));
+/* After a selection-driven render, bring the selected row into view. */
+function revealSelected() {
+  const tr = state.selected === null ? null : $(`#tbody tr[data-row="${state.selected}"]`);
+  if (tr) tr.scrollIntoView({ block: "nearest" });
 }
 function renderOutline() {
   const { cols, numeric } = state.model;
@@ -466,8 +512,10 @@ function cycleSort(i) {
   if (s.col !== i) state.sort = { col: i, dir: "ascending" };
   else if (s.dir === "ascending") state.sort = { col: i, dir: "descending" };
   else state.sort = { col: null, dir: null };
-  renderHead(); renderBody();
-  $(`#col-${i} .th-btn`).focus();
+  renderHead();
+  const r = renderBody({ reset: true });
+  if (r.followed) revealSelected(); else if (r.pageChanged) $("#scroller").scrollTop = 0;
+  $(`#col-${i} .th-btn`).focus({ preventScroll: true });
   const c = state.model.cols[i];
   $("#stMsg").textContent = state.sort.col === null ? "File order" : `Sorted by ${c}, ${state.sort.dir}`;
 }
@@ -477,8 +525,13 @@ function revealColumn(i) {
   th.scrollIntoView({ inline: "center", block: "nearest", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
   closeDrawerAfterPick();
 }
-function clearSearch() { $("#q").value = ""; state.q = ""; renderBody(); $("#q").focus(); }
-$("#q").addEventListener("input", e => { state.q = e.target.value; renderBody(); });
+function applySearch(value) {
+  state.q = value;
+  const r = renderBody({ reset: true });
+  if (r.pageChanged) r.followed ? revealSelected() : ($("#scroller").scrollTop = 0);
+}
+function clearSearch() { $("#q").value = ""; applySearch(""); $("#q").focus(); }
+$("#q").addEventListener("input", e => applySearch(e.target.value));
 $("#q").addEventListener("keydown", e => { if (e.key === "Escape" && state.q.trim()) { e.preventDefault(); clearSearch(); } });
 $("#qClear").addEventListener("click", clearSearch);
 
@@ -513,18 +566,23 @@ document.addEventListener("keydown", e => { if (e.key === "Escape" && document.b
 $$("[data-ds]").forEach(b => b.addEventListener("click", () => {
   state.ds = b.dataset.ds;
   const ds = state.ds === "large" ? large() : state.ds === "header" ? HEADER_ONLY : SMALL;
-  state.model = buildModel(ds); state.selected = null;
+  state.model = buildModel(ds); state.selected = null; state.page = 0;
   if (state.target >= state.model.cols.length) state.target = null;
   $("#docName").textContent = ds.name; $("#stLive").textContent = "Live · watching " + ds.name;
   $$("[data-ds]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
   render();
+  $("#scroller").scrollTop = 0;
 }));
-$$("[data-q]").forEach(b => b.addEventListener("click", () => { $("#q").value = b.dataset.q; state.q = b.dataset.q; renderBody(); }));
+$$("[data-q]").forEach(b => b.addEventListener("click", () => { $("#q").value = b.dataset.q; applySearch(b.dataset.q); }));
 
 /* ---------- inspector: selected row in full ---------- */
 function renderInspector() {
-  const { rows, cols } = state.model, ri = state.selected, r = ri === null ? null : rows[ri];
-  const shown = r && $(`#tbody tr[data-row="${ri}"]`);
+  const { rows, cols } = state.model;
+  let ri = state.selected;
+  const shown = ri !== null && !!$(`#tbody tr[data-row="${ri}"]`);
+  // Search hid the selected row, or a pager button showed a page without it: close; focus stays where it is.
+  if (ri !== null && !shown) state.selected = ri = null;
+  const r = ri === null ? null : rows[ri];
   setInspector(!!shown);
   $("#insEmpty").hidden = !!shown;
   $("#insWhere").textContent = shown ? `Row ${fmt(ri + 1)} of ${fmt(rows.length)} in file order` : "";
@@ -558,8 +616,17 @@ function selectRow(tr, focus) {
 $("#tbody").addEventListener("click", e => selectRow(e.target.closest("tr[data-row]"), true));
 $("#tbody").addEventListener("keydown", e => {
   const tr = e.target.closest("tr[data-row]"); if (!tr) return;
-  if (e.key === "ArrowDown") { e.preventDefault(); selectRow(tr.nextElementSibling, true); }
-  else if (e.key === "ArrowUp") { e.preventDefault(); selectRow(tr.previousElementSibling, true); }
+  if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+  e.preventDefault();
+  // Walk every shown row in order, crossing pages; nothing happens at the first or last shown row.
+  const pos = state.list.indexOf(Number(tr.dataset.row)) + (e.key === "ArrowDown" ? 1 : -1);
+  if (pos < 0 || pos >= state.list.length) return;
+  const next = state.list[pos], onPage = $(`#tbody tr[data-row="${next}"]`);
+  if (onPage) { selectRow(onPage, true); return; }
+  state.selected = next;
+  renderBody();
+  const row = $(`#tbody tr[data-row="${next}"]`);
+  row.focus({ preventScroll: true }); row.scrollIntoView({ block: "nearest" });
 });
 
 render();
