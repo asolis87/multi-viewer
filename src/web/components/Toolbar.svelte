@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { TYPE_LABEL, type SelectValue } from "../lib/typeState.js";
+  import { TYPE_LABEL, TYPE_OPTIONS, type SelectValue } from "../lib/typeState.js";
   import type { DocType } from "../lib/doc.js";
   import { THEME_OPTIONS, type ThemeChoice } from "../lib/theme.js";
 
@@ -52,9 +52,9 @@
       onchange={(e) => onselect((e.currentTarget as HTMLSelectElement).value as SelectValue)}
     >
       <option value="auto">Auto · {detected ? TYPE_LABEL[detected] : "waiting"}</option>
-      <option value="markdown">Markdown</option>
-      <option value="mermaid">Mermaid</option>
-      <option value="json">JSON</option>
+      {#each TYPE_OPTIONS as option (option.value)}
+        <option value={option.value}>{option.label}</option>
+      {/each}
     </select>
     {#if value !== "auto"}
       <span class="manual-tag" title="Manual type is kept across live reloads until you change it">Manual</span>

@@ -162,7 +162,7 @@
     if (canvasDiagram) mermaidView?.reveal(item.id, item.label);
     else if (type === "markdown") markdownView?.reveal(item.id);
     else if (type === "mermaid") mermaidView?.reveal(item.id, item.label);
-    else jsonView?.reveal(item.id);
+    else if (type === "json") jsonView?.reveal(item.id);
   }
 
   let canvasReturn: string | null = null;
@@ -229,7 +229,8 @@
   });
 
   $effect(() => {
-    if (!doc || isEmpty || loadError) {
+    // The CSV placeholder (until T30) publishes no outline.
+    if (!doc || isEmpty || loadError || type === "csv") {
       outline = {
         sub: "",
         foot: "",
@@ -315,7 +316,7 @@
         oncopy={copy}
         onexport={(svg) => exportSvg(svg)}
       />
-    {:else}
+    {:else if type === "json"}
       <JsonView
         bind:this={jsonView}
         content={doc.content}
@@ -326,6 +327,9 @@
         oncopy={copy}
         onannounce={announce}
       />
+    {:else if type === "csv"}
+      <!-- Placeholder until the CSV view (T30). -->
+      <pre class="csv-placeholder" aria-label="CSV document">{doc.content}</pre>
     {/if}
   </main>
 </div>
