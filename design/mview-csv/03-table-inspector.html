@@ -85,7 +85,8 @@
   main:focus { outline: none; }
 
   /* JSON-style tools bar and search (reused as is) */
-  .csv-view { position: absolute; inset: 0; display: grid; grid-template-columns: minmax(0, 1fr) 340px; }
+  .csv-view { position: absolute; inset: 0; display: grid; grid-template-columns: minmax(0, 1fr) 0px; transition: grid-template-columns 240ms cubic-bezier(.2, .8, .2, 1); }
+  .csv-view.has-inspector { grid-template-columns: minmax(0, 1fr) 340px; }
   .csv-main { display: flex; flex-direction: column; min-width: 0; min-height: 0; border-right: 1px solid var(--border); }
   .json-tools { display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--border); background: var(--surface); flex-wrap: wrap; }
   .search { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 200px; max-width: 420px; height: var(--target); padding: 0 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); }
@@ -125,7 +126,14 @@
   .t tbody tr:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
   .t tbody tr.is-selected td { background: var(--accent-soft); }
   .t tbody tr.is-selected td:first-child { box-shadow: inset 2px 0 var(--accent); }
-  .inspector { overflow: auto; background: var(--surface); padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+  .inspector { overflow: hidden; min-width: 0; background: var(--surface); padding: 0; display: flex; flex-direction: column; gap: 14px;
+    opacity: 0; transform: translateX(24px); visibility: hidden;
+    transition: opacity 160ms ease, transform 240ms cubic-bezier(.2, .8, .2, 1), visibility 0s linear 240ms; }
+  .has-inspector .inspector { padding: 16px; overflow: auto; opacity: 1; transform: none; visibility: visible; transition-delay: 0s, 0s, 0s; }
+  .ins-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .ins-close { min-width: var(--target, 28px); min-height: var(--target, 28px); border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--muted); font-size: 16px; line-height: 1; cursor: pointer; }
+  .ins-close:hover { background: var(--surface-2); color: var(--text); }
+  .ins-close:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
   .inspector h2 { margin: 0; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
   .field-label { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
   .kv { display: grid; grid-template-columns: minmax(64px, max-content) 1fr; gap: 6px 10px; font-size: 13px; margin: 0; }
@@ -136,7 +144,10 @@
   .side-empty { color: var(--muted); font-size: 13px; margin: 0; }
   kbd { font-size: 12px; border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 4px; padding: 1px 6px; background: var(--surface); color: var(--text); }
   @media (max-width: 1100px) {
-    .csv-view { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; }
+    .csv-view, .csv-view.has-inspector { grid-template-columns: minmax(0, 1fr); }
+    .csv-view { grid-template-rows: minmax(0, 1fr) 0px; transition: grid-template-rows 240ms cubic-bezier(.2, .8, .2, 1); }
+    .csv-view.has-inspector { grid-template-rows: minmax(0, 1fr) 42vh; }
+    .inspector { transform: translateY(24px); }
     .csv-main { border-right: 0; border-bottom: 1px solid var(--border); }
     .inspector { max-height: 42vh; }
   }
@@ -220,7 +231,7 @@
   <div class="backdrop" id="backdrop"></div>
 
   <main id="main" tabindex="-1">
-    <section class="csv-view" aria-label="CSV table">
+    <section class="csv-view" id="csvView" aria-label="CSV table">
       <div class="csv-main">
         <div class="json-tools">
           <label class="search">
@@ -240,14 +251,17 @@
           </table>
         </div>
       </div>
-      <aside class="inspector" aria-labelledby="insTitle">
-        <h2 id="insTitle">Row</h2>
+      <aside class="inspector" id="inspector" aria-labelledby="insTitle" aria-hidden="true" inert>
+        <div class="ins-head">
+          <h2 id="insTitle">Row</h2>
+          <button class="ins-close" type="button" id="insClose" aria-label="Close row details" title="Close (Esc)">×</button>
+        </div>
         <div>
           <div class="field-label" id="insWhere"></div>
           <dl class="kv" id="insKv"></dl>
           <p class="side-empty" id="insEmpty" hidden>Select a row to see every value in full.</p>
         </div>
-        <p class="ins-note">Click a row or use <kbd>↑</kbd> <kbd>↓</kbd> in the table. Long values are shown in full here.</p>
+        <p class="ins-note">Use <kbd>↑</kbd> <kbd>↓</kbd> to move between rows and <kbd>Esc</kbd> to close. Long values are shown in full here.</p>
       </aside>
     </section>
   </main>
@@ -353,7 +367,7 @@ function buildModel(ds) {
   return { name: ds.name, cols, numeric, rows: ds.rows };
 }
 
-const state = { ds: "small", model: buildModel(SMALL), sort: { col: 3, dir: "ascending" }, q: "", target: 3, selected: 2 };
+const state = { ds: "small", model: buildModel(SMALL), sort: { col: 3, dir: "ascending" }, q: "", target: 3, selected: null };
 const cell = (r, i) => r[i] ?? "";
 
 function visibleRows() {
@@ -488,7 +502,7 @@ document.addEventListener("keydown", e => { if (e.key === "Escape" && document.b
 $$("[data-ds]").forEach(b => b.addEventListener("click", () => {
   state.ds = b.dataset.ds;
   const ds = state.ds === "large" ? large() : state.ds === "header" ? HEADER_ONLY : SMALL;
-  state.model = buildModel(ds); state.selected = state.ds === "small" ? 2 : null;
+  state.model = buildModel(ds); state.selected = null;
   if (state.target >= state.model.cols.length) state.target = null;
   $("#docName").textContent = ds.name; $("#stLive").textContent = "Live · watching " + ds.name;
   $$("[data-ds]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
@@ -500,6 +514,7 @@ $$("[data-q]").forEach(b => b.addEventListener("click", () => { $("#q").value = 
 function renderInspector() {
   const { rows, cols } = state.model, ri = state.selected, r = ri === null ? null : rows[ri];
   const shown = r && $(`#tbody tr[data-row="${ri}"]`);
+  setInspector(!!shown);
   $("#insEmpty").hidden = !!shown;
   $("#insWhere").textContent = shown ? `Row ${fmt(ri + 1)} of ${fmt(rows.length)} in file order` : "";
   $("#insKv").replaceChildren(...(shown ? cols.flatMap((name, c) => {
@@ -507,6 +522,21 @@ function renderInspector() {
     return [h("dt", null, name), h("dd", null, v.trim() ? v : h("span", { class: "nul" }, "empty"))];
   }) : []));
 }
+function setInspector(open) {
+  const view = $("#csvView"), ins = $("#inspector");
+  view.classList.toggle("has-inspector", open);
+  ins.toggleAttribute("inert", !open);
+  ins.setAttribute("aria-hidden", open ? "false" : "true");
+}
+function closeInspector() {
+  const tr = state.selected === null ? null : $(`#tbody tr[data-row="${state.selected}"]`);
+  state.selected = null;
+  $$("#tbody tr[data-row]").forEach(x => { x.classList.remove("is-selected"); x.removeAttribute("aria-current"); });
+  setInspector(false);
+  if (tr) tr.focus({ preventScroll: true });
+}
+$("#insClose").addEventListener("click", closeInspector);
+document.addEventListener("keydown", e => { if (e.key === "Escape" && state.selected !== null && !e.target.closest("#q")) closeInspector(); });
 function selectRow(tr, focus) {
   if (!tr) return;
   state.selected = Number(tr.dataset.row);
