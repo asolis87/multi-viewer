@@ -115,7 +115,7 @@ Delivery slices (L27): slice 1 = spec + T23–T24 (`5f27ae8`..`47dd525`, ~760 ch
 - [ ] T34 — Pages in the CSV view: `PAGE_SIZE = 200` in `src/web/lib/csvTable.ts` replaces the 5,000 cap and its notice; pager; page rules for search, sort, live reload and scroll; inspector ↑/↓ across pages; README formats row ("draws at most 5,000 rows" → pages of 200); unit tests for paging and page rules, headless check, before/after timings on 100,000 rows in the Log · S13 · Risk: none · commit: —
 - [ ] T32 — Release `v0.3.0` with the T27 flow (version bump, clean build and tests, `npm pack`, GitHub release, pnpm/npm install check from the release URL, README install URL) · S13 · Risk: item 5 (release) · commit: —
 
-**Open questions for CSV:** Q3 answered (own parser, L35); Q4 answered (5,000-row cap, L35); Q5 answered yes (T32, L35).
+**Open questions for CSV:** Q3 answered (own parser, L35); Q4 answered (5,000-row cap, L35; replaced by pages of 200, L45); Q5 answered yes (T32, L35).
 
 ## Log
 
