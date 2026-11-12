@@ -1,4 +1,4 @@
-import type { DocType } from "./doc.js";
+import { DOC_TYPES, type DocType } from "./doc.js";
 
 /**
  * Manual type selection (S8): a manual choice overrides detection and is kept
@@ -35,4 +35,10 @@ export function freshContent(detected: DocType): TypeChoice {
   return { detected, override: null };
 }
 
-export const TYPE_LABEL: Record<DocType, string> = { markdown: "Markdown", mermaid: "Mermaid", json: "JSON" };
+export const TYPE_LABEL: Record<DocType, string> = { markdown: "Markdown", mermaid: "Mermaid", json: "JSON", csv: "CSV" };
+
+/** Manual options of the type selector, in `DOC_TYPES` order (S13: no hard-coded options). */
+export const TYPE_OPTIONS: readonly { value: DocType; label: string }[] = DOC_TYPES.map((value) => ({
+  value,
+  label: TYPE_LABEL[value],
+}));

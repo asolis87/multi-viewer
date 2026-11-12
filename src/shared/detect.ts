@@ -1,6 +1,8 @@
-export type DocType = "markdown" | "mermaid" | "json";
+import { sniffDelimiter } from "./csv.js";
 
-export const DOC_TYPES: readonly DocType[] = ["markdown", "mermaid", "json"];
+export type DocType = "markdown" | "mermaid" | "json" | "csv";
+
+export const DOC_TYPES: readonly DocType[] = ["markdown", "mermaid", "json", "csv"];
 
 const EXTENSIONS: Record<string, DocType> = {
   md: "markdown",
@@ -8,6 +10,8 @@ const EXTENSIONS: Record<string, DocType> = {
   mmd: "mermaid",
   mermaid: "mermaid",
   json: "json",
+  csv: "csv",
+  tsv: "csv",
 };
 
 const MERMAID_KEYWORDS = [
@@ -48,14 +52,30 @@ const MERMAID_KEYWORDS = [
  * Detect how content should be rendered.
  * The file extension wins when it is known; otherwise the content is sniffed:
  * a JSON object/array is json, a leading Mermaid diagram keyword is mermaid,
- * and everything else is markdown.
+ * tabular content (S13) is csv, and everything else is markdown.
  */
 export function detectType(content: string, filename?: string | null): DocType {
   const byExtension = filename ? typeFromFilename(filename) : null;
   if (byExtension) return byExtension;
   if (isJsonDocument(content)) return "json";
   if (startsWithMermaidKeyword(content)) return "mermaid";
+  if (isTabular(content)) return "csv";
   return "markdown";
+}
+
+/**
+ * S13: at least 2 non-blank records, some delimiter qualifies, and no first-20 record's
+ * first line (trimmed) starts with `|`, `#` or `---` (front matter is not skipped here).
+ */
+function isTabular(content: string): boolean {
+  const found = sniffDelimiter(content);
+  if (!found || found.scan.records.length < 2) return false;
+  const { text, records } = found.scan;
+  return records.every((r) => {
+    const end = text.indexOf("\n", r.start);
+    const line = text.slice(r.start, end < 0 ? text.length : end).trim();
+    return !line.startsWith("|") && !line.startsWith("#") && !line.startsWith("---");
+  });
 }
 
 export function typeFromFilename(filename: string): DocType | null {
