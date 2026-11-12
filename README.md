@@ -43,6 +43,11 @@ mview --paste           Open the current clipboard content
 <command> | mview       Open content piped through stdin
 mview                   Open an empty page where you can paste (Cmd/Ctrl+V)
 mview --detach <file>   Start in the background, print the URL and return
+mview skill print       Print the bundled agent skill (SKILL.md)
+mview skill install --agent pi|claude|codex [--force]
+                        Install the agent skill: pi and codex share
+                        ~/.agents/skills/mview, claude uses ~/.claude/skills/mview;
+                        --force replaces a different existing copy
 
 -p, --paste             Read the clipboard instead of a file
     --port <number>     Port to listen on (default: a free port)
@@ -61,6 +66,24 @@ If piped input never ends (for example a command that keeps running), mview says
 With `--auto-close` the server also stops by itself (exit code 0) when no mview page is open: 10 seconds after the last open page closes, or 60 seconds after start if no page ever opens. Reloading the page or opening a new tab within those 10 seconds keeps it running. It prints `mview: no open pages, stopping` on stderr when it stops. The times are fixed.
 
 `mview --detach <file>` is for scripts and AI agents that must not block on the server. It checks the file first (same `file not found` / `not a file` errors), then starts the server in the background with `--auto-close`, opens the browser (unless `--no-open`), prints only `mview: <url>` and exits 0 — no `Press Ctrl+C to stop.`. `--port` and `--no-open` are passed on to the background server. It needs a file: without one, or with `--paste`, it exits 2 with `mview: --detach needs a file` (piped stdin is not read). If the background server cannot start (for example the `--port` is in use), its error is printed and the exit code is 1. Once started it writes nothing more and stops by itself like `--auto-close`.
+
+## Agent skill
+
+mview ships a skill ([`skills/mview/SKILL.md`](skills/mview/SKILL.md)) that tells AI coding agents to show you Mermaid diagrams, long JSON and long Markdown with `mview --detach <file>` instead of only printing them in the chat. It is never installed automatically; install it for one agent at a time:
+
+```bash
+mview skill install --agent pi       # ~/.agents/skills/mview/SKILL.md
+mview skill install --agent codex    # same file: pi and codex share ~/.agents/skills
+mview skill install --agent claude   # ~/.claude/skills/mview/SKILL.md
+```
+
+Missing directories are created. If the same skill is already there, it says `mview: skill already up to date: <path>` and writes nothing (so installing for `codex` after `pi` reports this). If a different file is already there, it exits 1 and leaves it alone; add `--force` to replace it (for example after upgrading mview). `--agent` is required and accepts exactly one of `pi`, `claude` or `codex` (otherwise exit 2).
+
+For any other location, print the skill and redirect it:
+
+```bash
+mkdir -p <dir>/mview && mview skill print > <dir>/mview/SKILL.md
+```
 
 ## Privacy and security
 

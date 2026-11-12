@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseCliArgs } from "../src/cli/args.js";
+import { parseCliArgs, SKILL_USAGE } from "../src/cli/args.js";
 
 describe("parseCliArgs", () => {
   it("no arguments", () => {
@@ -50,6 +50,49 @@ describe("parseCliArgs", () => {
     expect(parseCliArgs(["--detach"])).toEqual(usage);
     expect(parseCliArgs(["--detach", "--paste"])).toEqual(usage);
     expect(parseCliArgs(["--detach", "--paste", "a.md"])).toEqual(usage);
+  });
+
+  describe("skill subcommand (S12)", () => {
+    const skillUsage = { kind: "usage", message: SKILL_USAGE };
+    const chooseAgent = { kind: "usage", message: "choose --agent pi|claude|codex" };
+
+    it("skill print", () => {
+      expect(parseCliArgs(["skill", "print"])).toEqual({ kind: "skill-print" });
+    });
+
+    it("skill install --agent <agent> [--force]", () => {
+      for (const agent of ["pi", "claude", "codex"]) {
+        expect(parseCliArgs(["skill", "install", "--agent", agent])).toEqual({ kind: "skill-install", agent, force: false });
+      }
+      expect(parseCliArgs(["skill", "install", "--force", "--agent=claude"])).toEqual({
+        kind: "skill-install",
+        agent: "claude",
+        force: true,
+      });
+    });
+
+    it("a missing, repeated or unknown --agent is a usage error", () => {
+      expect(parseCliArgs(["skill", "install"])).toEqual(chooseAgent);
+      expect(parseCliArgs(["skill", "install", "--force"])).toEqual(chooseAgent);
+      expect(parseCliArgs(["skill", "install", "--agent"])).toEqual(chooseAgent);
+      expect(parseCliArgs(["skill", "install", "--agent", "pi", "--agent", "pi"])).toEqual(chooseAgent);
+      expect(parseCliArgs(["skill", "install", "--agent", "pi", "--agent", "codex"])).toEqual(chooseAgent);
+      expect(parseCliArgs(["skill", "install", "--agent", "cursor"])).toEqual(chooseAgent);
+    });
+
+    it("a missing or unknown skill subcommand is a usage error", () => {
+      expect(parseCliArgs(["skill"])).toEqual(skillUsage);
+      expect(parseCliArgs(["skill", "bogus"])).toEqual(skillUsage);
+      expect(parseCliArgs(["skill", "print", "extra"])).toEqual(skillUsage);
+      expect(parseCliArgs(["skill", "print", "--force"])).toEqual(skillUsage);
+      expect(parseCliArgs(["skill", "install", "--agent", "pi", "extra"])).toEqual(skillUsage);
+      expect(parseCliArgs(["skill", "install", "--agent", "pi", "--bogus"])).toEqual(skillUsage);
+    });
+
+    it("only the first argument makes it a subcommand; ./skill is a file", () => {
+      expect(parseCliArgs(["./skill"])).toMatchObject({ kind: "run", file: "./skill" });
+      expect(parseCliArgs(["--no-open", "./skill"])).toMatchObject({ kind: "run", file: "./skill", open: false });
+    });
   });
 
   it("--help, -h and --version, -v", () => {
