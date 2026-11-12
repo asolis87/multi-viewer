@@ -3,13 +3,13 @@
   "chosen": "03-table-inspector.html",
   "handoffs": {
     "03-table-inspector.html": {
-      "status": "in_progress",
+      "status": "implemented",
       "queued": false,
       "sentAt": "2026-11-12T22:57:00.389Z",
       "startedAt": "2026-11-12T22:57:15.995Z",
-      "implementedAt": null,
+      "implementedAt": "2026-11-12T23:07:04.017Z",
       "feature": "odd/tasks/mview.md",
-      "note": "T34: pages of 200 in CsvView (replaces the 5,000 cap), test-first."
+      "note": "T34 pages of 200 on feat/csv-pages; 254 tests; headless 32/32; search keystroke ~25 ms, sort ~30-90 ms on 100,000 rows."
     }
   }
 }

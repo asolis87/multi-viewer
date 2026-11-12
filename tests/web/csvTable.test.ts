@@ -8,7 +8,11 @@ import {
   isNumericColumn,
   moveSelection,
   nextSort,
-  ROW_CAP,
+  PAGE_SIZE,
+  pageCount,
+  pageFor,
+  pageRows,
+  pagerState,
   rowPosition,
   rowStatus,
   sortRows,
@@ -144,20 +148,83 @@ function bigTable(n: number): CsvTable {
   return buildTable(records);
 }
 
-describe("viewRows (filter, then sort, then the 5,000 cap)", () => {
+describe("viewRows (filter, then sort — every shown row, no cap)", () => {
   it("filters first, then sorts", () => {
     const t = buildTable([["n"], ["3"], ["12"], ["1"], ["21"]]);
-    expect(viewRows(t, "1", { col: 0, dir: "descending" })).toEqual({ matched: 3, drawn: [3, 1, 2] });
+    expect(viewRows(t, "1", { col: 0, dir: "descending" })).toEqual([3, 1, 2]);
   });
 
-  it("draws at most 5,000 rows taken after search and sort", () => {
-    expect(ROW_CAP).toBe(5000);
+  it("keeps every shown row (no 5,000 cap)", () => {
     const t = bigTable(12000);
     const v = viewRows(t, "", { col: 0, dir: "descending" });
-    expect(v.matched).toBe(12000);
-    expect(v.drawn).toHaveLength(5000);
-    expect(v.drawn[0]).toBe(11999);
-    expect(viewRows(t, "odd", null).matched).toBe(6000);
+    expect(v).toHaveLength(12000);
+    expect(v[0]).toBe(11999);
+    expect(viewRows(t, "odd", null)).toHaveLength(6000);
+  });
+});
+
+describe("pages of 200 (S13 Large files)", () => {
+  const list = Array.from({ length: 450 }, (_, i) => 1000 + i);
+
+  it("uses pages of 200 rows", () => {
+    expect(PAGE_SIZE).toBe(200);
+  });
+
+  it("counts pages, with at least one page", () => {
+    expect(pageCount(0)).toBe(1);
+    expect(pageCount(1)).toBe(1);
+    expect(pageCount(200)).toBe(1);
+    expect(pageCount(201)).toBe(2);
+    expect(pageCount(100000)).toBe(500);
+  });
+
+  it("slices the current page, the last one partial", () => {
+    expect(pageRows(list, 0)).toEqual(list.slice(0, 200));
+    expect(pageRows(list, 1)[0]).toBe(1200);
+    expect(pageRows(list, 2)).toEqual(list.slice(400));
+    expect(pageRows(list, 2)).toHaveLength(50);
+    expect(pageRows([], 0)).toEqual([]);
+  });
+});
+
+describe("pagerState (pager label and buttons)", () => {
+  it("labels the first page and disables « ‹", () => {
+    expect(pagerState(0, 100000)).toEqual({ visible: true, label: "Rows 1–200 of 100,000", back: false, forward: true, last: 499 });
+  });
+
+  it("labels a middle page with both directions enabled", () => {
+    expect(pagerState(1, 74920)).toMatchObject({ label: "Rows 201–400 of 74,920", back: true, forward: true });
+  });
+
+  it("labels the last partial page and disables › »", () => {
+    expect(pagerState(2, 450)).toEqual({ visible: true, label: "Rows 401–450 of 450", back: true, forward: false, last: 2 });
+  });
+
+  it("is hidden when the shown rows fit on one page, including 0 rows", () => {
+    expect(pagerState(0, 200)).toEqual({ visible: false, label: "", back: false, forward: false, last: 0 });
+    expect(pagerState(0, 0)).toEqual({ visible: false, label: "", back: false, forward: false, last: 0 });
+  });
+});
+
+describe("pageFor (the page follows the selection)", () => {
+  const list = Array.from({ length: 450 }, (_, i) => 449 - i); // e.g. a descending sort
+
+  it("is the page that holds the selected shown row, whatever the reset", () => {
+    expect(pageFor(list, 449, 2, false)).toBe(0);
+    expect(pageFor(list, 0, 0, true)).toBe(2);
+    expect(pageFor(list, 249, 0, false)).toBe(1);
+  });
+
+  it("without a selection, a search or sort change goes to page 1", () => {
+    expect(pageFor(list, null, 2, true)).toBe(0);
+    // A selected row the search hid counts as no selection.
+    expect(pageFor([1, 2, 3], 449, 2, true)).toBe(0);
+  });
+
+  it("without a selection, a live reload keeps the page, clamped to the last page", () => {
+    expect(pageFor(list, null, 1, false)).toBe(1);
+    expect(pageFor(list.slice(0, 250), null, 2, false)).toBe(1);
+    expect(pageFor([], null, 3, false)).toBe(0);
   });
 });
 
@@ -168,20 +235,19 @@ describe("status text", () => {
     expect(rowStatus(0, 0)).toBe("0 of 0 rows");
   });
 
-  it("adds the notice only when more than 5,000 rows match", () => {
-    expect(rowStatus(5001, 100000)).toBe("5,001 of 100,000 rows — showing the first 5,000; refine the search to see more");
-    expect(rowStatus(100000, 100000)).toBe(
-      "100,000 of 100,000 rows — showing the first 5,000; refine the search to see more",
-    );
+  it("never adds the old 5,000-row notice (pages replace it, L45)", () => {
+    expect(rowStatus(5001, 100000)).toBe("5,001 of 100,000 rows");
+    expect(rowStatus(100000, 100000)).toBe("100,000 of 100,000 rows");
   });
 
   it("formats counts with a thousands separator independent of the locale", () => {
     expect(formatCount(1234567)).toBe("1,234,567");
+    expect(formatCount(0)).toBe("0");
   });
 
   it("describes a row's position in file order for the inspector", () => {
     expect(rowPosition(0, 12)).toBe("Row 1 of 12 in file order");
-    expect(rowPosition(4999, 100000)).toBe("Row 5,000 of 100,000 in file order");
+    expect(rowPosition(99999, 100000)).toBe("Row 100,000 of 100,000 in file order");
   });
 });
 
@@ -216,7 +282,21 @@ describe("columnOutline (S13 outline)", () => {
   });
 });
 
-describe("moveSelection (↑/↓ in the drawn order)", () => {
+describe("moveSelection (↑/↓ over every shown row)", () => {
+  const list = Array.from({ length: 450 }, (_, i) => i);
+  it("crosses a page edge, and the page follows", () => {
+    const next = moveSelection(list, 199, 1);
+    expect(next).toBe(200);
+    expect(pageFor(list, next, 0, false)).toBe(1);
+    const prev = moveSelection(list, 200, -1);
+    expect(prev).toBe(199);
+    expect(pageFor(list, prev, 1, false)).toBe(0);
+  });
+  it("does nothing at the first or last shown row", () => {
+    expect(moveSelection(list, 0, -1)).toBe(0);
+    expect(moveSelection(list, 449, 1)).toBe(449);
+  });
+
   const drawn = [7, 2, 5];
   it("moves to the neighbour in the drawn order and stops at the ends", () => {
     expect(moveSelection(drawn, 2, 1)).toBe(5);

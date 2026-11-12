@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onDestroy, tick } from "svelte";
+  import { onDestroy, tick, untrack } from "svelte";
   import { parseCsv } from "../../shared/csv.js";
   import {
     buildTable,
@@ -8,6 +8,9 @@
     isEmptyCell,
     moveSelection,
     nextSort,
+    pageFor,
+    pageRows,
+    pagerState,
     rowPosition,
     rowStatus,
     viewRows,
@@ -42,12 +45,20 @@
   let searchEl: HTMLInputElement | undefined = $state();
   let bodyEl: HTMLTableSectionElement | undefined = $state();
   let headEl: HTMLTableRowElement | undefined = $state();
+  let scrollEl: HTMLDivElement | undefined = $state();
+  let pagerEl: HTMLDivElement | undefined = $state();
+  /** Current page (0-based) of the shown rows; follows the selection (S13 "Large files"). */
+  let page = $state(0);
 
   const q = $derived(query.trim());
+  /** Every shown row (file indices), filtered then sorted. */
   const view = $derived(viewRows(table, query, sort));
-  const drawnSet = $derived(new Set(view.drawn));
+  /** The rows drawn: the current page only. */
+  const drawn = $derived(pageRows(view, page));
+  const drawnSet = $derived(new Set(drawn));
+  const pager = $derived(pagerState(page, view.length));
   /** Roving tab stop: the selected row, or the first drawn row. */
-  const tabStop = $derived(selected !== null && drawnSet.has(selected) ? selected : (view.drawn[0] ?? null));
+  const tabStop = $derived(selected !== null && drawnSet.has(selected) ? selected : (drawn[0] ?? null));
   const open = $derived(selected !== null);
   /** Row shown in the inspector: kept while the panel animates closed. */
   let shown = $state<number | null>(null);
@@ -63,12 +74,29 @@
     if (target !== null && target >= width) target = null;
   });
 
-  // The selected row is gone (search hid it, or a reload removed it): close the inspector.
+  /** Search and sort last seen by the page effect: a change resets the page when nothing is selected. */
+  let seenKey: string | null = null;
+
+  // The page follows the selected row (↑/↓, sort, search, live reload); without one, a search or sort
+  // change goes to page 1 and a live reload clamps. Then, in the same pass so the page is already set,
+  // a selected row that is not drawn (search hid it, a reload removed it) closes the inspector.
+  // Pager buttons set `page` directly (it is read untracked here) and close the inspector themselves.
   $effect.pre(() => {
-    if (selected !== null && !drawnSet.has(selected)) selected = null;
+    const list = view;
+    const sel = selected;
+    const key = `${q}\u0000${sort ? `${sort.col}:${sort.dir}` : ""}`;
+    const changed = seenKey !== null && key !== seenKey;
+    seenKey = key;
+    const before = untrack(() => page);
+    const next = pageFor(list, sel, before, changed);
+    page = next;
+    const followed = sel !== null && pageRows(list, next).includes(sel);
+    if (sel !== null && !followed) selected = null;
+    if (followed && (next !== before || changed)) void revealSelected();
+    else if (next !== before) void scrollTop();
   });
 
-  $effect(() => onstatus(rowStatus(view.matched, table.rows.length)));
+  $effect(() => onstatus(rowStatus(view.length, table.rows.length)));
   $effect(() => onoutline(columnOutline(table)));
   $effect(() => onactive(target === null ? null : `col-${target}`));
   onDestroy(() => onstatus(null));
@@ -85,6 +113,29 @@
   function clearSearch() {
     query = "";
     searchEl?.focus();
+  }
+
+  async function revealSelected() {
+    await tick();
+    if (selected !== null) rowEl(selected)?.scrollIntoView({ block: "nearest" });
+  }
+
+  async function scrollTop() {
+    await tick();
+    if (scrollEl) scrollEl.scrollTop = 0;
+  }
+
+  /** Pager buttons: show a page, scroll to the top; a selection not on it closes (focus stays). */
+  async function goPage(to: number, back: boolean) {
+    page = Math.min(pager.last, Math.max(0, to));
+    if (selected !== null && !pageRows(view, page).includes(selected)) selected = null;
+    await tick();
+    if (scrollEl) scrollEl.scrollTop = 0;
+    // The pressed button became disabled (first or last page): keep focus on an enabled pager button.
+    const stuck = back ? !pager.back : !pager.forward;
+    const active = document.activeElement;
+    if (!stuck || !pagerEl || (active && active !== document.body && !pagerEl.contains(active))) return;
+    pagerEl.querySelector<HTMLButtonElement>(`button[data-pg="${back ? "next" : "prev"}"]:not(:disabled)`)?.focus();
   }
 
   function rowEl(index: number): HTMLTableRowElement | null {
@@ -123,8 +174,11 @@
   function onBodyKeydown(e: KeyboardEvent) {
     const index = rowFrom(e);
     if (index === null) return;
-    if (e.key === "ArrowDown" || e.key === "ArrowUp") void select(moveSelection(view.drawn, index, e.key === "ArrowDown" ? 1 : -1), true);
-    else if (e.key === "Enter" || e.key === " ") void select(index, true);
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      // Walks every shown row, crossing pages (the page follows); nothing happens at either end.
+      const next = moveSelection(view, index, e.key === "ArrowDown" ? 1 : -1);
+      if (next !== index) void select(next, true);
+    } else if (e.key === "Enter" || e.key === " ") void select(index, true);
     else return;
     e.preventDefault();
   }
@@ -187,8 +241,8 @@
         </div>
       {/if}
     </div>
-    <div class="grid-scroll">
-      <table class="t">
+    <div class="grid-scroll" bind:this={scrollEl}>
+      <table class="t" id="csv-table">
         <caption class="sr">{caption}</caption>
         <thead>
           <tr bind:this={headEl}>
@@ -209,14 +263,14 @@
         <tbody bind:this={bodyEl} onclick={onBodyClick} onkeydown={onBodyKeydown}>
           {#if !table.rows.length}
             <tr><td class="none" colspan={Math.max(1, table.columns.length)}>No rows</td></tr>
-          {:else if !view.matched}
+          {:else if !view.length}
             <tr>
               <td class="none" colspan={table.columns.length}>
                 No rows match “{q}”.<button class="btn" type="button" onclick={clearSearch}>Clear search</button>
               </td>
             </tr>
           {/if}
-          {#each view.drawn as index (index)}
+          {#each drawn as index (index)}
             {@const row = table.rows[index]!}
             {@const isSel = index === selected}
             <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
@@ -229,6 +283,15 @@
         </tbody>
       </table>
     </div>
+    {#if pager.visible}
+      <div class="pager" role="toolbar" aria-label="Table pages" aria-controls="csv-table" bind:this={pagerEl}>
+        <button class="btn" type="button" data-pg="first" aria-label="First page" title="First page" disabled={!pager.back} onclick={() => goPage(0, true)}>«</button>
+        <button class="btn" type="button" data-pg="prev" aria-label="Previous page" title="Previous page" disabled={!pager.back} onclick={() => goPage(page - 1, true)}>‹</button>
+        <span class="pg-label" aria-live="polite">{pager.label}</span>
+        <button class="btn" type="button" data-pg="next" aria-label="Next page" title="Next page" disabled={!pager.forward} onclick={() => goPage(page + 1, false)}>›</button>
+        <button class="btn" type="button" data-pg="last" aria-label="Last page" title="Last page" disabled={!pager.forward} onclick={() => goPage(pager.last, false)}>»</button>
+      </div>
+    {/if}
   </div>
   <aside class="inspector" aria-labelledby="csv-ins-title" aria-hidden={!open} inert={!open}>
     <div class="ins-head">
