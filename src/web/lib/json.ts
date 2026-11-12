@@ -103,27 +103,6 @@ export function searchJson(index: Map<string, JsonNode>, query: string): SearchR
   return { hits, expand };
 }
 
-export interface TextPart {
-  text: string;
-  hit: boolean;
-}
-
-/** Split text into parts so every case-insensitive occurrence of the query can be wrapped in <mark>. */
-export function highlightParts(text: string, query: string): TextPart[] {
-  const q = query.trim().toLowerCase();
-  if (!q) return [{ text, hit: false }];
-  const lower = text.toLowerCase();
-  const parts: TextPart[] = [];
-  let from = 0;
-  for (let i = lower.indexOf(q); i >= 0; i = lower.indexOf(q, i + q.length)) {
-    if (i > from) parts.push({ text: text.slice(from, i), hit: false });
-    parts.push({ text: text.slice(i, i + q.length), hit: true });
-    from = i + q.length;
-  }
-  if (from < text.length) parts.push({ text: text.slice(from), hit: false });
-  return parts.length ? parts : [{ text, hit: false }];
-}
-
 export interface VisibleRow {
   node: JsonNode;
   open: boolean;

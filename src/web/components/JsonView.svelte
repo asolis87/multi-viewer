@@ -4,7 +4,6 @@
     ancestorsOf,
     countLabel,
     entriesOf,
-    highlightParts,
     indexJson,
     isContainer,
     parseJson,
@@ -17,6 +16,7 @@
     type JsonNode,
     type JsonValue,
   } from "../lib/json.js";
+  import { highlightParts } from "../lib/text.js";
   import type { SideOutline } from "../lib/ui.js";
 
   interface Props {

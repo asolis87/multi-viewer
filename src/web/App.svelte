@@ -7,6 +7,7 @@
   import MarkdownView from "./components/MarkdownView.svelte";
   import MermaidView from "./components/MermaidView.svelte";
   import JsonView from "./components/JsonView.svelte";
+  import CsvView from "./components/CsvView.svelte";
   import PasteView from "./components/PasteView.svelte";
   import LoadError from "./components/LoadError.svelte";
   import { fetchDoc, readToken, watchEvents, type Connection } from "./lib/api.js";
@@ -14,7 +15,7 @@
   import { detectType, type Doc } from "./lib/doc.js";
   import { choose, effectiveType, freshContent, reload, selectValue, TYPE_LABEL, type SelectValue, type TypeChoice } from "./lib/typeState.js";
   import { renderMarkdown, type DiagramBlock } from "./lib/markdown.js";
-  import { copyText, themeBackground, type SideItem, type SideOutline } from "./lib/ui.js";
+  import { collapsibleOutline, copyText, themeBackground, type SideItem, type SideOutline } from "./lib/ui.js";
   import { downloadText, exportName, serializeSvg } from "./lib/svgExport.js";
 
   const token = readToken(location.search);
@@ -38,6 +39,8 @@
   $effect(() => applyTheme(theme, document.documentElement));
   let narrow = $state(false);
   let drawerOpen = $state(false);
+  /** Wide screens, CSV only (S13, L38): the outline column starts collapsed. */
+  let outlineOpen = $state(false);
 
   let mainEl: HTMLElement | undefined = $state();
   let outlineButton: HTMLButtonElement | undefined = $state();
@@ -45,9 +48,13 @@
   let markdownView: MarkdownView | undefined = $state();
   let mermaidView: MermaidView | undefined = $state();
   let jsonView: JsonView | undefined = $state();
+  let csvView: CsvView | undefined = $state();
 
   const type = $derived(effectiveType(choice));
   const isEmpty = $derived(doc !== null && doc.source === "empty" && !pastedHere);
+  /** CSV documents on screen get the collapsible outline; every other view keeps today's sidebar. */
+  const collapsible = $derived(!!doc && !isEmpty && !loadError && !canvasDiagram && collapsibleOutline(type));
+  const outlineExpanded = $derived(narrow ? drawerOpen : collapsible && outlineOpen);
   const name = $derived.by(() => {
     if (!doc) return "mview";
     if (doc.name) return doc.name;
@@ -163,6 +170,7 @@
     else if (type === "markdown") markdownView?.reveal(item.id);
     else if (type === "mermaid") mermaidView?.reveal(item.id, item.label);
     else if (type === "json") jsonView?.reveal(item.id);
+    else if (type === "csv") csvView?.reveal(item.id);
   }
 
   let canvasReturn: string | null = null;
@@ -183,6 +191,19 @@
     await tick();
     if (open) (sidebarEl?.querySelector<HTMLElement>(".outline button") ?? sidebarEl)?.focus();
     else if (returnFocus) outlineButton?.focus();
+  }
+
+  // Wide-screen CSV outline: the Outline button opens and closes the column (focus like the drawer).
+  async function setOutlineColumn(open: boolean) {
+    outlineOpen = open;
+    await tick();
+    if (open) (sidebarEl?.querySelector<HTMLElement>(".outline button") ?? sidebarEl)?.focus();
+    else outlineButton?.focus();
+  }
+
+  function toggleOutline() {
+    if (narrow) void setDrawer(!drawerOpen);
+    else if (collapsible) void setOutlineColumn(!outlineOpen);
   }
 
   onMount(() => {
@@ -229,8 +250,7 @@
   });
 
   $effect(() => {
-    // The CSV placeholder (until T30) publishes no outline.
-    if (!doc || isEmpty || loadError || type === "csv") {
+    if (!doc || isEmpty || loadError) {
       outline = {
         sub: "",
         foot: "",
@@ -257,16 +277,17 @@
   {sourceLabel}
   detected={doc && !isEmpty && !loadError ? choice.detected : null}
   value={selectValue(choice)}
-  {drawerOpen}
+  drawerOpen={outlineExpanded}
+  outlineAlways={collapsible}
   bind:outlineButton
-  ontoggleoutline={() => setDrawer(!drawerOpen)}
+  ontoggleoutline={toggleOutline}
   onselect={onSelect}
   {theme}
   ontheme={(t) => (theme = t)}
 />
 
-<div class="workspace" class:drawer-open={drawerOpen}>
-  <Sidebar {outline} {active} bind:element={sidebarEl} onpick={pick} />
+<div class="workspace" class:drawer-open={drawerOpen} class:collapsible class:outline-open={collapsible && outlineOpen}>
+  <Sidebar {outline} {active} inert={collapsible && !narrow && !outlineOpen} bind:element={sidebarEl} onpick={pick} />
   {#if drawerOpen}
     <div class="backdrop" aria-hidden="true" onclick={() => setDrawer(false)}></div>
   {/if}
@@ -328,8 +349,17 @@
         onannounce={announce}
       />
     {:else if type === "csv"}
-      <!-- Placeholder until the CSV view (T30). -->
-      <pre class="csv-placeholder" aria-label="CSV document">{doc.content}</pre>
+      <CsvView
+        bind:this={csvView}
+        content={doc.content}
+        name={doc.name}
+        label={name}
+        manual={choice.override === "csv"}
+        onoutline={setOutline}
+        onactive={setActive}
+        onstatus={setStatus}
+        onannounce={announce}
+      />
     {/if}
   </main>
 </div>
