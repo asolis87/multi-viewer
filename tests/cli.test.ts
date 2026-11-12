@@ -92,7 +92,8 @@ describe("mview CLI", () => {
   it("--version prints the package version", () => {
     const r = spawnSync(process.execPath, [CLI, "--version"], { encoding: "utf8" });
     expect(r.status).toBe(0);
-    expect(r.stdout).toBe("0.1.0\n");
+    const { version } = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+    expect(r.stdout).toBe(`${version}\n`);
   });
 
   it("invalid arguments exit 2 with a message on stderr", () => {
