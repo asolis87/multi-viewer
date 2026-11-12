@@ -5,6 +5,7 @@ import { stat } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { HELP, parseCliArgs } from "./args.js";
+import { runDetached } from "./detach.js";
 import { emptyDoc, fromContent, readFileDoc, readStream, type Doc } from "./input.js";
 import { startServer } from "./server.js";
 
@@ -24,6 +25,10 @@ async function main(argv: string[]): Promise<number> {
   if (args.kind === "version") {
     process.stdout.write(`${readVersion()}\n`);
     return 0;
+  }
+  if (args.kind === "usage") {
+    process.stderr.write(`mview: ${args.message}\n`);
+    return 2;
   }
   if (args.kind === "error") {
     process.stderr.write(`mview: ${args.message}\nRun "mview --help" for usage.\n`);
@@ -45,6 +50,17 @@ async function main(argv: string[]): Promise<number> {
     if (!info.isFile()) {
       process.stderr.write(`mview: not a file: ${args.file}\n`);
       return 1;
+    }
+    if (args.detach) {
+      return runDetached({
+        execPath: process.execPath,
+        script: fileURLToPath(import.meta.url),
+        file: path,
+        port: args.port,
+        open: args.open,
+        stdout: process.stdout,
+        stderr: process.stderr,
+      });
     }
     watchPath = path;
     getDoc = () => readFileDoc(path);
@@ -129,6 +145,11 @@ function readVersion(): string {
     return "unknown";
   }
 }
+
+// A detached copy (S10) outlives the terminal that read its output: writes then fail with
+// EPIPE, which must not crash the server. A closed stdout/stderr is never a reason to stop.
+process.stdout.on("error", () => {});
+process.stderr.on("error", () => {});
 
 main(process.argv.slice(2)).then(
   (code) => process.exit(code),

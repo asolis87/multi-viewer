@@ -42,12 +42,16 @@ mview <file>            Open a file and live-reload it when it changes
 mview --paste           Open the current clipboard content
 <command> | mview       Open content piped through stdin
 mview                   Open an empty page where you can paste (Cmd/Ctrl+V)
+mview --detach <file>   Start in the background, print the URL and return
 
 -p, --paste             Read the clipboard instead of a file
     --port <number>     Port to listen on (default: a free port)
     --no-open           Print the URL without opening the browser
     --auto-close        Stop when no page is open: 10 s after the last page
                         closes, or 60 s after start if no page ever opens
+    --detach            Run the server in the background (implies
+                        --auto-close), print only "mview: <url>" and exit;
+                        needs a file
 -h, --help              Show this help
 -v, --version           Show the version
 ```
@@ -55,6 +59,8 @@ mview                   Open an empty page where you can paste (Cmd/Ctrl+V)
 If piped input never ends (for example a command that keeps running), mview says it is waiting for stdin; finish with `Ctrl+D` or cancel with `Ctrl+C`. Each run starts its own server; stop it with `Ctrl+C`. One file at a time (no tabs yet).
 
 With `--auto-close` the server also stops by itself (exit code 0) when no mview page is open: 10 seconds after the last open page closes, or 60 seconds after start if no page ever opens. Reloading the page or opening a new tab within those 10 seconds keeps it running. It prints `mview: no open pages, stopping` on stderr when it stops. The times are fixed.
+
+`mview --detach <file>` is for scripts and AI agents that must not block on the server. It checks the file first (same `file not found` / `not a file` errors), then starts the server in the background with `--auto-close`, opens the browser (unless `--no-open`), prints only `mview: <url>` and exits 0 — no `Press Ctrl+C to stop.`. `--port` and `--no-open` are passed on to the background server. It needs a file: without one, or with `--paste`, it exits 2 with `mview: --detach needs a file` (piped stdin is not read). If the background server cannot start (for example the `--port` is in use), its error is printed and the exit code is 1. Once started it writes nothing more and stops by itself like `--auto-close`.
 
 ## Privacy and security
 
