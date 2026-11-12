@@ -1,6 +1,7 @@
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { mkdtempSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
-import { request } from "node:http";
+import { createServer, request, type Server } from "node:http";
+import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
@@ -81,6 +82,8 @@ describe("mview CLI", () => {
     expect(r.status).toBe(0);
     expect(r.stdout).toContain("Usage:");
     expect(r.stdout).toContain("--paste");
+    expect(r.stdout).toContain("--auto-close");
+    expect(r.stdout).toContain("--detach");
     expect(r.stderr).toBe("");
   });
 
@@ -162,6 +165,182 @@ describe("mview CLI", () => {
     writeFileSync(file, "flowchart LR\n A-->C");
     const second = await (await fetch(docUrl(url))).json();
     expect(second.content).toBe("flowchart LR\n A-->C");
+  });
+
+  it(
+    "--auto-close stops with exit 0 after the last page disconnects (S11, T23)",
+    async () => {
+      const dir = mkdtempSync(join(tmpdir(), "mview-auto-"));
+      const file = join(dir, "notes.md");
+      writeFileSync(file, "# hi");
+      const proc = spawn(process.execPath, [CLI, "--no-open", "--auto-close", file], { stdio: ["pipe", "pipe", "pipe"] });
+      child = proc;
+      proc.stdin!.end();
+      let out = "";
+      let err = "";
+      proc.stdout!.on("data", (c) => (out += c));
+      proc.stderr!.on("data", (c) => (err += c));
+      const exited = new Promise<number | null>((done) => proc.on("exit", (code) => done(code)));
+      await waitFor(() => out.includes("Press Ctrl+C to stop."), 4000);
+      const url = out.match(/mview: (http:\/\/127\.0\.0\.1:\d+\/\?t=\S+)/)![1]!;
+      const page = await watchChanges(url);
+      page.close();
+      expect(await exited).toBe(0);
+      expect(err).toBe("mview: no open pages, stopping\n");
+    },
+    20_000,
+  );
+
+  describe("--detach (S10, T24)", () => {
+    /** Absolute file paths of detached runs; each is unique and appears in the background copy's argv. */
+    let detachedFiles: string[] = [];
+    let blocker: Server | null = null;
+
+    afterEach(async () => {
+      for (const file of detachedFiles) for (const pid of pidsFor(file)) killQuietly(pid);
+      detachedFiles = [];
+      if (blocker) await new Promise<void>((done) => blocker!.close(() => done()));
+      blocker = null;
+    });
+
+    function pidsFor(file: string): number[] {
+      const r = spawnSync("pgrep", ["-f", file], { encoding: "utf8" });
+      return r.stdout.split("\n").filter(Boolean).map(Number);
+    }
+
+    function killQuietly(pid: number): void {
+      try {
+        process.kill(pid, "SIGKILL");
+      } catch {
+        // already gone
+      }
+    }
+
+    function tempFile(name: string, content: string): string {
+      const file = join(mkdtempSync(join(tmpdir(), "mview-detach-")), name);
+      writeFileSync(file, content);
+      detachedFiles.push(file);
+      return file;
+    }
+
+    function freePort(): Promise<number> {
+      return new Promise((done, fail) => {
+        const s = createServer();
+        s.once("error", fail);
+        s.listen(0, "127.0.0.1", () => {
+          const port = (s.address() as AddressInfo).port;
+          s.close(() => done(port));
+        });
+      });
+    }
+
+    function refused(url: string): Promise<boolean> {
+      return fetch(url).then(
+        () => false,
+        (e: Error & { cause?: { code?: string } }) => e.cause?.code === "ECONNREFUSED",
+      );
+    }
+
+    function runDetach(args: string[], input?: string) {
+      return spawnSync(process.execPath, [CLI, ...args], { encoding: "utf8", timeout: 15_000, input });
+    }
+
+    it(
+      "prints only the URL, exits 0, and the background copy serves, live-reloads and auto-closes",
+      async () => {
+        const file = tempFile("notes.md", "# v1");
+        const port = await freePort();
+        const r = runDetach(["--detach", "--no-open", "--port", String(port), file]);
+        expect(r.status).toBe(0);
+        expect(r.stderr).toBe("");
+        expect(r.stdout).toMatch(new RegExp(`^mview: http://127\\.0\\.0\\.1:${port}/\\?t=\\S+\\n$`));
+        const url = r.stdout.slice("mview: ".length).trim();
+
+        // The foreground has exited; the background copy keeps serving the file.
+        expect(pidsFor(file)).toHaveLength(1);
+        expect(await (await fetch(docUrl(url))).json()).toEqual({ name: "notes.md", type: "markdown", content: "# v1", source: "file" });
+
+        const events = await watchChanges(url);
+        writeFileSync(file, "# v2");
+        await waitFor(() => events.count() > 0);
+        expect((await (await fetch(docUrl(url))).json()).content).toBe("# v2");
+
+        // Closing the last page lets --auto-close stop it; writing its notice to the gone stderr must not crash it first.
+        events.close();
+        await waitFor(() => refused(docUrl(url)), 15_000);
+        await waitFor(() => pidsFor(file).length === 0, 3000);
+      },
+      30_000,
+    );
+
+    it(
+      "a copy whose output reader is gone keeps serving, and its auto-close notice does not crash it",
+      async () => {
+        const file = tempFile("orphan.md", "# hi");
+        const proc = spawn(process.execPath, [CLI, "--no-open", "--auto-close", file], { stdio: ["ignore", "pipe", "pipe"] });
+        child = proc;
+        const exited = new Promise<number | null>((done) => proc.on("exit", (code) => done(code)));
+        let out = "";
+        proc.stdout!.on("data", (c) => (out += c));
+        await waitFor(() => /t=\S+\n/.test(out), 4000);
+        const url = out.match(/mview: (http:\/\/127\.0\.0\.1:\d+\/\?t=\S+)/)![1]!;
+        // Like the foreground of --detach exiting: nobody reads the copy's stdout or stderr anymore.
+        proc.stdout!.destroy();
+        proc.stderr!.destroy();
+        expect((await fetch(docUrl(url))).status).toBe(200);
+        const page = await watchChanges(url);
+        page.close();
+        // The notice hits a closed pipe (EPIPE); the copy must still stop cleanly with exit 0.
+        expect(await exited).toBe(0);
+      },
+      20_000,
+    );
+
+    it("without a file exits 2 with a usage error and does not read stdin", () => {
+      const r = runDetach(["--detach"], "# piped");
+      expect(r.status).toBe(2);
+      expect(r.stdout).toBe("");
+      expect(r.stderr).toBe("mview: --detach needs a file\n");
+    });
+
+    it("with --paste exits 2 with the same usage error", () => {
+      const r = runDetach(["--detach", "--paste"]);
+      expect(r.status).toBe(2);
+      expect(r.stdout).toBe("");
+      expect(r.stderr).toBe("mview: --detach needs a file\n");
+    });
+
+    it("validates the file in the foreground: a missing file exits 1 and nothing keeps running", () => {
+      const missing = join(mkdtempSync(join(tmpdir(), "mview-detach-")), "missing.md");
+      detachedFiles.push(missing);
+      const r = runDetach(["--detach", "--no-open", missing]);
+      expect(r.status).toBe(1);
+      expect(r.stdout).toBe("");
+      expect(r.stderr).toBe(`mview: file not found: ${missing}\n`);
+      expect(pidsFor(missing)).toEqual([]);
+    });
+
+    it("a directory exits 1 with not a file", () => {
+      const dir = mkdtempSync(join(tmpdir(), "mview-detach-dir-"));
+      detachedFiles.push(dir);
+      const r = runDetach(["--detach", "--no-open", dir]);
+      expect(r.status).toBe(1);
+      expect(r.stdout).toBe("");
+      expect(r.stderr).toBe(`mview: not a file: ${dir}\n`);
+      expect(pidsFor(dir)).toEqual([]);
+    });
+
+    it("exits 1 with the background copy's error when --port is in use, and nothing keeps running", async () => {
+      const file = tempFile("busy.md", "# busy");
+      blocker = createServer();
+      await new Promise<void>((done) => blocker!.listen(0, "127.0.0.1", () => done()));
+      const port = (blocker.address() as AddressInfo).port;
+      const r = runDetach(["--detach", "--no-open", "--port", String(port), file]);
+      expect(r.status).toBe(1);
+      expect(r.stdout).toBe("");
+      expect(r.stderr).toMatch(/^mview: .*EADDRINUSE.*\n$/);
+      expect(pidsFor(file)).toEqual([]);
+    });
   });
 
   describe("live reload survives editor save patterns (T12, S2)", () => {

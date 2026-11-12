@@ -10,6 +10,7 @@
   import PasteView from "./components/PasteView.svelte";
   import LoadError from "./components/LoadError.svelte";
   import { fetchDoc, readToken, watchEvents, type Connection } from "./lib/api.js";
+  import { keepEventsOpen, reloadOnChange } from "./lib/events.js";
   import { detectType, type Doc } from "./lib/doc.js";
   import { choose, effectiveType, freshContent, reload, selectValue, TYPE_LABEL, type SelectValue, type TypeChoice } from "./lib/typeState.js";
   import { renderMarkdown, type DiagramBlock } from "./lib/markdown.js";
@@ -214,12 +215,17 @@
     void load();
   });
 
-  // Live reload only makes sense for a watched file: refetch on every `change` (no page reload).
-  // A first load that fails with 500 (unreadable file) also watches, so restoring the file recovers.
-  const shouldWatch = $derived(!pastedHere && (doc?.source === "file" || (doc === null && loadError?.status === 500)));
+  // The events stream stays open for every source and after a paste (S11: it is how --auto-close
+  // knows this page is open). Only a watched file refetches on `change` (live reload, S2).
+  const eventsOpen = $derived(
+    keepEventsOpen({ token, loadStatus: loadError?.status ?? null, source: doc?.source ?? null, pastedHere }),
+  );
+  function onEventsChange() {
+    if (reloadOnChange({ source: doc?.source ?? null, pastedHere, loadStatus: loadError?.status ?? null })) void load();
+  }
   $effect(() => {
-    if (!shouldWatch) return;
-    return watchEvents(token, () => void load(), (c) => (connection = c));
+    if (!eventsOpen) return;
+    return watchEvents(token, onEventsChange, (c) => (connection = c));
   });
 
   $effect(() => {

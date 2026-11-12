@@ -3,7 +3,7 @@ import { parseCliArgs } from "../src/cli/args.js";
 
 describe("parseCliArgs", () => {
   it("no arguments", () => {
-    expect(parseCliArgs([])).toEqual({ kind: "run", file: null, paste: false, open: true, port: 0 });
+    expect(parseCliArgs([])).toEqual({ kind: "run", file: null, paste: false, open: true, port: 0, autoClose: false, detach: false });
   });
 
   it("a file", () => {
@@ -22,7 +22,34 @@ describe("parseCliArgs", () => {
       paste: false,
       open: false,
       port: 4000,
+      autoClose: false,
+      detach: false,
     });
+  });
+
+  it("--auto-close (S11)", () => {
+    expect(parseCliArgs(["--auto-close", "a.md"])).toMatchObject({ kind: "run", file: "a.md", autoClose: true });
+    expect(parseCliArgs(["--paste", "--auto-close"])).toMatchObject({ kind: "run", paste: true, autoClose: true });
+  });
+
+  it("--detach with a file (S10)", () => {
+    expect(parseCliArgs(["--detach", "a.md"])).toMatchObject({ kind: "run", file: "a.md", detach: true });
+    expect(parseCliArgs(["--detach", "--port", "4000", "--no-open", "a.md"])).toEqual({
+      kind: "run",
+      file: "a.md",
+      paste: false,
+      open: false,
+      port: 4000,
+      autoClose: false,
+      detach: true,
+    });
+  });
+
+  it("--detach without a file or with --paste is a usage error (S10)", () => {
+    const usage = { kind: "usage", message: "--detach needs a file" };
+    expect(parseCliArgs(["--detach"])).toEqual(usage);
+    expect(parseCliArgs(["--detach", "--paste"])).toEqual(usage);
+    expect(parseCliArgs(["--detach", "--paste", "a.md"])).toEqual(usage);
   });
 
   it("--help, -h and --version, -v", () => {

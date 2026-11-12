@@ -1,10 +1,12 @@
 import { parseArgs } from "node:util";
 
 export type CliArgs =
-  | { kind: "run"; file: string | null; paste: boolean; open: boolean; port: number }
+  | { kind: "run"; file: string | null; paste: boolean; open: boolean; port: number; autoClose: boolean; detach: boolean }
   | { kind: "help" }
   | { kind: "version" }
-  | { kind: "error"; message: string };
+  | { kind: "error"; message: string }
+  /** A usage error printed as is, without the "--help" hint. */
+  | { kind: "usage"; message: string };
 
 export const HELP = `mview — view Markdown, Mermaid and JSON in your browser
 
@@ -13,17 +15,23 @@ Usage:
   mview --paste           Open the current clipboard content
   <command> | mview       Open content piped through stdin
   mview                   Open an empty page where you can paste (Cmd/Ctrl+V)
+  mview --detach <file>   Start in the background, print the URL and return
 
 Options:
   -p, --paste             Read the clipboard instead of a file
       --port <number>     Port to listen on (default: a free port)
       --no-open           Print the URL without opening the browser
+      --auto-close        Stop when no page is open: 10 s after the last page
+                          closes, or 60 s after start if no page ever opens
+      --detach            Run the server in the background (implies
+                          --auto-close), print only "mview: <url>" and exit;
+                          needs a file
   -h, --help              Show this help
   -v, --version           Show the version
 
 Types are detected from the file extension (.md, .markdown, .mmd, .mermaid,
 .json) or, for pasted/piped content, from the content itself. The server
-listens on 127.0.0.1 only and stops with Ctrl+C.`;
+listens on 127.0.0.1 only and stops with Ctrl+C (or by itself with --auto-close).`;
 
 export function parseCliArgs(argv: string[]): CliArgs {
   let parsed;
@@ -36,6 +44,8 @@ export function parseCliArgs(argv: string[]): CliArgs {
         paste: { type: "boolean", short: "p", default: false },
         open: { type: "boolean", default: true },
         port: { type: "string" },
+        "auto-close": { type: "boolean", default: false },
+        detach: { type: "boolean", default: false },
         help: { type: "boolean", short: "h", default: false },
         version: { type: "boolean", short: "v", default: false },
       },
@@ -49,6 +59,7 @@ export function parseCliArgs(argv: string[]): CliArgs {
   if (values.version) return { kind: "version" };
   if (positionals.length > 1) return { kind: "error", message: "Only one file at a time is supported." };
   const file = positionals[0] ?? null;
+  if (values.detach && (!file || values.paste)) return { kind: "usage", message: "--detach needs a file" };
   if (file && values.paste) return { kind: "error", message: "Use either a file or --paste, not both." };
 
   let port = 0;
@@ -59,5 +70,13 @@ export function parseCliArgs(argv: string[]): CliArgs {
     }
   }
 
-  return { kind: "run", file, paste: Boolean(values.paste), open: values.open !== false, port };
+  return {
+    kind: "run",
+    file,
+    paste: Boolean(values.paste),
+    open: values.open !== false,
+    port,
+    autoClose: Boolean(values["auto-close"]),
+    detach: Boolean(values.detach),
+  };
 }
