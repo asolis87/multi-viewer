@@ -79,6 +79,8 @@ Local CLI (`mview`) that opens the browser on a 127.0.0.1 server and renders Mar
 - [ ] T26 — `mview skill print` and `mview skill install --agent pi|claude|codex [--force]` (subcommand parsing, exit codes) · S12 · Risk: item 1 (writes into the user's agent directories; never overwrites different content without `--force`) · commit: —
 - [ ] T27 — Release `v0.2.0`: bump the version, build and test on a clean `main`, `npm pack`, GitHub release with the tarball, verify `pnpm add -g` and `npm i -g` from the release URL in clean prefixes, update the README install URL · S10,S11,S12 · Risk: item 5 (release) · commit: —
 
+Delivery slices (L27): slice 1 = spec + T23–T24 (`5f27ae8`..`47dd525`, ~760 changed lines, past the ~400-line target because T23 and T24 each carry their own tests); slice 2 = T25–T26, stacked on slice 1; T27 releases after both merge.
+
 **Open questions (for the user before implementation):**
 
 - Q1 — answered (L24): option (c), Pi installs into `~/.agents/skills/` too (one shared copy for Pi and Codex).
