@@ -1,0 +1,10 @@
+{
+  "title": "mview CSV view",
+  "brief": "CSV/TSV table view inside the Workbench shell (S13): sticky header, three-state sort, JSON-style search with Clear and the `<shown> of <total> rows` status count, ragged rows and Column <n>, long cells cut with an ellipsis, right-aligned numeric columns, column Outline, the 5,000-row notice, light and dark theme.",
+  "feature": "odd/tasks/mview.md",
+  "artboards": [
+    { "file": "01-compact-grid.html", "title": "Compact grid", "tradeoff": "Spreadsheet density: mono cells, cell borders and a file-row gutter fit about twice the rows on screen; needs tighter padding than the .md table S13 says to reuse, and is harder on long text", "width": 1440, "height": 900 },
+    { "file": "02-comfortable-rows.html", "title": "Comfortable rows", "tradeoff": "Closest to S13: Markdown table padding and colours, zebra rows and number/text hints in the header and Outline; fewer rows per screen, long values only on hover", "width": 1440, "height": 900 },
+    { "file": "03-table-inspector.html", "title": "Table and inspector", "tradeoff": "JSON two-pane layout: the selected row's full values (incl. cut cells, empty cells and Column 6) in an Inspector; adds row selection and a panel S13 does not ask for, and 340px less table width", "width": 1440, "height": 900 }
+  ]
+}
