@@ -29,9 +29,11 @@ Options:
   -p, --paste             Read the clipboard instead of a file
       --port <number>     Port to listen on (default: a free port)
       --no-open           Print the URL without opening the browser
-      --auto-close        Stop when no page is open: 10 s after the last page
-                          closes, or 60 s after start if no page ever opens
-      --detach            Run the server in the background (implies
+      --auto-close        Stop when no page is open (the default): 10 s after
+                          the last page closes, or 60 s after start if no page
+                          ever opens
+      --no-auto-close     Keep the server running until Ctrl+C
+      --detach            Run the server in the background (always
                           --auto-close), print only "mview: <url>" and exit;
                           needs a file
   -h, --help              Show this help
@@ -39,7 +41,9 @@ Options:
 
 Types are detected from the file extension (.md, .markdown, .mmd, .mermaid,
 .json, .csv, .tsv) or, for pasted/piped content, from the content itself. The server
-listens on 127.0.0.1 only and stops with Ctrl+C (or by itself with --auto-close).
+listens on 127.0.0.1 only. It stops by itself once no page is open, or with Ctrl+C;
+use --no-auto-close to keep it running until Ctrl+C. A page hidden for 30 minutes
+(minimized or a background tab) disconnects, so forgotten tabs let it stop too.
 The skill is never installed automatically; use "mview skill print > <path>"
 for other locations.`;
 
@@ -59,7 +63,8 @@ export function parseCliArgs(argv: string[]): CliArgs {
         paste: { type: "boolean", short: "p", default: false },
         open: { type: "boolean", default: true },
         port: { type: "string" },
-        "auto-close": { type: "boolean", default: false },
+        // S14: on by default; `--no-auto-close` (allowNegative) turns it off.
+        "auto-close": { type: "boolean", default: true },
         detach: { type: "boolean", default: false },
         help: { type: "boolean", short: "h", default: false },
         version: { type: "boolean", short: "v", default: false },
@@ -74,6 +79,10 @@ export function parseCliArgs(argv: string[]): CliArgs {
   if (values.version) return { kind: "version" };
   if (positionals.length > 1) return { kind: "error", message: "Only one file at a time is supported." };
   const file = positionals[0] ?? null;
+  // S14: checked before "--detach needs a file". With the default on, false only comes from --no-auto-close.
+  if (values.detach && values["auto-close"] === false) {
+    return { kind: "usage", message: "--detach always stops by itself; drop --no-auto-close" };
+  }
   if (values.detach && (!file || values.paste)) return { kind: "usage", message: "--detach needs a file" };
   if (file && values.paste) return { kind: "error", message: "Use either a file or --paste, not both." };
 
@@ -91,7 +100,7 @@ export function parseCliArgs(argv: string[]): CliArgs {
     paste: Boolean(values.paste),
     open: values.open !== false,
     port,
-    autoClose: Boolean(values["auto-close"]),
+    autoClose: values["auto-close"] !== false,
     detach: Boolean(values.detach),
   };
 }
