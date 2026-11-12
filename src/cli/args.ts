@@ -11,7 +11,7 @@ export type CliArgs =
   /** A usage error printed as is, without the "--help" hint. */
   | { kind: "usage"; message: string };
 
-export const HELP = `mview — view Markdown, Mermaid and JSON in your browser
+export const HELP = `mview — view Markdown, Mermaid, JSON and CSV in your browser
 
 Usage:
   mview <file>            Open a file and live-reload it when it changes
@@ -38,7 +38,7 @@ Options:
   -v, --version           Show the version
 
 Types are detected from the file extension (.md, .markdown, .mmd, .mermaid,
-.json) or, for pasted/piped content, from the content itself. The server
+.json, .csv, .tsv) or, for pasted/piped content, from the content itself. The server
 listens on 127.0.0.1 only and stops with Ctrl+C (or by itself with --auto-close).
 The skill is never installed automatically; use "mview skill print > <path>"
 for other locations.`;
