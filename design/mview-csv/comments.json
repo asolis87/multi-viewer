@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "comments": [
+    {
+      "id": "i8dsd3is",
+      "file": "03-table-inspector.html",
+      "selector": "#main > section > aside",
+      "excerpt": "ROW Row 3 of 12 in file order id 1003 customer Distribuidora Mayorista del Litoral S.A. — cuenta corporativa, sucursal Rosario country AR amount 1249.00 status captured Column 6 empty Click a row or use ↑ ↓ in the table. Long values are shown in full here.",
+      "comment": "este panel puede aparecer  con una animacion solo cuando se le de click a una row?",
+      "createdAt": "2026-11-12T18:22:52.730Z",
+      "status": "resolved",
+      "sentAt": "2026-11-12T18:22:52.753Z",
+      "resolvedAt": "2026-11-12T18:24:34.644Z"
+    },
+    {
+      "id": "41kjzjy7",
+      "file": "03-table-inspector.html",
+      "selector": "#sidebar",
+      "excerpt": "OUTLINE Columns · 6 1 id number 2 customer text 3 country text 4 amount number 5 status text 6 Column 6 text Click a column to scroll to it and highlight its header.",
+      "comment": "todo este pane podria estar colapsado y solo un boton visible para abrirlo, asi siento que la tabla respira mas",
+      "createdAt": "2026-11-12T18:27:30.645Z",
+      "status": "resolved",
+      "sentAt": "2026-11-12T18:27:30.664Z",
+      "resolvedAt": "2026-11-12T18:29:06.874Z"
+    }
+  ]
+}

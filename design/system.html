@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=1440" />
+<title>mview — design system</title>
+<style>
+  /* Tokens copied from src/web/styles.css */
+  :root, .light {
+    --bg: #f6f7f9; --surface: #ffffff; --surface-2: #eef0f3; --surface-3: #e3e7eb; --text: #1b1f24; --muted: #57606a;
+    --border: #d5dae0; --line: #8c959f; --accent: #0b5fcc; --accent-ink: #ffffff; --accent-soft: #e2ecfb;
+    --ok: #1a7f37; --warn: #9a6700; --danger: #b42318; --danger-soft: #fdecea; --focus: #0b5fcc;
+    --key: #8250df; --str: #116329; --num: #a3480b; --bool: #0b5fcc; --hit: #ffe58a; --grid: #c4cbd3;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --target: 36px;
+  }
+  .dark {
+    --bg: #0f1216; --surface: #161a1f; --surface-2: #1d2228; --surface-3: #262c33; --text: #e6e9ed; --muted: #9ba5af;
+    --border: #2c333b; --line: #6b7580; --accent: #6ea8ff; --accent-ink: #0b1220; --accent-soft: #1a2a44;
+    --ok: #4ac26b; --warn: #d4a72c; --danger: #ff8a80; --danger-soft: #3a1d1c; --focus: #8bb9ff;
+    --key: #d2a8ff; --str: #7ee2a8; --num: #ffa657; --bool: #79c0ff; --hit: #6b5a12; --grid: #2a3038;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; width: 1440px; font: 14px/1.5 var(--font); background: var(--bg); color: var(--text); }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  header.top { padding: 28px 40px 8px; }
+  header.top h1 { font-size: 28px; letter-spacing: -0.02em; line-height: 1.2; margin: 0 0 6px; }
+  header.top p { margin: 0; color: var(--muted); font-size: 15px; }
+  header.top code { font: 12.5px var(--mono); }
+  .themes { display: grid; grid-template-columns: 1fr 1fr; }
+  .pane { background: var(--bg); color: var(--text); padding: 24px 40px 40px; }
+  .pane > h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 16px; }
+  section { margin-bottom: 28px; }
+  section h3 { font-size: 16px; margin: 0 0 10px; }
+  .swatches { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .sw { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--surface); }
+  .sw i { display: block; height: 40px; border-bottom: 1px solid var(--border); }
+  .sw div { padding: 6px 8px; font: 11.5px var(--mono); color: var(--muted); }
+  .sw b { display: block; color: var(--text); font-weight: 600; }
+  .type-row { display: flex; align-items: baseline; gap: 16px; padding: 4px 0; border-bottom: 1px solid var(--border); }
+  .type-row span:first-child { width: 64px; font: 12px var(--mono); color: var(--muted); }
+  .scale { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+  .scale div { background: var(--accent-soft); border: 1px solid var(--accent); }
+  .scale figure { margin: 0; text-align: center; font: 11.5px var(--mono); color: var(--muted); }
+  .radii { display: flex; gap: 12px; }
+  .radii div { width: 64px; height: 44px; border: 1px solid var(--line); background: var(--surface); display: grid; place-items: center; font: 11.5px var(--mono); color: var(--muted); }
+  .shadows { display: flex; gap: 16px; }
+  .shadows div { width: 180px; height: 64px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; display: grid; place-items: center; font: 11.5px var(--mono); color: var(--muted); }
+  .row-c { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+
+  /* Components (from src/web/styles.css) */
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: var(--target); min-width: var(--target);
+    padding: 0 12px; border: 1px solid var(--border); background: var(--surface); border-radius: 6px; cursor: pointer; font: inherit; font-size: 13px; color: var(--text); white-space: nowrap; }
+  .btn:hover { background: var(--surface-2); }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+  .btn.ghost { border-color: transparent; background: transparent; }
+  .btn:disabled { cursor: not-allowed; opacity: .55; }
+  .chip { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 8px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface-2); font-size: 12px; color: var(--muted); }
+  .manual-tag { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--accent); border: 1px solid currentColor; border-radius: 4px; padding: 1px 5px; }
+  select { min-height: var(--target); padding: 0 30px 0 10px; border: 1px solid var(--border); border-radius: 6px; background-color: var(--surface); color: var(--text);
+    appearance: none; font: inherit; font-size: 13px;
+    background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+    background-position: calc(100% - 15px) 52%, calc(100% - 10px) 52%; background-size: 5px 5px; background-repeat: no-repeat; }
+  .lbl { font-size: 12px; color: var(--muted); }
+  .search { display: flex; align-items: center; gap: 6px; width: 300px; height: var(--target); padding: 0 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); }
+  .search:focus-within { outline: 2px solid var(--focus); outline-offset: 1px; }
+  .search input { flex: 1; min-width: 0; border: 0; background: transparent; outline: none; font: inherit; font-size: 13px; color: var(--text); }
+  .search svg { width: 14px; height: 14px; color: var(--muted); }
+  .q-status { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); }
+  .q-status .btn { min-height: 28px; padding: 0 8px; font-size: 12px; }
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+  .seg button { border: 0; background: var(--surface); color: var(--muted); padding: 0 12px; min-height: calc(var(--target) - 2px); font: inherit; font-size: 13px; }
+  .seg button + button { border-left: 1px solid var(--border); }
+  .seg button[aria-pressed="true"] { background: var(--surface-3); color: var(--text); font-weight: 600; }
+  mark { background: var(--hit); color: inherit; border-radius: 2px; padding: 0 1px; }
+  .outline { list-style: none; margin: 0; padding: 4px 8px; width: 260px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
+  .outline button { width: 100%; display: flex; align-items: center; gap: 8px; min-height: var(--target); padding: 4px 8px; border: 0; background: none; border-radius: 6px; text-align: left; font: inherit; font-size: 13px; color: var(--text); }
+  .outline button:hover { background: var(--surface-2); }
+  .outline button[aria-current="true"] { background: var(--accent-soft); box-shadow: inset 2px 0 var(--accent); font-weight: 600; }
+  .o-ico { width: 14px; color: var(--muted); text-align: center; font-size: 11px; }
+  .o-label { flex: 1; }
+  .o-mono { font-family: var(--mono); font-size: 12.5px; }
+  .o-meta { color: var(--muted); font: 11.5px var(--mono); }
+  .md-table { border-collapse: collapse; font-size: 13.5px; background: var(--surface); border: 1px solid var(--border); }
+  .md-table th, .md-table td { text-align: left; padding: 7px 12px; border-bottom: 1px solid var(--border); }
+  .md-table tr:last-child td { border-bottom: 0; }
+  .md-table th { background: var(--surface-2); font-weight: 600; font-size: 12px; color: var(--muted); }
+  .status { display: flex; align-items: center; min-height: 30px; background: var(--surface-2); border: 1px solid var(--border); font-size: 12px; color: var(--muted); }
+  .status > * { display: flex; align-items: center; gap: 6px; padding: 4px 12px; border-right: 1px solid var(--border); white-space: nowrap; }
+  .status .grow { flex: 1; border-right: 0; justify-content: flex-end; }
+  .status strong { color: var(--text); font-weight: 600; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
+  .dot.off { background: transparent; border: 2px solid var(--warn); }
+  .dot.idle { background: transparent; border: 2px solid var(--line); }
+  .err-box { border: 1px solid var(--danger); background: var(--danger-soft); border-radius: 8px; padding: 14px 16px; }
+  .err-box strong { display: block; font-size: 16px; }
+  .err-box span { color: var(--muted); font-size: 13px; }
+  .tree-row { display: flex; align-items: center; min-height: 28px; padding: 0 6px; border-radius: 4px; font: 13px/1.5 var(--mono); }
+  .tree-row.is-selected { background: var(--accent-soft); box-shadow: inset 2px 0 var(--accent); }
+  .k { color: var(--key); } .s { color: var(--str); } .n { color: var(--num); } .b { color: var(--bool); } .punc { color: var(--muted); }
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>mview design system</h1>
+  <p>Synced read-only from <code>src/web/styles.css</code> and <code>design/mview-viewer/02-workbench.html</code>. Left: light tokens. Right: dark tokens (<code>data-theme="dark"</code>).</p>
+</header>
+<main class="themes">
+  <div class="pane light" id="paneLight" aria-label="Light theme"><h2>Light</h2></div>
+  <div class="pane dark" id="paneDark" aria-label="Dark theme"><h2>Dark</h2></div>
+</main>
+
+<template id="content">
+  <section><h3>Colors</h3><div class="swatches" data-swatches></div></section>
+  <section><h3>Type</h3>
+    <div class="type-row"><span>28 · 700</span><span style="font-size:28px;font-weight:700;letter-spacing:-0.02em;line-height:1.2">orders-service</span></div>
+    <div class="type-row"><span>18 · 600</span><span style="font-size:18px;font-weight:600">Checkout flow</span></div>
+    <div class="type-row"><span>15 · 600</span><span style="font-size:15px;font-weight:600">orders.csv</span></div>
+    <div class="type-row"><span>14 body</span><span>The storefront never talks to the payment provider directly.</span></div>
+    <div class="type-row"><span>13 mono</span><span style="font:13px var(--mono)">items[0].sku</span></div>
+    <div class="type-row"><span>12 muted</span><span style="font-size:12px;color:var(--muted)">Live · watching orders.csv</span></div>
+    <div class="type-row"><span>11 label</span><span style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">Outline</span></div>
+  </section>
+  <section><h3>Spacing</h3><div class="scale" data-scale></div></section>
+  <section><h3>Radius</h3><div class="radii"><div style="border-radius:2px">2</div><div style="border-radius:4px">4</div><div style="border-radius:6px">6</div><div style="border-radius:8px">8</div><div style="border-radius:12px">12</div></div></section>
+  <section><h3>Shadows</h3><div class="shadows"><div style="box-shadow:0 4px 16px rgb(0 0 0 / .10)">floating tools</div><div style="box-shadow:0 0 40px rgb(0 0 0 / .25)">drawer</div><div style="box-shadow:inset 2px 0 var(--accent)">current bar</div></div></section>
+  <section><h3>Components</h3>
+    <div class="row-c"><button class="btn primary" type="button">Copy path</button><button class="btn" type="button">Expand all</button><button class="btn ghost" type="button">Export SVG</button><button class="btn" type="button" disabled>Disabled</button></div>
+    <div class="row-c"><span class="chip">file</span><span class="lbl">Render as</span><select aria-label="Render as"><option>Auto · CSV</option></select><span class="manual-tag">Manual</span><span class="lbl">Theme</span><select aria-label="Theme"><option>System</option><option>Light</option><option>Dark</option></select></div>
+    <div class="row-c"><label class="search"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><input type="search" value="lucía" aria-label="Search keys and values" /></label><div class="q-status"><span>2 matches</span><button class="btn" type="button">Clear search</button></div><div class="seg"><button type="button" aria-pressed="true">Tree</button><button type="button" aria-pressed="false">Raw</button></div></div>
+    <div class="row-c" style="align-items:flex-start">
+      <ul class="outline"><li><button type="button"><span class="o-ico">#</span><span class="o-label">Checkout flow</span></button></li><li><button type="button" aria-current="true"><span class="o-ico">{ }</span><span class="o-label o-mono">customer</span><span class="o-meta">{3}</span></button></li><li><button type="button"><span class="o-ico">[ ]</span><span class="o-label o-mono">items</span><span class="o-meta">[2]</span></button></li></ul>
+      <div style="display:grid;gap:8px">
+        <table class="md-table"><thead><tr><th>Method</th><th>Path</th></tr></thead><tbody><tr><td>POST</td><td>/orders</td></tr><tr><td>GET</td><td>/orders/:id</td></tr></tbody></table>
+        <div class="tree-row is-selected"><span class="k">"email"</span><span class="punc">: </span><span class="s">"<mark>lucía</mark>.romero@example.com"</span></div>
+        <div class="tree-row"><span class="k">"qty"</span><span class="punc">: </span><span class="n">2</span></div>
+      </div>
+    </div>
+    <div class="row-c"><div class="status" style="width:100%"><div><span class="dot"></span>Live · watching orders.csv</div><div><span class="dot off"></span>Disconnected</div><div><span class="dot idle"></span>Not watching · read from stdin</div><div>JSON · auto-detected</div><div class="grow">Copied path</div></div></div>
+    <div class="err-box"><strong>Can’t render checkout.mmd — parse error on line 7</strong><span>The file is still being watched.</span></div>
+  </section>
+</template>
+
+<script>
+  const TOKENS = ["bg","surface","surface-2","surface-3","text","muted","border","line","accent","accent-ink","accent-soft","ok","warn","danger","danger-soft","focus","key","str","num","bool","hit","grid"];
+  const SPACING = [4, 6, 8, 10, 12, 14, 16, 20, 24, 28, 32, 40, 48, 64];
+  for (const pane of [document.getElementById("paneLight"), document.getElementById("paneDark")]) {
+    pane.append(document.getElementById("content").content.cloneNode(true));
+    const cs = getComputedStyle(pane);
+    const sw = pane.querySelector("[data-swatches]");
+    for (const t of TOKENS) {
+      const box = document.createElement("div"); box.className = "sw";
+      const i = document.createElement("i"); i.style.background = "var(--" + t + ")";
+      const d = document.createElement("div"); const b = document.createElement("b"); b.textContent = "--" + t;
+      d.append(b, cs.getPropertyValue("--" + t).trim()); box.append(i, d); sw.append(box);
+    }
+    const sc = pane.querySelector("[data-scale]");
+    for (const s of SPACING) {
+      const f = document.createElement("figure"); const d = document.createElement("div");
+      d.style.width = s + "px"; d.style.height = s + "px"; f.append(d, String(s)); sc.append(f);
+    }
+  }
+</script>
+</body>
+</html>

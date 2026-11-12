@@ -1,0 +1,568 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="light dark" />
+<title>mview — CSV · Table and inspector</title>
+<style>
+  /* Tokens and Workbench components copied from src/web/styles.css (see design/system.md). */
+  :root {
+    --bg: #f6f7f9; --surface: #ffffff; --surface-2: #eef0f3; --surface-3: #e3e7eb; --text: #1b1f24; --muted: #57606a;
+    --border: #d5dae0; --line: #8c959f; --accent: #0b5fcc; --accent-ink: #ffffff; --accent-soft: #e2ecfb;
+    --ok: #1a7f37; --warn: #9a6700; --danger: #b42318; --danger-soft: #fdecea; --focus: #0b5fcc;
+    --key: #8250df; --str: #116329; --num: #a3480b; --bool: #0b5fcc; --hit: #ffe58a; --grid: #c4cbd3;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --target: 36px;
+    color-scheme: light dark;
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1216; --surface: #161a1f; --surface-2: #1d2228; --surface-3: #262c33; --text: #e6e9ed; --muted: #9ba5af;
+    --border: #2c333b; --line: #6b7580; --accent: #6ea8ff; --accent-ink: #0b1220; --accent-soft: #1a2a44;
+    --ok: #4ac26b; --warn: #d4a72c; --danger: #ff8a80; --danger-soft: #3a1d1c; --focus: #8bb9ff;
+    --key: #d2a8ff; --str: #7ee2a8; --num: #ffa657; --bool: #79c0ff; --hit: #6b5a12; --grid: #2a3038;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1216; --surface: #161a1f; --surface-2: #1d2228; --surface-3: #262c33; --text: #e6e9ed; --muted: #9ba5af;
+      --border: #2c333b; --line: #6b7580; --accent: #6ea8ff; --accent-ink: #0b1220; --accent-soft: #1a2a44;
+      --ok: #4ac26b; --warn: #d4a72c; --danger: #ff8a80; --danger-soft: #3a1d1c; --focus: #8bb9ff;
+      --key: #d2a8ff; --str: #7ee2a8; --num: #ffa657; --bool: #79c0ff; --hit: #6b5a12; --grid: #2a3038;
+    }
+  }
+  @media (pointer: coarse) { :root { --target: 44px; } }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--bg); color: var(--text); font: 14px/1.5 var(--font); display: grid; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; }
+  button, select, input { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  [hidden] { display: none !important; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  code, kbd { font-family: var(--mono); }
+
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: var(--target); min-width: var(--target);
+    padding: 0 12px; border: 1px solid var(--border); background: var(--surface); border-radius: 6px; cursor: pointer; font-size: 13px; white-space: nowrap; }
+  .btn:hover { background: var(--surface-2); }
+  .btn svg { width: 16px; height: 16px; flex: none; }
+
+  .toolbar { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 6px 12px; background: var(--surface); border-bottom: 1px solid var(--border); }
+  .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; letter-spacing: -0.02em; padding-right: 12px; border-right: 1px solid var(--border); }
+  .brand svg { width: 20px; height: 20px; }
+  .outline-btn { display: inline-flex; }
+  .outline-btn[aria-expanded="true"] { background: var(--accent-soft); border-color: var(--accent); }
+  .file { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .file-name { font-weight: 600; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .chip { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 8px; border-radius: 12px; border: 1px solid var(--border);
+    background: var(--surface-2); font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .chip svg { width: 13px; height: 13px; }
+  .spacer { flex: 1; }
+  .type, .theme { display: flex; align-items: center; gap: 8px; }
+  .type label, .theme label { font-size: 12px; color: var(--muted); }
+  .type select, .theme select { min-height: var(--target); padding: 0 30px 0 10px; border: 1px solid var(--border); border-radius: 6px; background-color: var(--surface);
+    appearance: none; cursor: pointer; font-size: 13px;
+    background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+    background-position: calc(100% - 15px) 52%, calc(100% - 10px) 52%; background-size: 5px 5px; background-repeat: no-repeat; }
+  .manual-tag { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--accent); border: 1px solid currentColor; border-radius: 4px; padding: 1px 5px; }
+
+  .workspace { display: grid; grid-template-columns: 0px minmax(0, 1fr); min-height: 0; transition: grid-template-columns 240ms cubic-bezier(.2, .8, .2, 1); }
+  body.outline-open .workspace { grid-template-columns: 260px minmax(0, 1fr); }
+  .sidebar { background: var(--surface); border-right: 0 solid var(--border); overflow: hidden; min-width: 0; display: flex; flex-direction: column;
+    opacity: 0; transform: translateX(-24px); visibility: hidden;
+    transition: opacity 160ms ease, transform 240ms cubic-bezier(.2, .8, .2, 1), visibility 0s linear 240ms; }
+  body.outline-open .sidebar { border-right-width: 1px; overflow: auto; opacity: 1; transform: none; visibility: visible; transition-delay: 0s, 0s, 0s; }
+  .side-head { padding: 14px 16px 6px; }
+  .side-head h2 { margin: 0; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+  .side-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .outline { list-style: none; margin: 0; padding: 4px 8px 16px; }
+  .outline button { width: 100%; display: flex; align-items: center; gap: 8px; min-height: var(--target); padding: 4px 8px;
+    border: 0; background: none; border-radius: 6px; cursor: pointer; text-align: left; font-size: 13px; }
+  .outline button:hover { background: var(--surface-2); }
+  .outline button[aria-current="true"] { background: var(--accent-soft); color: var(--text); box-shadow: inset 2px 0 var(--accent); font-weight: 600; }
+  .outline .o-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .outline .o-mono { font-family: var(--mono); font-size: 12.5px; }
+  .outline .o-meta { color: var(--muted); font: 11.5px var(--mono); font-variant-numeric: tabular-nums; }
+  .outline .o-ico { width: 14px; color: var(--muted); flex: none; text-align: center; font-size: 11px; }
+  .side-foot { margin-top: auto; padding: 12px 16px; border-top: 1px solid var(--border); font-size: 12px; color: var(--muted); }
+  .backdrop { display: none; }
+
+  main { position: relative; overflow: hidden; min-width: 0; min-height: 0; }
+  main:focus { outline: none; }
+
+  /* JSON-style tools bar and search (reused as is) */
+  .csv-view { position: absolute; inset: 0; display: grid; grid-template-columns: minmax(0, 1fr) 0px; transition: grid-template-columns 240ms cubic-bezier(.2, .8, .2, 1); }
+  .csv-view.has-inspector { grid-template-columns: minmax(0, 1fr) 340px; }
+  .csv-main { display: flex; flex-direction: column; min-width: 0; min-height: 0; border-right: 1px solid var(--border); }
+  .json-tools { display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--border); background: var(--surface); flex-wrap: wrap; }
+  .search { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 200px; max-width: 420px; height: var(--target); padding: 0 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); }
+  .search:focus-within { outline: 2px solid var(--focus); outline-offset: 1px; }
+  .search input { flex: 1; min-width: 0; border: 0; background: transparent; outline: none; font-size: 13px; }
+  .search svg { width: 14px; height: 14px; color: var(--muted); }
+  .q-status { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); }
+  .q-status .btn { min-height: 28px; padding: 0 8px; font-size: 12px; }
+  mark { background: var(--hit); color: inherit; border-radius: 2px; padding: 0 1px; }
+
+  /* Table: Markdown table colours and padding (.md th/td) + sticky header + cell width cap. */
+  .grid-scroll { flex: 1; overflow: auto; min-height: 0; background: var(--surface); }
+  .t { border-collapse: separate; border-spacing: 0; min-width: 100%; font-size: 13.5px; background: var(--surface); }
+  .t th, .t td { text-align: left; padding: 7px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  .t th { position: sticky; top: 0; z-index: 2; padding: 0; background: var(--surface-2); font-weight: 600; font-size: 12px; color: var(--muted); }
+  .t td.num, .t th.num { text-align: right; }
+  .t td.num { font-variant-numeric: tabular-nums; }
+  .cell { max-width: 320px; overflow: hidden; text-overflow: ellipsis; }
+  .t th .cell { max-width: 320px; }
+  .th-btn { display: flex; align-items: center; gap: 6px; width: 100%; min-height: var(--target); padding: 0 12px; border: 0; background: none;
+    cursor: pointer; font: inherit; color: inherit; text-align: left; white-space: nowrap; }
+  .th.num .th-btn, th.num .th-btn { justify-content: flex-end; }
+  .th-btn:hover { background: var(--surface-3); color: var(--text); }
+  .th-btn:focus-visible { outline-offset: -2px; }
+  th[aria-sort] { color: var(--text); }
+  .sort-ico { width: 12px; height: 12px; flex: none; opacity: .5; }
+  th[aria-sort] .sort-ico { color: var(--accent); opacity: 1; }
+  th.is-target { background: var(--accent-soft); color: var(--text); box-shadow: inset 0 -2px var(--accent); }
+  .hint { font: 11.5px var(--mono); font-weight: 400; color: var(--muted); }
+  .t tbody tr:hover td { background: var(--surface-2); }
+  .t td.none { color: var(--muted); padding: 28px 16px; white-space: normal; }
+  .t td.none .btn { margin-left: 8px; min-height: 28px; padding: 0 8px; font-size: 12px; }
+
+  /* Direction 03 — table + inspector: the JSON two-pane layout; the selected row uses the tree's
+     .row.is-selected look and its full values show in the Inspector. */
+  .t tbody tr { cursor: pointer; }
+  .t tbody tr:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+  .t tbody tr.is-selected td { background: var(--accent-soft); }
+  .t tbody tr.is-selected td:first-child { box-shadow: inset 2px 0 var(--accent); }
+  .inspector { overflow: hidden; min-width: 0; background: var(--surface); padding: 0; display: flex; flex-direction: column; gap: 14px;
+    opacity: 0; transform: translateX(24px); visibility: hidden;
+    transition: opacity 160ms ease, transform 240ms cubic-bezier(.2, .8, .2, 1), visibility 0s linear 240ms; }
+  .has-inspector .inspector { padding: 16px; overflow: auto; opacity: 1; transform: none; visibility: visible; transition-delay: 0s, 0s, 0s; }
+  .ins-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .ins-close { min-width: var(--target, 28px); min-height: var(--target, 28px); border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--muted); font-size: 16px; line-height: 1; cursor: pointer; }
+  .ins-close:hover { background: var(--surface-2); color: var(--text); }
+  .ins-close:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .inspector h2 { margin: 0; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+  .field-label { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  .kv { display: grid; grid-template-columns: minmax(64px, max-content) 1fr; gap: 6px 10px; font-size: 13px; margin: 0; }
+  .kv dt { color: var(--muted); overflow-wrap: anywhere; }
+  .kv dd { margin: 0; font-family: var(--mono); overflow-wrap: anywhere; }
+  .kv .nul { color: var(--muted); font-style: italic; }
+  .ins-note { font-size: 12px; color: var(--muted); margin: 0; }
+  .side-empty { color: var(--muted); font-size: 13px; margin: 0; }
+  kbd { font-size: 12px; border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 4px; padding: 1px 6px; background: var(--surface); color: var(--text); }
+  @media (max-width: 1100px) {
+    .csv-view, .csv-view.has-inspector { grid-template-columns: minmax(0, 1fr); }
+    .csv-view { grid-template-rows: minmax(0, 1fr) 0px; transition: grid-template-rows 240ms cubic-bezier(.2, .8, .2, 1); }
+    .csv-view.has-inspector { grid-template-rows: minmax(0, 1fr) 42vh; }
+    .inspector { transform: translateY(24px); }
+    .csv-main { border-right: 0; border-bottom: 1px solid var(--border); }
+    .inspector { max-height: 42vh; }
+  }
+
+  .status { display: flex; align-items: center; min-height: 30px; background: var(--surface-2); border-top: 1px solid var(--border); font-size: 12px; color: var(--muted); flex-wrap: wrap; }
+  .status > * { display: flex; align-items: center; gap: 6px; padding: 4px 12px; border-right: 1px solid var(--border); white-space: nowrap; }
+  .status .grow { flex: 1; border-right: 0; justify-content: flex-end; }
+  .status strong { color: var(--text); font-weight: 600; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); flex: none; }
+
+  /* Artboard-only state switcher (not product UI), as in 02-workbench.html */
+  .artboard-ctl { position: fixed; right: 16px; bottom: 44px; z-index: 50; font-size: 12px; border: 1px dashed var(--muted); border-radius: 10px; padding: 6px 8px;
+    background: var(--bg); display: grid; gap: 4px; }
+  .artboard-ctl div { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .artboard-ctl button { border: 1px solid var(--border); background: var(--surface); border-radius: 6px; padding: 3px 8px; cursor: pointer; font-size: 12px; }
+  .artboard-ctl button[aria-pressed="true"] { border-color: var(--text); font-weight: 600; }
+
+  @media (max-width: 899px) {
+    .brand span, .type label, .theme label { display: none; }
+    .brand { border-right: 0; padding-right: 0; }
+    .workspace, body.outline-open .workspace { grid-template-columns: minmax(0, 1fr); }
+    .sidebar { opacity: 1; border-right-width: 1px; overflow: auto; transition-delay: 0s; }
+    .sidebar { position: fixed; top: 0; bottom: 0; left: 0; width: min(300px, 86vw); z-index: 40; transform: translateX(-100%); visibility: hidden;
+      transition: transform .18s ease, visibility .18s; box-shadow: 0 0 40px rgb(0 0 0 / .25); }
+    body.drawer-open .sidebar { transform: none; visibility: visible; }
+    body.drawer-open .backdrop { display: block; position: fixed; inset: 0; z-index: 39; background: rgb(0 0 0 / .35); }
+    .status .opt { display: none; }
+    .artboard-ctl { bottom: 70px; }
+  }
+  @media (max-width: 560px) { .chip .chip-text { display: none; } }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; } }
+</style>
+</head>
+<body>
+<header class="toolbar">
+  <button class="btn outline-btn" type="button" id="outlineBtn" aria-controls="sidebar" aria-expanded="false">
+    <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4h12M2 8h12M2 12h8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>Outline
+  </button>
+  <div class="brand">
+    <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="1" y="3" width="18" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M5 13V7l2.5 3L10 7v6M13 7l2 6 2-6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+    <span>mview</span>
+  </div>
+  <div class="file">
+    <span class="file-name" id="docName">orders.csv</span>
+    <span class="chip" title="Where this content came from">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 1.5h5l3.5 3.5v9.5h-8.5z M9 1.5V5h3.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
+      <span class="sr">Source:</span><span class="chip-text">file</span>
+    </span>
+  </div>
+  <div class="spacer"></div>
+  <div class="type">
+    <label for="typeSel">Render as</label>
+    <select id="typeSel">
+      <option value="auto">Auto · CSV</option>
+      <option value="markdown">Markdown</option>
+      <option value="mermaid">Mermaid</option>
+      <option value="json">JSON</option>
+      <option value="csv">CSV</option>
+    </select>
+    <span class="manual-tag" id="manualTag" title="Manual type is kept across live reloads until you change it" hidden>Manual</span>
+  </div>
+  <div class="theme">
+    <label for="themeSel">Theme</label>
+    <select id="themeSel">
+      <option value="system">System</option>
+      <option value="light">Light</option>
+      <option value="dark">Dark</option>
+    </select>
+  </div>
+</header>
+
+<div class="workspace">
+  <nav class="sidebar" id="sidebar" aria-label="Outline">
+    <div class="side-head">
+      <h2>Outline</h2>
+      <div class="side-sub" id="outlineSub">Columns</div>
+    </div>
+    <ul class="outline" id="outline"></ul>
+    <div class="side-foot">Click a column to scroll to it and highlight its header.</div>
+  </nav>
+  <div class="backdrop" id="backdrop"></div>
+
+  <main id="main" tabindex="-1">
+    <section class="csv-view" id="csvView" aria-label="CSV table">
+      <div class="csv-main">
+        <div class="json-tools">
+          <label class="search">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+            <span class="sr">Search cells</span>
+            <input id="q" type="search" placeholder="Search cells" autocomplete="off" />
+          </label>
+          <div class="q-status" id="qStatus" hidden>
+            <button class="btn" type="button" id="qClear">Clear search</button>
+          </div>
+        </div>
+        <div class="grid-scroll" id="scroller">
+          <table class="t" id="table">
+            <caption class="sr" id="caption"></caption>
+            <thead id="thead"></thead>
+            <tbody id="tbody"></tbody>
+          </table>
+        </div>
+      </div>
+      <aside class="inspector" id="inspector" aria-labelledby="insTitle" aria-hidden="true" inert>
+        <div class="ins-head">
+          <h2 id="insTitle">Row</h2>
+          <button class="ins-close" type="button" id="insClose" aria-label="Close row details" title="Close (Esc)">×</button>
+        </div>
+        <div>
+          <div class="field-label" id="insWhere"></div>
+          <dl class="kv" id="insKv"></dl>
+          <p class="side-empty" id="insEmpty" hidden>Select a row to see every value in full.</p>
+        </div>
+        <p class="ins-note">Use <kbd>↑</kbd> <kbd>↓</kbd> to move between rows and <kbd>Esc</kbd> to close. Long values are shown in full here.</p>
+      </aside>
+    </section>
+  </main>
+</div>
+
+<footer class="status" aria-label="Status">
+  <div><span class="dot" aria-hidden="true"></span><span id="stLive">Live · watching orders.csv</span></div>
+  <div id="stRows" role="status"></div>
+  <div class="grow" id="stMsg" aria-live="polite"></div>
+</footer>
+
+<p class="sr" id="sortHelp">Click to sort ascending, then descending, then back to file order.</p>
+
+<div class="artboard-ctl" aria-label="Artboard state (not part of the product)">
+  <div>Data:
+    <button type="button" data-ds="small" aria-pressed="true">orders.csv · 12 rows</button>
+    <button type="button" data-ds="large" aria-pressed="false">orders-2026.csv · 100,000 rows</button>
+    <button type="button" data-ds="header" aria-pressed="false">Header only</button>
+  </div>
+  <div>Search:
+    <button type="button" data-q="mx">“mx”</button>
+    <button type="button" data-q="ar">“ar”</button>
+    <button type="button" data-q="zzz">No match</button>
+  </div>
+</div>
+
+<script>
+/* Direction flags: the only script difference between the three CSV artboards. */
+const DIRECTION = { gutter: false, hints: false, inspector: true };
+
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+function h(tag, attrs, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v === null || v === undefined || v === false) continue;
+    if (k === "class") e.className = v;
+    else if (k.startsWith("on")) e.addEventListener(k.slice(2), v);
+    else e.setAttribute(k, v === true ? "" : String(v));
+  }
+  e.append(...kids.flat().filter(k => k !== null && k !== undefined && k !== false));
+  return e;
+}
+const NS = "http://www.w3.org/2000/svg";
+function sortIcon(dir) {
+  const s = document.createElementNS(NS, "svg"), p = document.createElementNS(NS, "path");
+  s.setAttribute("viewBox", "0 0 12 12"); s.setAttribute("class", "sort-ico"); s.setAttribute("aria-hidden", "true");
+  p.setAttribute("fill", "currentColor");
+  p.setAttribute("d", dir === "ascending" ? "M6 2.5l4 5H2z" : dir === "descending" ? "M6 9.5l-4-5h8z" : "M6 1.5l3 3.5H3zM6 10.5l-3-3.5h6z");
+  s.append(p); return s;
+}
+const fmt = n => n.toLocaleString("en-US");
+
+/* ---------- sample data (as parsed by S13: first record is the header) ---------- */
+const SMALL = {
+  name: "orders.csv",
+  header: ["id", "customer", "country", "amount", "status"],
+  rows: [
+    ["1001", "Lucía Romero", "AR", "80.37", "captured"],
+    ["1002", "Mateo Fernández", "MX", "24.90", "pending"],
+    ["1003", "Distribuidora Mayorista del Litoral S.A. — cuenta corporativa, sucursal Rosario", "AR", "1249.00", "captured"],
+    ["1004", "Sofía Herrera", "CL", "", "refunded"],
+    ["1005", "João Pereira", "BR", "312.45", "captured"],
+    ["1006", "Valentina Ruiz", "UY", "58.10", "cancelled"],
+    ["1007", "Diego Martínez", "MX"],
+    ["1008", "Camila Torres", "CO", "145.00", "captured", "gift wrap, deliver after 18:00"],
+    ["1009", "Andrés Gómez", "PE", "9.99", "pending"],
+    ["1010", "Isabella Castro", "AR", "430.00", "captured"],
+    ["1011", "Martina López", "ES", "77.80", "disputed"],
+    ["1012", "Tomás Silva", "CL", "205.60", "captured"]
+  ]
+};
+let LARGE = null;
+function large() {
+  if (LARGE) return LARGE;
+  const first = ["Lucía", "Mateo", "Sofía", "João", "Valentina", "Diego", "Camila", "Andrés", "Isabella", "Martina", "Tomás", "Emilia", "Bruno", "Renata"];
+  const last = ["Romero", "Fernández", "Herrera", "Pereira", "Ruiz", "Martínez", "Torres", "Gómez", "Castro", "López", "Silva", "Navarro", "Rojas"];
+  const countries = ["AR", "MX", "CL", "BR", "UY", "CO", "PE", "ES"];
+  const statuses = ["captured", "captured", "captured", "pending", "refunded", "cancelled", "disputed"];
+  let seed = 2463534242;
+  const rnd = () => { seed ^= seed << 13; seed ^= seed >>> 17; seed ^= seed << 5; return (seed >>> 0) / 4294967296; };
+  const pick = a => a[Math.floor(rnd() * a.length)];
+  const rows = new Array(100000);
+  for (let i = 0; i < rows.length; i++) rows[i] = [String(200001 + i), pick(first) + " " + pick(last), pick(countries), (5 + rnd() * 900).toFixed(2), pick(statuses)];
+  return (LARGE = { name: "orders-2026.csv", header: SMALL.header, rows });
+}
+const HEADER_ONLY = { name: "orders-template.csv", header: SMALL.header, rows: [] };
+
+/* ---------- S13 model: ragged rows, Column <n>, numeric columns ---------- */
+const NUM = /^[+-]?(\d+(\.\d*)?|\.\d+)$/;
+const CAP = 5000;
+const collator = new Intl.Collator(undefined, { sensitivity: "base" });
+function buildModel(ds) {
+  let width = ds.header.length;
+  for (const r of ds.rows) if (r.length > width) width = r.length;
+  const cols = [];
+  for (let i = 0; i < width; i++) { const raw = ds.header[i] ?? ""; cols.push(raw.trim() ? raw : "Column " + (i + 1)); }
+  const numeric = cols.map((_, i) => {
+    let any = false;
+    for (const r of ds.rows) { const v = (r[i] ?? "").trim(); if (!v) continue; any = true; if (!NUM.test(v)) return false; }
+    return any;
+  });
+  return { name: ds.name, cols, numeric, rows: ds.rows };
+}
+
+const state = { ds: "small", model: buildModel(SMALL), sort: { col: 3, dir: "ascending" }, q: "", target: 3, selected: null };
+const cell = (r, i) => r[i] ?? "";
+
+function visibleRows() {
+  const { rows, cols, numeric } = state.model, q = state.q.trim().toLowerCase();
+  const idx = [];
+  for (let i = 0; i < rows.length; i++) {
+    if (!q) { idx.push(i); continue; }
+    const r = rows[i];
+    for (let c = 0; c < cols.length; c++) if (cell(r, c).toLowerCase().includes(q)) { idx.push(i); break; }
+  }
+  const { col, dir } = state.sort;
+  if (col !== null) {
+    const sign = dir === "ascending" ? 1 : -1, isNum = numeric[col];
+    idx.sort((a, b) => {
+      const x = cell(rows[a], col), y = cell(rows[b], col), ex = !x.trim(), ey = !y.trim();
+      if (ex || ey) return ex === ey ? 0 : ex ? 1 : -1; // empty cells last in both directions
+      return sign * (isNum ? parseFloat(x) - parseFloat(y) : collator.compare(x, y));
+    });
+  }
+  return { matched: idx.length, drawn: idx.length > CAP ? idx.slice(0, CAP) : idx };
+}
+
+function highlight(text, q) {
+  const f = document.createDocumentFragment();
+  if (!q) { f.append(text); return f; }
+  const low = text.toLowerCase();
+  let at = 0, i;
+  while ((i = low.indexOf(q, at)) !== -1) { f.append(text.slice(at, i), h("mark", null, text.slice(i, i + q.length))); at = i + q.length; }
+  f.append(text.slice(at));
+  return f;
+}
+
+/* ---------- render ---------- */
+function renderHead() {
+  const { cols, numeric } = state.model;
+  const tr = h("tr");
+  if (DIRECTION.gutter) tr.append(h("th", { scope: "col", class: "gutter" }, h("span", { class: "sr" }, "Row in file")));
+  cols.forEach((name, i) => {
+    const sorted = state.sort.col === i ? state.sort.dir : null;
+    tr.append(h("th", { scope: "col", id: "col-" + i, class: (numeric[i] ? "num " : "") + (state.target === i ? "is-target" : ""), "aria-sort": sorted },
+      h("button", { class: "th-btn", type: "button", "aria-describedby": "sortHelp", onclick: () => cycleSort(i) },
+        numeric[i] ? sortIcon(sorted) : null,
+        h("span", { class: "cell" }, name),
+        DIRECTION.hints ? h("span", { class: "hint" }, numeric[i] ? "number" : "text") : null,
+        numeric[i] ? null : sortIcon(sorted))));
+  });
+  $("#thead").replaceChildren(tr);
+}
+function renderBody() {
+  const { rows, cols, numeric } = state.model, q = state.q.trim().toLowerCase();
+  const { matched, drawn } = visibleRows();
+  const span = cols.length + (DIRECTION.gutter ? 1 : 0);
+  const frag = document.createDocumentFragment();
+  if (!rows.length) frag.append(h("tr", null, h("td", { class: "none", colspan: span }, "No rows")));
+  else if (!matched) frag.append(h("tr", null, h("td", { class: "none", colspan: span }, `No rows match “${state.q.trim()}”.`,
+    h("button", { class: "btn", type: "button", onclick: clearSearch }, "Clear search"))));
+  for (const ri of drawn) {
+    const r = rows[ri];
+    const tr = h("tr", DIRECTION.inspector ? { "data-row": ri, tabindex: ri === state.selected ? "0" : "-1", class: ri === state.selected ? "is-selected" : null, "aria-current": ri === state.selected ? "true" : null } : null);
+    if (DIRECTION.gutter) tr.append(h("td", { class: "gutter" }, String(ri + 1)));
+    for (let c = 0; c < cols.length; c++) {
+      const v = cell(r, c);
+      tr.append(h("td", { class: numeric[c] ? "num" : null }, h("div", { class: "cell", title: v || null }, highlight(v, q))));
+    }
+    frag.append(tr);
+  }
+  $("#tbody").replaceChildren(frag);
+  if (DIRECTION.inspector && !$("#tbody tr[tabindex='0']")) { const f = $("#tbody tr[data-row]"); if (f) f.tabIndex = 0; }
+  // Status override: "<shown> of <total> rows" (+ the 5,000-row notice).
+  let text = `${fmt(matched)} of ${fmt(rows.length)} rows`;
+  if (matched > CAP) text += " — showing the first 5,000; refine the search to see more";
+  $("#stRows").textContent = text;
+  const s = state.sort.col === null ? "file order" : `sorted by ${cols[state.sort.col]} ${state.sort.dir}`;
+  $("#caption").textContent = `${state.model.name}, ${s}`;
+  $("#qStatus").hidden = !state.q.trim();
+  if (DIRECTION.inspector) renderInspector();
+}
+function renderOutline() {
+  const { cols, numeric } = state.model;
+  $("#outlineSub").textContent = "Columns · " + cols.length;
+  $("#outline").replaceChildren(...cols.map((name, i) => h("li", null,
+    h("button", { type: "button", "aria-current": state.target === i ? "true" : null, onclick: () => revealColumn(i) },
+      h("span", { class: "o-ico", "aria-hidden": "true" }, String(i + 1)),
+      h("span", { class: "o-label o-mono" }, name),
+      DIRECTION.gutter ? null : h("span", { class: "o-meta" }, numeric[i] ? "number" : "text")))));
+}
+function render() { renderHead(); renderBody(); renderOutline(); }
+
+function cycleSort(i) {
+  const s = state.sort;
+  if (s.col !== i) state.sort = { col: i, dir: "ascending" };
+  else if (s.dir === "ascending") state.sort = { col: i, dir: "descending" };
+  else state.sort = { col: null, dir: null };
+  renderHead(); renderBody();
+  $(`#col-${i} .th-btn`).focus();
+  const c = state.model.cols[i];
+  $("#stMsg").textContent = state.sort.col === null ? "File order" : `Sorted by ${c}, ${state.sort.dir}`;
+}
+function revealColumn(i) {
+  state.target = i; renderHead(); renderOutline();
+  const th = $("#col-" + i);
+  th.scrollIntoView({ inline: "center", block: "nearest", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  closeDrawerAfterPick();
+}
+function clearSearch() { $("#q").value = ""; state.q = ""; renderBody(); $("#q").focus(); }
+$("#q").addEventListener("input", e => { state.q = e.target.value; renderBody(); });
+$("#q").addEventListener("keydown", e => { if (e.key === "Escape" && state.q.trim()) { e.preventDefault(); clearSearch(); } });
+$("#qClear").addEventListener("click", clearSearch);
+
+/* ---------- toolbar: type and theme ---------- */
+$("#typeSel").addEventListener("change", e => { $("#manualTag").hidden = e.target.value === "auto"; });
+$("#themeSel").addEventListener("change", e => {
+  const v = e.target.value, root = document.documentElement;
+  if (v === "system") { root.removeAttribute("data-theme"); root.style.colorScheme = ""; }
+  else { root.dataset.theme = v; root.style.colorScheme = v; }
+});
+
+/* ---------- narrow screens: outline drawer ---------- */
+const narrow = matchMedia("(max-width: 899px)");
+/* Wide screens: the outline is a collapsible column, closed by default (the table gets the room).
+   Narrow screens: the same button opens it as an overlay drawer. */
+function outlineOpen() { return document.body.classList.contains(narrow.matches ? "drawer-open" : "outline-open"); }
+function setDrawer(open, returnFocus = true) {
+  document.body.classList.toggle(narrow.matches ? "drawer-open" : "outline-open", open);
+  $("#sidebar").toggleAttribute("inert", !open);
+  $("#outlineBtn").setAttribute("aria-expanded", String(open));
+  if (open) ($("#outline button") || $("#sidebar")).focus();
+  else if (returnFocus) $("#outlineBtn").focus();
+}
+function closeDrawerAfterPick() { if (narrow.matches && document.body.classList.contains("drawer-open")) setDrawer(false, false); }
+$("#outlineBtn").addEventListener("click", () => setDrawer(!outlineOpen()));
+$("#sidebar").setAttribute("inert", "");
+$("#outlineBtn").setAttribute("title", "Show or hide the column outline");
+$("#backdrop").addEventListener("click", () => setDrawer(false));
+document.addEventListener("keydown", e => { if (e.key === "Escape" && document.body.classList.contains("drawer-open")) setDrawer(false); });
+
+/* ---------- artboard state switcher ---------- */
+$$("[data-ds]").forEach(b => b.addEventListener("click", () => {
+  state.ds = b.dataset.ds;
+  const ds = state.ds === "large" ? large() : state.ds === "header" ? HEADER_ONLY : SMALL;
+  state.model = buildModel(ds); state.selected = null;
+  if (state.target >= state.model.cols.length) state.target = null;
+  $("#docName").textContent = ds.name; $("#stLive").textContent = "Live · watching " + ds.name;
+  $$("[data-ds]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+  render();
+}));
+$$("[data-q]").forEach(b => b.addEventListener("click", () => { $("#q").value = b.dataset.q; state.q = b.dataset.q; renderBody(); }));
+
+/* ---------- inspector: selected row in full ---------- */
+function renderInspector() {
+  const { rows, cols } = state.model, ri = state.selected, r = ri === null ? null : rows[ri];
+  const shown = r && $(`#tbody tr[data-row="${ri}"]`);
+  setInspector(!!shown);
+  $("#insEmpty").hidden = !!shown;
+  $("#insWhere").textContent = shown ? `Row ${fmt(ri + 1)} of ${fmt(rows.length)} in file order` : "";
+  $("#insKv").replaceChildren(...(shown ? cols.flatMap((name, c) => {
+    const v = cell(r, c);
+    return [h("dt", null, name), h("dd", null, v.trim() ? v : h("span", { class: "nul" }, "empty"))];
+  }) : []));
+}
+function setInspector(open) {
+  const view = $("#csvView"), ins = $("#inspector");
+  view.classList.toggle("has-inspector", open);
+  ins.toggleAttribute("inert", !open);
+  ins.setAttribute("aria-hidden", open ? "false" : "true");
+}
+function closeInspector() {
+  const tr = state.selected === null ? null : $(`#tbody tr[data-row="${state.selected}"]`);
+  state.selected = null;
+  $$("#tbody tr[data-row]").forEach(x => { x.classList.remove("is-selected"); x.removeAttribute("aria-current"); });
+  setInspector(false);
+  if (tr) tr.focus({ preventScroll: true });
+}
+$("#insClose").addEventListener("click", closeInspector);
+document.addEventListener("keydown", e => { if (e.key === "Escape" && state.selected !== null && !e.target.closest("#q")) closeInspector(); });
+function selectRow(tr, focus) {
+  if (!tr) return;
+  state.selected = Number(tr.dataset.row);
+  $$("#tbody tr[data-row]").forEach(x => { const on = x === tr; x.classList.toggle("is-selected", on); x.tabIndex = on ? 0 : -1; on ? x.setAttribute("aria-current", "true") : x.removeAttribute("aria-current"); });
+  if (focus) { tr.focus({ preventScroll: true }); tr.scrollIntoView({ block: "nearest" }); }
+  renderInspector();
+}
+$("#tbody").addEventListener("click", e => selectRow(e.target.closest("tr[data-row]"), true));
+$("#tbody").addEventListener("keydown", e => {
+  const tr = e.target.closest("tr[data-row]"); if (!tr) return;
+  if (e.key === "ArrowDown") { e.preventDefault(); selectRow(tr.nextElementSibling, true); }
+  else if (e.key === "ArrowUp") { e.preventDefault(); selectRow(tr.previousElementSibling, true); }
+});
+
+render();
+</script>
+</body>
+</html>
