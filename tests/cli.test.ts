@@ -1,5 +1,5 @@
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
-import { mkdtempSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { createServer, request, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -19,9 +19,9 @@ afterEach(() => {
   child = null;
 });
 
-function startCli(args: string[], stdin?: string): Promise<{ url: string; proc: ChildProcess }> {
+function startCli(args: string[], stdin?: string, cwd?: string): Promise<{ url: string; proc: ChildProcess }> {
   return new Promise((resolvePromise, reject) => {
-    const proc = spawn(process.execPath, [CLI, "--no-open", ...args], { stdio: ["pipe", "pipe", "pipe"] });
+    const proc = spawn(process.execPath, [CLI, "--no-open", ...args], { stdio: ["pipe", "pipe", "pipe"], cwd });
     child = proc;
     let out = "";
     let err = "";
@@ -84,6 +84,8 @@ describe("mview CLI", () => {
     expect(r.stdout).toContain("--paste");
     expect(r.stdout).toContain("--auto-close");
     expect(r.stdout).toContain("--detach");
+    expect(r.stdout).toContain("mview skill print");
+    expect(r.stdout).toContain("mview skill install --agent pi|claude|codex [--force]");
     expect(r.stderr).toBe("");
   });
 
@@ -390,5 +392,150 @@ describe("mview CLI", () => {
         events.close();
       }
     });
+  });
+});
+
+describe("mview skill (S12, T25-T26)", () => {
+  const SKILL_PATH = resolve("skills/mview/SKILL.md");
+  const CHOOSE = "mview: choose --agent pi|claude|codex\n";
+  const USAGE = "mview: usage: mview skill print | mview skill install --agent pi|claude|codex [--force]\n";
+
+  function skill(): string {
+    return readFileSync(SKILL_PATH, "utf8");
+  }
+
+  function tempHome(): string {
+    return mkdtempSync(join(tmpdir(), "mview-home-"));
+  }
+
+  /** Runs the real CLI with HOME pointed at a temp dir, so the user's ~/.agents and ~/.claude are never touched. */
+  function run(args: string[], home: string) {
+    return spawnSync(process.execPath, [CLI, ...args], { encoding: "utf8", timeout: 10_000, env: { ...process.env, HOME: home } });
+  }
+
+  function target(home: string, agent: "pi" | "claude" | "codex"): string {
+    return agent === "claude" ? join(home, ".claude", "skills", "mview", "SKILL.md") : join(home, ".agents", "skills", "mview", "SKILL.md");
+  }
+
+  it("the skill has name: mview frontmatter and the S12 instructions", () => {
+    const text = skill();
+    expect(text).toMatch(/^---\nname: mview\ndescription: .+\n---\n/);
+    for (const needle of [".md", ".mmd", ".json", "temporary directory", "mview --detach <file>", "--no-open", "--paste", "60 seconds", "again", "cannot read", "Remote images", "https://github.com/asolis87/multi-viewer#install"]) {
+      expect(text).toContain(needle);
+    }
+  });
+
+  it("npm pack includes skills/mview/SKILL.md", () => {
+    const r = spawnSync("npm", ["pack", "--dry-run", "--json"], { encoding: "utf8", timeout: 60_000 });
+    expect(r.status).toBe(0);
+    const [pack] = JSON.parse(r.stdout) as [{ files: { path: string }[] }];
+    const paths = pack.files.map((f) => f.path);
+    expect(paths).toContain("skills/mview/SKILL.md");
+    expect(paths).toContain("dist/cli/index.js");
+  }, 60_000);
+
+  it("skill print writes the bundled SKILL.md byte-for-byte", () => {
+    const r = run(["skill", "print"], tempHome());
+    expect(r.status).toBe(0);
+    expect(r.stderr).toBe("");
+    expect(r.stdout).toBe(skill());
+  });
+
+  it("skill print works from the packed tarball layout", () => {
+    const dir = mkdtempSync(join(tmpdir(), "mview-pack-"));
+    const pack = spawnSync("npm", ["pack", "--json", "--pack-destination", dir], { encoding: "utf8", timeout: 60_000 });
+    expect(pack.status).toBe(0);
+    const [{ filename }] = JSON.parse(pack.stdout) as [{ filename: string }];
+    const untar = spawnSync("tar", ["-xzf", join(dir, filename), "-C", dir], { encoding: "utf8" });
+    expect(untar.status).toBe(0);
+    const r = spawnSync(process.execPath, [join(dir, "package", "dist", "cli", "index.js"), "skill", "print"], { encoding: "utf8", timeout: 10_000 });
+    expect(r.status).toBe(0);
+    expect(r.stderr).toBe("");
+    expect(r.stdout).toBe(skill());
+  }, 60_000);
+
+  for (const agent of ["pi", "claude", "codex"] as const) {
+    it(`skill install --agent ${agent} creates the missing directories and writes the skill`, () => {
+      const home = tempHome();
+      const path = target(home, agent);
+      const r = run(["skill", "install", "--agent", agent], home);
+      expect(r.status).toBe(0);
+      expect(r.stderr).toBe("");
+      expect(r.stdout).toBe(`mview: installed skill for ${agent}: ${path}\n`);
+      expect(readFileSync(path, "utf8")).toBe(skill());
+    });
+  }
+
+  it("pi then codex share one copy: the second install is up to date and writes nothing", () => {
+    const home = tempHome();
+    const path = target(home, "pi");
+    expect(run(["skill", "install", "--agent", "pi"], home).status).toBe(0);
+    const past = new Date("2020-01-01T00:00:00Z");
+    utimesSync(path, past, past);
+    const r = run(["skill", "install", "--agent", "codex"], home);
+    expect(r.status).toBe(0);
+    expect(r.stderr).toBe("");
+    expect(r.stdout).toBe(`mview: skill already up to date: ${path}\n`);
+    expect(statSync(path).mtimeMs).toBe(past.getTime());
+    expect(readFileSync(path, "utf8")).toBe(skill());
+  });
+
+  it("different content is not replaced without --force, and is with --force", () => {
+    const home = tempHome();
+    const path = target(home, "claude");
+    mkdirSync(join(path, ".."), { recursive: true });
+    writeFileSync(path, "my own skill\n");
+
+    const refused = run(["skill", "install", "--agent", "claude"], home);
+    expect(refused.status).toBe(1);
+    expect(refused.stdout).toBe("");
+    expect(refused.stderr).toBe(`mview: ${path} already exists with different content; use --force to replace it\n`);
+    expect(readFileSync(path, "utf8")).toBe("my own skill\n");
+
+    const forced = run(["skill", "install", "--agent", "claude", "--force"], home);
+    expect(forced.status).toBe(0);
+    expect(forced.stderr).toBe("");
+    expect(forced.stdout).toBe(`mview: replaced skill for claude: ${path}\n`);
+    expect(readFileSync(path, "utf8")).toBe(skill());
+  });
+
+  it("a write failure exits 1 with the reason", () => {
+    const dir = tempHome();
+    const home = join(dir, "not-a-dir");
+    writeFileSync(home, "x");
+    const r = run(["skill", "install", "--agent", "pi"], home);
+    expect(r.status).toBe(1);
+    expect(r.stdout).toBe("");
+    expect(r.stderr).toMatch(/^mview: \S.*\n$/);
+    expect(readFileSync(home, "utf8")).toBe("x");
+  });
+
+  it("a missing, repeated or unknown --agent exits 2 and writes nothing", () => {
+    for (const extra of [[], ["--force"], ["--agent"], ["--agent", "pi", "--agent", "pi"], ["--agent", "pi", "--agent", "claude"], ["--agent", "cursor"]]) {
+      const home = tempHome();
+      const r = run(["skill", "install", ...extra], home);
+      expect(r.status, extra.join(" ")).toBe(2);
+      expect(r.stdout).toBe("");
+      expect(r.stderr).toBe(CHOOSE);
+      expect(readdirSync(home)).toEqual([]);
+    }
+  });
+
+  it("a missing or unknown skill subcommand exits 2 with the usage message", () => {
+    for (const args of [["skill"], ["skill", "bogus"], ["skill", "print", "extra"]]) {
+      const home = tempHome();
+      const r = run(args, home);
+      expect(r.status, args.join(" ")).toBe(2);
+      expect(r.stdout).toBe("");
+      expect(r.stderr).toBe(USAGE);
+      expect(readdirSync(home)).toEqual([]);
+    }
+  });
+
+  it("mview ./skill opens a file named skill", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "mview-skillfile-"));
+    writeFileSync(join(dir, "skill"), "# a file named skill");
+    const { url } = await startCli(["./skill"], undefined, dir);
+    expect(await (await fetch(docUrl(url))).json()).toEqual({ name: "skill", type: "markdown", content: "# a file named skill", source: "file" });
   });
 });

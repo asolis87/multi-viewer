@@ -8,6 +8,7 @@ import { HELP, parseCliArgs } from "./args.js";
 import { runDetached } from "./detach.js";
 import { emptyDoc, fromContent, readFileDoc, readStream, type Doc } from "./input.js";
 import { startServer } from "./server.js";
+import { installSkill, readSkill } from "./skill.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const WEB_ROOT = resolve(here, "../web");
@@ -25,6 +26,21 @@ async function main(argv: string[]): Promise<number> {
   if (args.kind === "version") {
     process.stdout.write(`${readVersion()}\n`);
     return 0;
+  }
+  if (args.kind === "skill-print") {
+    let skill: Buffer;
+    try {
+      skill = await readSkill();
+    } catch (error) {
+      process.stderr.write(`mview: ${(error as Error).message}\n`);
+      return 1;
+    }
+    // Wait for the write: process.exit() right after could cut off a piped stdout.
+    await new Promise<void>((done) => process.stdout.write(skill, () => done()));
+    return 0;
+  }
+  if (args.kind === "skill-install") {
+    return installSkill(args.agent, args.force, process.stdout, process.stderr);
   }
   if (args.kind === "usage") {
     process.stderr.write(`mview: ${args.message}\n`);

@@ -8,7 +8,8 @@
     "mview": "dist/cli/index.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "skills"
   ],
   "engines": {
     "node": ">=20"
