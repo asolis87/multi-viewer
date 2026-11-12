@@ -3,13 +3,13 @@
   "chosen": "03-table-inspector.html",
   "handoffs": {
     "03-table-inspector.html": {
-      "status": "implemented",
+      "status": "in_progress",
       "queued": false,
-      "sentAt": "2026-11-12T18:32:59.846Z",
-      "startedAt": "2026-11-12T18:33:31.535Z",
-      "implementedAt": "2026-11-12T18:49:41.155Z",
+      "sentAt": "2026-11-12T22:57:00.389Z",
+      "startedAt": "2026-11-12T22:57:15.995Z",
+      "implementedAt": null,
       "feature": "odd/tasks/mview.md",
-      "note": "CsvView.svelte on feat/csv; 242 tests; headless Chromium checked incl. 100,000 rows. No preview server left running."
+      "note": "T34: pages of 200 in CsvView (replaces the 5,000 cap), test-first."
     }
   }
 }
