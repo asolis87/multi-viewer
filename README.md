@@ -1,6 +1,6 @@
 # mview
 
-View Markdown, Mermaid and JSON in your browser, straight from the terminal or the clipboard.
+View Markdown, Mermaid, JSON and CSV in your browser, straight from the terminal or the clipboard.
 
 ```bash
 mview README.md              # open a file; the page live-reloads when you save it
@@ -27,9 +27,10 @@ Installing straight from the source (`pnpm add -g github:asolis87/multi-viewer`)
 
 | Type | Detected by | Features |
 | --- | --- | --- |
-| Markdown | `.md`, `.markdown`, or anything that is not JSON/Mermaid | Tables, highlighted code, ```` ```mermaid ```` blocks rendered as diagrams |
+| Markdown | `.md`, `.markdown`, or anything that is not JSON/Mermaid/CSV | Tables, highlighted code, ```` ```mermaid ```` blocks rendered as diagrams |
 | Mermaid | `.mmd`, `.mermaid`, or content starting with a diagram keyword (`flowchart`, `sequenceDiagram`, …) | Zoom, pan, export SVG |
 | JSON | `.json`, or content that parses as a JSON object/array | Collapsible tree, search, click to copy a path like `a.b[3].c` |
+| CSV / TSV | `.csv`, `.tsv`, or content whose first records split evenly on tab, `;` or `,` (first row is the header) | Table with sticky header, click a header to sort, search, row inspector, column outline; draws at most 5,000 rows |
 
 The file extension wins when it is known. You can always override the detected type from the selector in the page header.
 
@@ -69,7 +70,7 @@ With `--auto-close` the server also stops by itself (exit code 0) when no mview 
 
 ## Agent skill
 
-mview ships a skill ([`skills/mview/SKILL.md`](skills/mview/SKILL.md)) that tells AI coding agents to show you Mermaid diagrams, long JSON and long Markdown with `mview --detach <file>` instead of only printing them in the chat. It is never installed automatically; install it for one agent at a time:
+mview ships a skill ([`skills/mview/SKILL.md`](skills/mview/SKILL.md)) that tells AI coding agents to show you Mermaid diagrams, long JSON, long Markdown and CSV/TSV tables with `mview --detach <file>` instead of only printing them in the chat. It is never installed automatically; install it for one agent at a time:
 
 ```bash
 mview skill install --agent pi       # ~/.agents/skills/mview/SKILL.md

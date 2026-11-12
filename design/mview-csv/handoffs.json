@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "chosen": "03-table-inspector.html",
+  "handoffs": {
+    "03-table-inspector.html": {
+      "status": "implemented",
+      "queued": false,
+      "sentAt": "2026-11-12T18:32:59.846Z",
+      "startedAt": "2026-11-12T18:33:31.535Z",
+      "implementedAt": "2026-11-12T18:49:41.155Z",
+      "feature": "odd/tasks/mview.md",
+      "note": "CsvView.svelte on feat/csv; 242 tests; headless Chromium checked incl. 100,000 rows. No preview server left running."
+    }
+  }
+}

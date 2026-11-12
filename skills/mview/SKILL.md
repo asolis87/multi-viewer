@@ -1,15 +1,15 @@
 ---
 name: mview
-description: Show the human a Mermaid diagram, a JSON document longer than about 20 lines, or a long Markdown document rendered in their browser with the mview CLI, instead of only printing it in the chat.
+description: Show the human a Mermaid diagram, a JSON document longer than about 20 lines, a table with more than about 10 rows (CSV/TSV), or a long Markdown document rendered in their browser with the mview CLI, instead of only printing it in the chat.
 ---
 
 # mview
 
-Use mview when the human should see a Mermaid diagram, a JSON document longer than about 20 lines, or a long Markdown document. mview renders it in the human's browser. Still answer in the chat as usual; mview is for the human to look at the content.
+Use mview when the human should see a Mermaid diagram, a JSON document longer than about 20 lines, a table with more than about 10 rows, or a long Markdown document. mview renders it in the human's browser. Still answer in the chat as usual; mview is for the human to look at the content.
 
 ## Steps
 
-1. Write the content to a file with the right extension: `.md` for Markdown (fenced ```` ```mermaid ```` blocks render as diagrams), `.mmd` for a Mermaid diagram, `.json` for JSON. If the content is not in a file yet, create one under the OS temporary directory (for example `$TMPDIR` or `/tmp` on macOS and Linux, `%TEMP%` on Windows). If it already is a file, use that file.
+1. Write the content to a file with the right extension: `.md` for Markdown (fenced ```` ```mermaid ```` blocks render as diagrams), `.mmd` for a Mermaid diagram, `.json` for JSON, `.csv` or `.tsv` for tabular data (the first row is the header; quote fields that contain the delimiter, quotes or line breaks). If the content is not in a file yet, create one under the OS temporary directory (for example `$TMPDIR` or `/tmp` on macOS and Linux, `%TEMP%` on Windows). If it already is a file, use that file.
 2. Run `mview --detach <file>`. It returns at once, opens the page in the human's browser and prints one line: `mview: <url>`.
 3. Give the human the printed URL. Tell them it stops working if no page opens within 60 seconds, and that running the same command again opens a new one.
 
