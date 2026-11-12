@@ -10,6 +10,12 @@ export interface ServerOptions {
   token: string;
   port: number;
   getDoc: () => Promise<Doc>;
+  /**
+   * Stop when no page is open (S11). An open page is a connected `/api/events` stream with a
+   * valid token. `onIdle` runs once: `afterLastMs` after the last stream closes with none
+   * reconnecting, or `noneMs` after listening if no stream ever connected.
+   */
+  idle?: { afterLastMs: number; noneMs: number; onIdle: () => void };
 }
 
 export interface RunningServer {
@@ -57,6 +63,21 @@ export function startServer(options: ServerOptions): Promise<RunningServer> {
   const webRoot = resolve(options.webRoot);
   const clients = new Set<ServerResponse>();
   let allowedHosts: Set<string> = new Set();
+  let idleTimer: ReturnType<typeof setTimeout> | undefined;
+  let idleDone = false;
+  let closed = false;
+
+  function armIdle(ms: number): void {
+    const idle = options.idle;
+    if (!idle || idleDone || closed) return;
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => {
+      if (clients.size > 0 || idleDone || closed) return;
+      idleDone = true;
+      idle.onIdle();
+    }, ms);
+    idleTimer.unref();
+  }
 
   const server = createServer((req, res) => {
     handle(req, res).catch((error: Error) => {
@@ -100,7 +121,11 @@ export function startServer(options: ServerOptions): Promise<RunningServer> {
     });
     res.write(": connected\n\n");
     clients.add(res);
-    req.on("close", () => clients.delete(res));
+    clearTimeout(idleTimer);
+    req.on("close", () => {
+      clients.delete(res);
+      if (clients.size === 0) armIdle(options.idle?.afterLastMs ?? 0);
+    });
   }
 
   async function sendStatic(pathname: string, res: ServerResponse): Promise<void> {
@@ -140,6 +165,7 @@ export function startServer(options: ServerOptions): Promise<RunningServer> {
     server.listen(options.port, HOST, () => {
       const { address, port } = server.address() as AddressInfo;
       allowedHosts = new Set([`${HOST}:${port}`, `localhost:${port}`]);
+      if (options.idle) armIdle(options.idle.noneMs);
       resolvePromise({
         address,
         port,
@@ -148,6 +174,8 @@ export function startServer(options: ServerOptions): Promise<RunningServer> {
           for (const client of clients) client.write("event: change\ndata: {}\n\n");
         },
         close() {
+          closed = true;
+          clearTimeout(idleTimer);
           clearInterval(heartbeat);
           for (const client of clients) client.end();
           clients.clear();

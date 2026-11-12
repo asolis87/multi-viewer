@@ -1,7 +1,7 @@
 import { parseArgs } from "node:util";
 
 export type CliArgs =
-  | { kind: "run"; file: string | null; paste: boolean; open: boolean; port: number }
+  | { kind: "run"; file: string | null; paste: boolean; open: boolean; port: number; autoClose: boolean }
   | { kind: "help" }
   | { kind: "version" }
   | { kind: "error"; message: string };
@@ -18,12 +18,14 @@ Options:
   -p, --paste             Read the clipboard instead of a file
       --port <number>     Port to listen on (default: a free port)
       --no-open           Print the URL without opening the browser
+      --auto-close        Stop when no page is open: 10 s after the last page
+                          closes, or 60 s after start if no page ever opens
   -h, --help              Show this help
   -v, --version           Show the version
 
 Types are detected from the file extension (.md, .markdown, .mmd, .mermaid,
 .json) or, for pasted/piped content, from the content itself. The server
-listens on 127.0.0.1 only and stops with Ctrl+C.`;
+listens on 127.0.0.1 only and stops with Ctrl+C (or by itself with --auto-close).`;
 
 export function parseCliArgs(argv: string[]): CliArgs {
   let parsed;
@@ -36,6 +38,7 @@ export function parseCliArgs(argv: string[]): CliArgs {
         paste: { type: "boolean", short: "p", default: false },
         open: { type: "boolean", default: true },
         port: { type: "string" },
+        "auto-close": { type: "boolean", default: false },
         help: { type: "boolean", short: "h", default: false },
         version: { type: "boolean", short: "v", default: false },
       },
@@ -59,5 +62,5 @@ export function parseCliArgs(argv: string[]): CliArgs {
     }
   }
 
-  return { kind: "run", file, paste: Boolean(values.paste), open: values.open !== false, port };
+  return { kind: "run", file, paste: Boolean(values.paste), open: values.open !== false, port, autoClose: Boolean(values["auto-close"]) };
 }

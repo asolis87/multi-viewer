@@ -158,3 +158,132 @@ describe("server", () => {
     expect(await received).toContain("event: change");
   });
 });
+
+describe("idle close (S11, T23)", () => {
+  const servers: RunningServer[] = [];
+  afterEach(async () => {
+    await Promise.all(servers.splice(0).map((s) => s.close()));
+  });
+
+  async function start(idle?: { afterLastMs: number; noneMs: number }) {
+    let fired = 0;
+    const doc: Doc = { name: null, type: "markdown", content: "", source: "empty" };
+    const server = await startServer({
+      webRoot: makeWebRoot(),
+      token: TOKEN,
+      port: 0,
+      getDoc: async () => doc,
+      ...(idle ? { idle: { ...idle, onIdle: () => fired++ } } : {}),
+    });
+    servers.push(server);
+    return { server, fired: () => fired };
+  }
+
+  /** Open an SSE stream; resolves once the server answered (and registered it). */
+  function openStream(port: number, token = TOKEN): Promise<{ status: number; close(): void }> {
+    return new Promise((resolve, reject) => {
+      const req = request({ host: "127.0.0.1", port, path: `/api/events?t=${token}` }, (res) => {
+        res.resume();
+        resolve({ status: res.statusCode!, close: () => req.destroy() });
+      });
+      req.on("error", (e) => (/hang up|aborted/.test(e.message) ? undefined : reject(e)));
+      req.end();
+    });
+  }
+
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  it("(a) fires after the last open stream closes and none reconnects", async () => {
+    const { server, fired } = await start({ afterLastMs: 50, noneMs: 10_000 });
+    const page = await openStream(server.port);
+    await sleep(120);
+    expect(fired()).toBe(0); // an open page keeps it running
+    page.close();
+    await sleep(150);
+    expect(fired()).toBe(1);
+  });
+
+  it("(a) a reconnect within the window cancels it", async () => {
+    const { server, fired } = await start({ afterLastMs: 80, noneMs: 10_000 });
+    const first = await openStream(server.port);
+    first.close();
+    await sleep(20);
+    const reload = await openStream(server.port);
+    await sleep(200);
+    expect(fired()).toBe(0);
+    reload.close();
+    await sleep(200);
+    expect(fired()).toBe(1);
+  });
+
+  it("(a) with several streams it fires only after the last one closes", async () => {
+    const { server, fired } = await start({ afterLastMs: 50, noneMs: 10_000 });
+    const tabA = await openStream(server.port);
+    const tabB = await openStream(server.port);
+    tabA.close();
+    await sleep(150);
+    expect(fired()).toBe(0);
+    tabB.close();
+    await sleep(150);
+    expect(fired()).toBe(1);
+  });
+
+  it("(b) fires when no stream ever connects", async () => {
+    const { fired } = await start({ afterLastMs: 10_000, noneMs: 50 });
+    await sleep(20);
+    expect(fired()).toBe(0);
+    await sleep(130);
+    expect(fired()).toBe(1);
+  });
+
+  it("(b) a stream connecting within the window cancels it", async () => {
+    const { server, fired } = await start({ afterLastMs: 10_000, noneMs: 80 });
+    const page = await openStream(server.port);
+    await sleep(200);
+    expect(fired()).toBe(0);
+    page.close();
+  });
+
+  it("requests with a wrong token, or to other routes, are not open pages", async () => {
+    const { server, fired } = await start({ afterLastMs: 10_000, noneMs: 100 });
+    const wrong = await openStream(server.port, "wrong");
+    expect(wrong.status).toBe(403);
+    expect((await get(server.port, `/api/doc?t=${TOKEN}`)).status).toBe(200);
+    await sleep(200);
+    expect(fired()).toBe(1);
+
+    const other = await start({ afterLastMs: 50, noneMs: 10_000 });
+    const page = await openStream(other.server.port);
+    page.close();
+    await sleep(10);
+    await openStream(other.server.port, "wrong");
+    await sleep(150);
+    expect(other.fired()).toBe(1);
+  });
+
+  it("fires only once", async () => {
+    const { server, fired } = await start({ afterLastMs: 50, noneMs: 50 });
+    await sleep(150);
+    expect(fired()).toBe(1);
+    const page = await openStream(server.port);
+    page.close();
+    await sleep(150);
+    expect(fired()).toBe(1);
+  });
+
+  it("close() clears pending idle timers", async () => {
+    const { server, fired } = await start({ afterLastMs: 50, noneMs: 50 });
+    await server.close();
+    await sleep(150);
+    expect(fired()).toBe(0);
+  });
+
+  it("without the idle option the server keeps running with no pages", async () => {
+    const { server } = await start();
+    await sleep(150);
+    const page = await openStream(server.port);
+    page.close();
+    await sleep(100);
+    expect((await get(server.port, `/api/doc?t=${TOKEN}`)).status).toBe(200);
+  });
+});

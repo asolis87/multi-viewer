@@ -81,6 +81,7 @@ describe("mview CLI", () => {
     expect(r.status).toBe(0);
     expect(r.stdout).toContain("Usage:");
     expect(r.stdout).toContain("--paste");
+    expect(r.stdout).toContain("--auto-close");
     expect(r.stderr).toBe("");
   });
 
@@ -163,6 +164,30 @@ describe("mview CLI", () => {
     const second = await (await fetch(docUrl(url))).json();
     expect(second.content).toBe("flowchart LR\n A-->C");
   });
+
+  it(
+    "--auto-close stops with exit 0 after the last page disconnects (S11, T23)",
+    async () => {
+      const dir = mkdtempSync(join(tmpdir(), "mview-auto-"));
+      const file = join(dir, "notes.md");
+      writeFileSync(file, "# hi");
+      const proc = spawn(process.execPath, [CLI, "--no-open", "--auto-close", file], { stdio: ["pipe", "pipe", "pipe"] });
+      child = proc;
+      proc.stdin!.end();
+      let out = "";
+      let err = "";
+      proc.stdout!.on("data", (c) => (out += c));
+      proc.stderr!.on("data", (c) => (err += c));
+      const exited = new Promise<number | null>((done) => proc.on("exit", (code) => done(code)));
+      await waitFor(() => out.includes("Press Ctrl+C to stop."), 4000);
+      const url = out.match(/mview: (http:\/\/127\.0\.0\.1:\d+\/\?t=\S+)/)![1]!;
+      const page = await watchChanges(url);
+      page.close();
+      expect(await exited).toBe(0);
+      expect(err).toBe("mview: no open pages, stopping\n");
+    },
+    20_000,
+  );
 
   describe("live reload survives editor save patterns (T12, S2)", () => {
     async function setup(initial: string) {

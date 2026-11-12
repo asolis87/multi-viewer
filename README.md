@@ -46,11 +46,15 @@ mview                   Open an empty page where you can paste (Cmd/Ctrl+V)
 -p, --paste             Read the clipboard instead of a file
     --port <number>     Port to listen on (default: a free port)
     --no-open           Print the URL without opening the browser
+    --auto-close        Stop when no page is open: 10 s after the last page
+                        closes, or 60 s after start if no page ever opens
 -h, --help              Show this help
 -v, --version           Show the version
 ```
 
 If piped input never ends (for example a command that keeps running), mview says it is waiting for stdin; finish with `Ctrl+D` or cancel with `Ctrl+C`. Each run starts its own server; stop it with `Ctrl+C`. One file at a time (no tabs yet).
+
+With `--auto-close` the server also stops by itself (exit code 0) when no mview page is open: 10 seconds after the last open page closes, or 60 seconds after start if no page ever opens. Reloading the page or opening a new tab within those 10 seconds keeps it running. It prints `mview: no open pages, stopping` on stderr when it stops. The times are fixed.
 
 ## Privacy and security
 

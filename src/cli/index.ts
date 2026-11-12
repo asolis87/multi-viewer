@@ -11,6 +11,9 @@ import { startServer } from "./server.js";
 const here = dirname(fileURLToPath(import.meta.url));
 const WEB_ROOT = resolve(here, "../web");
 const STDIN_NOTICE_MS = 1000;
+// S11: fixed for the CLI; startServer takes them as parameters so tests can use milliseconds.
+const AUTO_CLOSE_AFTER_LAST_MS = 10_000;
+const AUTO_CLOSE_NONE_MS = 60_000;
 
 async function main(argv: string[]): Promise<number> {
   const args = parseCliArgs(argv);
@@ -74,11 +77,26 @@ async function main(argv: string[]): Promise<number> {
     getDoc = async () => emptyDoc();
   }
 
+  let stop: () => void = () => {};
+  const stopped = new Promise<void>((done) => (stop = done));
+
   const server = await startServer({
     webRoot: WEB_ROOT,
     token: randomBytes(24).toString("base64url"),
     port: args.port,
     getDoc,
+    ...(args.autoClose
+      ? {
+          idle: {
+            afterLastMs: AUTO_CLOSE_AFTER_LAST_MS,
+            noneMs: AUTO_CLOSE_NONE_MS,
+            onIdle: () => {
+              process.stderr.write("mview: no open pages, stopping\n");
+              stop();
+            },
+          },
+        }
+      : {}),
   });
 
   let watcher: { close(): Promise<void> } | null = null;
@@ -95,11 +113,9 @@ async function main(argv: string[]): Promise<number> {
     open(server.url).catch(() => process.stderr.write("mview: could not open the browser; open the URL above.\n"));
   }
 
-  await new Promise<void>((done) => {
-    const stop = () => done();
-    process.once("SIGINT", stop);
-    process.once("SIGTERM", stop);
-  });
+  process.once("SIGINT", stop);
+  process.once("SIGTERM", stop);
+  await stopped;
   await watcher?.close();
   await server.close();
   return 0;

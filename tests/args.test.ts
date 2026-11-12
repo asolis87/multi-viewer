@@ -3,7 +3,7 @@ import { parseCliArgs } from "../src/cli/args.js";
 
 describe("parseCliArgs", () => {
   it("no arguments", () => {
-    expect(parseCliArgs([])).toEqual({ kind: "run", file: null, paste: false, open: true, port: 0 });
+    expect(parseCliArgs([])).toEqual({ kind: "run", file: null, paste: false, open: true, port: 0, autoClose: false });
   });
 
   it("a file", () => {
@@ -22,7 +22,13 @@ describe("parseCliArgs", () => {
       paste: false,
       open: false,
       port: 4000,
+      autoClose: false,
     });
+  });
+
+  it("--auto-close (S11)", () => {
+    expect(parseCliArgs(["--auto-close", "a.md"])).toMatchObject({ kind: "run", file: "a.md", autoClose: true });
+    expect(parseCliArgs(["--paste", "--auto-close"])).toMatchObject({ kind: "run", paste: true, autoClose: true });
   });
 
   it("--help, -h and --version, -v", () => {
