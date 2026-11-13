@@ -53,20 +53,24 @@ mview skill install --agent pi|claude|codex [--force]
 -p, --paste             Read the clipboard instead of a file
     --port <number>     Port to listen on (default: a free port)
     --no-open           Print the URL without opening the browser
-    --auto-close        Stop when no page is open: 10 s after the last page
-                        closes, or 60 s after start if no page ever opens
-    --detach            Run the server in the background (implies
+    --auto-close        Stop when no page is open (the default): 10 s after
+                        the last page closes, or 60 s after start if no page
+                        ever opens
+    --no-auto-close     Keep the server running until Ctrl+C
+    --detach            Run the server in the background (always
                         --auto-close), print only "mview: <url>" and exit;
                         needs a file
 -h, --help              Show this help
 -v, --version           Show the version
 ```
 
-If piped input never ends (for example a command that keeps running), mview says it is waiting for stdin; finish with `Ctrl+D` or cancel with `Ctrl+C`. Each run starts its own server; stop it with `Ctrl+C`. One file at a time (no tabs yet).
+If piped input never ends (for example a command that keeps running), mview says it is waiting for stdin; finish with `Ctrl+D` or cancel with `Ctrl+C`. Each run starts its own server, which stops by itself (see below) or with `Ctrl+C`. One file at a time (no tabs yet).
 
-With `--auto-close` the server also stops by itself (exit code 0) when no mview page is open: 10 seconds after the last open page closes, or 60 seconds after start if no page ever opens. Reloading the page or opening a new tab within those 10 seconds keeps it running. It prints `mview: no open pages, stopping` on stderr when it stops. The times are fixed.
+By default the server stops by itself (exit code 0) when no mview page is open: 10 seconds after the last open page closes, or 60 seconds after start if no page ever opens. Reloading the page or opening a new tab within those 10 seconds keeps it running. It prints `mview: no open pages, stopping` on stderr when it stops, which frees the terminal. The times are fixed. This applies to files, `--paste`, stdin, the empty paste page and `--no-open`; passing `--auto-close` explicitly changes nothing. Use `--no-auto-close` to keep the server running until `Ctrl+C`.
 
-`mview --detach <file>` is for scripts and AI agents that must not block on the server. It checks the file first (same `file not found` / `not a file` errors), then starts the server in the background with `--auto-close`, opens the browser (unless `--no-open`), prints only `mview: <url>` and exits 0 — no `Press Ctrl+C to stop.`. `--port` and `--no-open` are passed on to the background server. It needs a file: without one, or with `--paste`, it exits 2 with `mview: --detach needs a file` (piped stdin is not read). If the background server cannot start (for example the `--port` is in use), its error is printed and the exit code is 1. Once started it writes nothing more and stops by itself like `--auto-close`.
+A page that stays hidden (minimized window or background tab) for 30 minutes disconnects from the server, so forgotten tabs let it stop too; the document stays on screen.
+
+`mview --detach <file>` is for scripts and AI agents that must not block on the server. It checks the file first (same `file not found` / `not a file` errors), then starts the server in the background with `--auto-close`, opens the browser (unless `--no-open`), prints only `mview: <url>` and exits 0 — no `Press Ctrl+C to stop.`. `--port` and `--no-open` are passed on to the background server. It needs a file: without one, or with `--paste`, it exits 2 with `mview: --detach needs a file` (piped stdin is not read). It always stops by itself: `--detach --no-auto-close` exits 2 with `mview: --detach always stops by itself; drop --no-auto-close`. If the background server cannot start (for example the `--port` is in use), its error is printed and the exit code is 1. Once started it writes nothing more and stops by itself as described above.
 
 ## Agent skill
 

@@ -194,6 +194,63 @@ describe("mview CLI", () => {
     20_000,
   );
 
+  /** Starts the real CLI in the foreground (no browser) on a temp file and collects its output and exit code. */
+  async function foreground(flags: string[]) {
+    const file = join(mkdtempSync(join(tmpdir(), "mview-life-")), "notes.md");
+    writeFileSync(file, "# hi");
+    const proc = spawn(process.execPath, [CLI, "--no-open", ...flags, file], { stdio: ["pipe", "pipe", "pipe"] });
+    child = proc;
+    proc.stdin!.end();
+    let out = "";
+    let err = "";
+    let exitCode: number | null | undefined;
+    proc.stdout!.on("data", (c) => (out += c));
+    proc.stderr!.on("data", (c) => (err += c));
+    const exited = new Promise<number | null>((done) => proc.on("exit", (code) => done((exitCode = code))));
+    await waitFor(() => out.includes("Press Ctrl+C to stop."), 4000);
+    const url = out.match(/mview: (http:\/\/127\.0\.0\.1:\d+\/\?t=\S+)/)![1]!;
+    return { proc, url, exited, err: () => err, exitCode: () => exitCode };
+  }
+
+  it(
+    "without any flag the foreground stops with exit 0 after its last page closes (S14, T35)",
+    async () => {
+      const run = await foreground([]);
+      const page = await watchChanges(run.url);
+      page.close();
+      expect(await run.exited).toBe(0);
+      expect(run.err()).toBe("mview: no open pages, stopping\n");
+    },
+    20_000,
+  );
+
+  it(
+    "--no-auto-close keeps running past the point where auto-close would stop, until Ctrl+C (S14, T35)",
+    async () => {
+      const run = await foreground(["--no-auto-close"]);
+      const page = await watchChanges(run.url);
+      page.close();
+      // Auto-close would stop 10 s after the last page closes; wait past that.
+      await new Promise((r) => setTimeout(r, 11_500));
+      expect(run.exitCode()).toBeUndefined();
+      expect((await fetch(docUrl(run.url))).status).toBe(200);
+      expect(run.err()).toBe("");
+      run.proc.kill("SIGINT");
+      expect(await run.exited).toBe(0);
+      expect(run.err()).toBe("");
+    },
+    25_000,
+  );
+
+  it("--help describes the default auto-close, --no-auto-close and the hidden-tab rule (S14, T35)", () => {
+    const r = spawnSync(process.execPath, [CLI, "--help"], { encoding: "utf8" });
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain("--no-auto-close");
+    expect(r.stdout).toContain("--auto-close");
+    expect(r.stdout).toContain("30 minutes");
+    expect(r.stdout).not.toContain("stops with Ctrl+C (or by itself with --auto-close)");
+  });
+
   describe("--detach (S10, T24)", () => {
     /** Absolute file paths of detached runs; each is unique and appears in the background copy's argv. */
     let detachedFiles: string[] = [];
@@ -304,6 +361,22 @@ describe("mview CLI", () => {
       expect(r.status).toBe(2);
       expect(r.stdout).toBe("");
       expect(r.stderr).toBe("mview: --detach needs a file\n");
+    });
+
+    it("with --no-auto-close exits 2 with a usage error and starts nothing (S14, T35)", () => {
+      const file = tempFile("keep.md", "# keep");
+      const r = runDetach(["--detach", "--no-open", "--no-auto-close", file]);
+      expect(r.status).toBe(2);
+      expect(r.stdout).toBe("");
+      expect(r.stderr).toBe("mview: --detach always stops by itself; drop --no-auto-close\n");
+      expect(pidsFor(file)).toEqual([]);
+    });
+
+    it("the --no-auto-close error wins over --detach without a file (S14, T35)", () => {
+      const r = runDetach(["--detach", "--no-auto-close"], "# piped");
+      expect(r.status).toBe(2);
+      expect(r.stdout).toBe("");
+      expect(r.stderr).toBe("mview: --detach always stops by itself; drop --no-auto-close\n");
     });
 
     it("with --paste exits 2 with the same usage error", () => {

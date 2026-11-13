@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { parseCliArgs, SKILL_USAGE } from "../src/cli/args.js";
 
 describe("parseCliArgs", () => {
-  it("no arguments", () => {
-    expect(parseCliArgs([])).toEqual({ kind: "run", file: null, paste: false, open: true, port: 0, autoClose: false, detach: false });
+  it("no arguments: auto-close is on by default (S14)", () => {
+    expect(parseCliArgs([])).toEqual({ kind: "run", file: null, paste: false, open: true, port: 0, autoClose: true, detach: false });
   });
 
   it("a file", () => {
@@ -22,7 +22,7 @@ describe("parseCliArgs", () => {
       paste: false,
       open: false,
       port: 4000,
-      autoClose: false,
+      autoClose: true,
       detach: false,
     });
   });
@@ -30,6 +30,26 @@ describe("parseCliArgs", () => {
   it("--auto-close (S11)", () => {
     expect(parseCliArgs(["--auto-close", "a.md"])).toMatchObject({ kind: "run", file: "a.md", autoClose: true });
     expect(parseCliArgs(["--paste", "--auto-close"])).toMatchObject({ kind: "run", paste: true, autoClose: true });
+  });
+
+  it("--no-auto-close turns auto-close off for every input (S14)", () => {
+    expect(parseCliArgs(["--no-auto-close"])).toMatchObject({ kind: "run", file: null, autoClose: false });
+    expect(parseCliArgs(["--no-auto-close", "a.md"])).toMatchObject({ kind: "run", file: "a.md", autoClose: false });
+    expect(parseCliArgs(["--paste", "--no-auto-close"])).toMatchObject({ kind: "run", paste: true, autoClose: false });
+    expect(parseCliArgs(["--no-open", "--no-auto-close"])).toMatchObject({ kind: "run", open: false, autoClose: false });
+  });
+
+  it("--auto-close given explicitly changes nothing (S14)", () => {
+    expect(parseCliArgs(["--auto-close", "a.md"])).toEqual(parseCliArgs(["a.md"]));
+    expect(parseCliArgs(["--auto-close"])).toEqual(parseCliArgs([]));
+  });
+
+  it("--detach --no-auto-close is a usage error, checked before --detach needs a file (S14)", () => {
+    const usage = { kind: "usage", message: "--detach always stops by itself; drop --no-auto-close" };
+    expect(parseCliArgs(["--detach", "--no-auto-close", "a.md"])).toEqual(usage);
+    expect(parseCliArgs(["--no-auto-close", "--detach", "a.md"])).toEqual(usage);
+    expect(parseCliArgs(["--detach", "--no-auto-close"])).toEqual(usage);
+    expect(parseCliArgs(["--detach", "--no-auto-close", "--paste"])).toEqual(usage);
   });
 
   it("--detach with a file (S10)", () => {
@@ -40,7 +60,7 @@ describe("parseCliArgs", () => {
       paste: false,
       open: false,
       port: 4000,
-      autoClose: false,
+      autoClose: true,
       detach: true,
     });
   });
