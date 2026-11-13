@@ -103,3 +103,70 @@ describe("parseJson", () => {
     if (!result.ok) expect(result.error.length).toBeGreaterThan(0);
   });
 });
+
+describe("searchJson matches (S16: ordered key/value matches)", () => {
+  const DOC: JsonValue = {
+    name: "name-ish",
+    list: ["alpha", "beta", { name: "gamma" }],
+    nested: { deep: { label: "Name tag" } },
+    n: 12,
+  };
+  const index = indexJson(DOC);
+
+  it("counts the key and the value of one node as two matches, key first", () => {
+    const { matches } = searchJson(index, "NAME");
+    expect(matches.slice(0, 2)).toEqual([
+      { path: "name", part: "key" },
+      { path: "name", part: "value" },
+    ]);
+  });
+
+  it("orders matches in tree order (key before value) across nested paths", () => {
+    expect(searchJson(index, "name").matches).toEqual([
+      { path: "name", part: "key" },
+      { path: "name", part: "value" },
+      { path: "list[2].name", part: "key" },
+      { path: "nested.deep.label", part: "value" },
+    ]);
+  });
+
+  it("never matches array indices or the root", () => {
+    expect(searchJson(index, "2").matches).toEqual([{ path: "n", part: "value" }]);
+    expect(searchJson(index, "root").matches).toEqual([]);
+    expect(searchJson(indexJson([1, [2]]), "0").matches).toEqual([]);
+  });
+
+  it("keeps hits and expand consistent with the matches", () => {
+    const r = searchJson(index, "gamma");
+    expect(r.matches).toEqual([{ path: "list[2].name", part: "value" }]);
+    expect([...r.hits]).toEqual(["list[2].name"]);
+    expect([...r.expand].sort()).toEqual(["", "list", "list[2]"].sort());
+  });
+
+  it("does not depend on what is collapsed (it reads the index, not the visible rows)", () => {
+    const all = searchJson(index, "a").matches;
+    const rows = visibleRows(index, new Set(["list", "nested", "nested.deep"]));
+    expect(rows.length).toBeLessThan(index.size);
+    expect(searchJson(index, "a").matches).toEqual(all);
+    expect(all.some((m) => m.path === "nested.deep.label")).toBe(true);
+  });
+
+  it("returns no matches for a blank query or no match", () => {
+    expect(searchJson(index, "  ").matches).toEqual([]);
+    expect(searchJson(index, "zzz").matches).toEqual([]);
+  });
+
+  it("next/previous walk the JSON matches with wrap, and a changed list clamps", async () => {
+    const { stepMatch, clampMatch } = await import("../../src/web/lib/text.js");
+    const m = searchJson(index, "name").matches;
+    expect(stepMatch(0, m.length, 1)).toBe(1);
+    expect(stepMatch(3, m.length, 1)).toBe(0);
+    expect(stepMatch(0, m.length, -1)).toBe(3);
+    // Live reload drops matches: the current one is clamped to the new total.
+    const after = searchJson(indexJson({ name: 1 }), "name").matches;
+    expect(after).toEqual([{ path: "name", part: "key" }]);
+    expect(clampMatch(3, after.length)).toBe(0);
+    expect(clampMatch(3, 0)).toBe(-1);
+    expect(stepMatch(-1, 0, 1)).toBe(-1);
+  });
+});

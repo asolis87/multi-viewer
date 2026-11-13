@@ -73,6 +73,33 @@ export function filterRows(rows: readonly (readonly string[])[], query: string):
   return out;
 }
 
+/** One search match (S16): a shown cell containing the query; `pos` is its row's position among the shown rows. */
+export interface CellMatch {
+  row: number;
+  col: number;
+  pos: number;
+}
+
+/** Every matching cell of the shown rows (`list`, in shown order), left to right within a row (S16). */
+export function cellMatches(table: CsvTable, list: readonly number[], query: string): CellMatch[] {
+  const q = query.trim().toLowerCase();
+  const out: CellMatch[] = [];
+  if (!q) return out;
+  for (let pos = 0; pos < list.length; pos++) {
+    const row = list[pos]!;
+    const cells = table.rows[row]!;
+    for (let col = 0; col < cells.length; col++) {
+      if (cells[col]!.toLowerCase().includes(q)) out.push({ row, col, pos });
+    }
+  }
+  return out;
+}
+
+/** The page (0-based) that holds a match. */
+export function matchPage(match: CellMatch): number {
+  return Math.floor(match.pos / PAGE_SIZE);
+}
+
 /** Stable sort of row indices; empty cells stay last in both directions. Returns a new array. */
 export function sortRows(table: CsvTable, indices: readonly number[], sort: SortState | null): number[] {
   if (!sort) return [...indices];
