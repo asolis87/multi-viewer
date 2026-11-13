@@ -92,30 +92,41 @@ main:focus { outline: none; }
 .err-back { padding-bottom: 0; }
 .loading { padding: 28px 40px; color: var(--muted); }
 
-/* Markdown */
-.md { max-width: 980px; padding: 28px 40px 64px; overflow-wrap: break-word; }
+/* Markdown — reading direction "Serif" (S15; design/mview-reading/02-serif.html, its Values panel).
+   Font size and line height live on .md, never on body, so the shell and the other views keep 14px/1.5. */
+.md { --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif; --col: 720px;
+  max-width: 800px; padding: 32px 40px 80px; overflow-wrap: break-word; font-family: var(--serif); font-size: 19px; line-height: 32.3px; }
 .md > :first-child { margin-top: 0; }
-.md h1 { font-size: 28px; letter-spacing: -0.02em; line-height: 1.2; margin: 0 0 12px; }
-.md h2 { font-size: 18px; margin: 32px 0 8px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
-.md h3 { font-size: 16px; margin: 24px 0 8px; }
-.md h4, .md h5, .md h6 { font-size: 14px; margin: 20px 0 6px; }
+.md :is(h1, h2, h3, h4, h5, h6) { font-family: var(--font); max-width: var(--col); color: var(--text); }
+.md h1 { font-size: 36px; line-height: 43.2px; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 24px; }
+.md h2 { font-size: 26px; line-height: 32.5px; font-weight: 700; letter-spacing: -0.02em; margin: 56px 0 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+.md h3 { font-size: 21px; line-height: 27.3px; font-weight: 600; margin: 40px 0 12px; }
+.md h4, .md h5, .md h6 { font-size: 19px; line-height: 25.65px; font-weight: 600; margin: 32px 0 8px; }
 .md :is(h1, h2, h3, h4, h5, h6):focus { outline: none; }
 .md :is(h1, h2, h3, h4, h5, h6):focus-visible { outline: 2px solid var(--focus); outline-offset: 4px; }
-.md p, .md ul, .md ol, .md blockquote { margin: 0 0 12px; max-width: 78ch; }
-.md li + li { margin-top: 2px; }
-.md blockquote { padding: 0 14px; border-left: 3px solid var(--border); color: var(--muted); }
+.md p { margin: 0 0 22px; max-width: var(--col); }
+.md ul, .md ol { margin: 0 0 22px; padding-left: 30px; max-width: var(--col); }
+.md li + li { margin-top: 10px; }
+.md li > p { margin: 0 0 12px; }
+.md li > p:last-child { margin-bottom: 0; }
+.md li > :is(ul, ol) { margin: 10px 0 0; }
+.md blockquote { margin: 0 0 26px; padding: 2px 0 2px 20px; border-left: 3px solid var(--line); color: var(--muted); font-style: italic; max-width: var(--col); }
+.md blockquote > :last-child { margin-bottom: 0; }
 .md hr { border: 0; border-top: 1px solid var(--border); margin: 24px 0; }
 .md img { max-width: 100%; }
-.md code { font-size: .88em; background: var(--surface-2); border: 1px solid var(--border); padding: 0 4px; border-radius: 4px; }
-.md pre { font-size: 13px; line-height: 1.6; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; overflow-x: auto; margin: 0 0 12px; }
+.md code { font-size: 16px; background: var(--surface-2); border: 1px solid var(--border); padding: 0 4px; border-radius: 4px; }
+.md pre { font-size: 15px; line-height: 24px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px 20px; overflow-x: auto; margin: 0 0 26px; max-width: var(--col); }
 .md pre code { background: none; border: 0; padding: 0; font-size: inherit; }
-.md table { border-collapse: collapse; width: 100%; max-width: 760px; font-size: 13.5px; background: var(--surface); border: 1px solid var(--border); margin: 0 0 12px; display: block; overflow-x: auto; }
-.md th, .md td { text-align: left; padding: 7px 12px; border-bottom: 1px solid var(--border); }
+.md table { border-collapse: collapse; width: 100%; max-width: 720px; font-family: var(--font); font-size: 15px; line-height: 22.5px; background: var(--surface); border: 1px solid var(--border); margin: 0 0 22px; display: block; overflow-x: auto; }
+.md th, .md td { text-align: left; vertical-align: top; padding: 10px 14px; border-bottom: 1px solid var(--border); }
 .md tr:last-child td { border-bottom: 0; }
-.md th { background: var(--surface-2); font-weight: 600; font-size: 12px; color: var(--muted); }
+.md th { background: var(--surface-2); font-weight: 600; font-size: 13px; color: var(--muted); }
 .md a { color: var(--accent); }
 .md .mermaid-slot { margin: 12px 0; }
 .md .mermaid-slot:focus { outline: none; }
+/* UI inside the article (diagram figures, remote image placeholders) keeps the Workbench sans text, not the reading text. */
+.md :is(.fig, .remote-image) { font-family: var(--font); font-style: normal; }
+.md .fig { font-size: 14px; line-height: 1.5; }
 
 /* highlight.js tokens mapped to the design tokens */
 .hljs-keyword, .hljs-selector-tag, .hljs-built_in, .hljs-type, .hljs-meta .hljs-keyword, .hljs-doctag { color: var(--key); }
@@ -198,8 +209,9 @@ mark { background: var(--hit); color: inherit; border-radius: 2px; padding: 0 1p
 .kv dt { color: var(--muted); } .kv dd { margin: 0; font-family: var(--mono); word-break: break-all; }
 .value-box { margin: 0; font: 12.5px/1.55 var(--mono); background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 10px; max-height: 260px; overflow: auto; white-space: pre-wrap; word-break: break-word; }
 
-/* CSV table + row inspector (S13; design/mview-csv/03-table-inspector.html). The table reuses the
-   Markdown table colours and padding (.md th/td) and adds the sticky header and the cell width cap. */
+/* CSV table + row inspector (S13; design/mview-csv/03-table-inspector.html). The table copies the
+   pre-S15 Markdown table colours and padding (13.5px, cells 7px 12px) and keeps them when the Markdown
+   table changes (S15, L63); it adds the sticky header and the cell width cap. */
 .csv-view { position: absolute; inset: 0; display: grid; grid-template-columns: minmax(0, 1fr) 0px; transition: grid-template-columns 240ms cubic-bezier(.2, .8, .2, 1); }
 .csv-view.has-inspector { grid-template-columns: minmax(0, 1fr) 340px; }
 .csv-main { display: flex; flex-direction: column; min-width: 0; min-height: 0; border-right: 1px solid var(--border); }
@@ -322,7 +334,18 @@ th.num .th-btn { justify-content: flex-end; }
     transition: transform .18s ease, visibility .18s; box-shadow: 0 0 40px rgb(0 0 0 / .25); }
   .workspace.drawer-open .sidebar { transform: none; visibility: visible; }
   .workspace.drawer-open .backdrop { display: block; position: fixed; inset: 0; z-index: 39; background: rgb(0 0 0 / .35); }
-  .md, .err, .paste { padding: 20px 16px 48px; }
+  .err, .paste { padding: 20px 16px 48px; }
+  .md { padding: 20px 16px 56px; font-size: 17px; line-height: 28.9px; }
+  .md h1 { font-size: 30px; line-height: 36px; margin: 0 0 20px; }
+  .md h2 { font-size: 23px; line-height: 28.75px; margin: 44px 0 14px; }
+  .md h3 { font-size: 19px; line-height: 24.7px; margin: 32px 0 10px; }
+  .md h4, .md h5, .md h6 { font-size: 17px; line-height: 22.95px; margin: 28px 0 8px; }
+  .md p, .md ul, .md ol { margin-bottom: 20px; }
+  .md li + li, .md li > :is(ul, ol) { margin-top: 8px; }
+  .md code { font-size: 14.5px; }
+  .md pre { font-size: 14px; line-height: 22.4px; }
+  .md table { font-size: 14px; line-height: 21px; }
+  .md th { font-size: 12px; }
   .status .opt { display: none; }
 }
 @media (max-width: 560px) {
