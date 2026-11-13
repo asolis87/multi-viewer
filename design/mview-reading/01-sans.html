@@ -1,0 +1,484 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="light dark" />
+<title>mview — Markdown reading · Sans</title>
+<style>
+  /* Tokens and Workbench shell copied from design/mview-viewer/02-workbench.html and src/web/styles.css (see design/system.md). */
+  :root {
+    --bg: #f6f7f9; --surface: #ffffff; --surface-2: #eef0f3; --surface-3: #e3e7eb; --text: #1b1f24; --muted: #57606a;
+    --border: #d5dae0; --line: #8c959f; --accent: #0b5fcc; --accent-ink: #ffffff; --accent-soft: #e2ecfb;
+    --ok: #1a7f37; --warn: #9a6700; --danger: #b42318; --danger-soft: #fdecea; --focus: #0b5fcc;
+    --key: #8250df; --str: #116329; --num: #a3480b; --bool: #0b5fcc; --hit: #ffe58a; --grid: #c4cbd3;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif; /* reading stack from design/mview-viewer/01-reader.html */
+    --target: 36px;
+    color-scheme: light;
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1216; --surface: #161a1f; --surface-2: #1d2228; --surface-3: #262c33; --text: #e6e9ed; --muted: #9ba5af;
+    --border: #2c333b; --line: #6b7580; --accent: #6ea8ff; --accent-ink: #0b1220; --accent-soft: #1a2a44;
+    --ok: #4ac26b; --warn: #d4a72c; --danger: #ff8a80; --danger-soft: #3a1d1c; --focus: #8bb9ff;
+    --key: #d2a8ff; --str: #7ee2a8; --num: #ffa657; --bool: #79c0ff; --hit: #6b5a12; --grid: #2a3038;
+    color-scheme: dark;
+  }
+  @media (pointer: coarse) { :root { --target: 44px; } }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--surface-3); color: var(--text); font: 14px/1.5 var(--font); overflow: hidden; }
+  button, select, input { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  [hidden] { display: none !important; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  code, kbd, pre { font-family: var(--mono); }
+
+  /* Artboard frame: 1440 = full window, 800 = an 800px-wide app. The app reacts to its own width (container query = the Workbench's 899px breakpoint). */
+  .frame { container: app / inline-size; height: 100vh; width: 100%; background: var(--bg); }
+  body.w-800 .frame { width: 800px; outline: 1px dashed var(--muted); }
+  .app { height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }
+
+  /* Buttons */
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: var(--target); min-width: var(--target);
+    padding: 0 12px; border: 1px solid var(--border); background: var(--surface); border-radius: 6px; cursor: pointer; font-size: 13px; white-space: nowrap; }
+  .btn:hover { background: var(--surface-2); }
+  .btn svg { width: 16px; height: 16px; flex: none; }
+
+  /* Toolbar */
+  .toolbar { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 6px 12px; background: var(--surface); border-bottom: 1px solid var(--border); min-width: 0; }
+  .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; letter-spacing: -0.02em; padding-right: 12px; border-right: 1px solid var(--border); }
+  .brand svg { width: 20px; height: 20px; }
+  .outline-btn { display: none; }
+  .file { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .file-name { font-weight: 600; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .file-path { color: var(--muted); font: 12px var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .chip { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 8px; border-radius: 12px; border: 1px solid var(--border);
+    background: var(--surface-2); font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .chip svg { width: 13px; height: 13px; }
+  .spacer { flex: 1; }
+  .type, .theme { display: flex; align-items: center; gap: 8px; }
+  .type label, .theme label { font-size: 12px; color: var(--muted); }
+  .type select, .theme select { min-height: var(--target); padding: 0 30px 0 10px; border: 1px solid var(--border); border-radius: 6px; background-color: var(--surface);
+    appearance: none; cursor: pointer; font-size: 13px;
+    background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+    background-position: calc(100% - 15px) 52%, calc(100% - 10px) 52%; background-size: 5px 5px; background-repeat: no-repeat; }
+
+  /* Body: sidebar + main */
+  .workspace { display: grid; grid-template-columns: 260px minmax(0, 1fr); min-height: 0; }
+  .sidebar { background: var(--surface); border-right: 1px solid var(--border); overflow: auto; display: flex; flex-direction: column; }
+  .side-head { padding: 14px 16px 6px; }
+  .side-head h2 { margin: 0; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+  .side-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .outline { list-style: none; margin: 0; padding: 4px 8px 16px; }
+  .outline button { width: 100%; display: flex; align-items: center; gap: 8px; min-height: var(--target); padding: 4px 8px 4px calc(8px + var(--lv, 0) * 14px);
+    border: 0; background: none; border-radius: 6px; cursor: pointer; text-align: left; font-size: 13px; }
+  .outline button:hover { background: var(--surface-2); }
+  .outline button[aria-current="true"] { background: var(--accent-soft); color: var(--text); box-shadow: inset 2px 0 var(--accent); font-weight: 600; }
+  .outline .o-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .outline .o-ico { width: 14px; color: var(--muted); flex: none; text-align: center; font-size: 11px; }
+  .side-foot { margin-top: auto; padding: 12px 16px; border-top: 1px solid var(--border); font-size: 12px; color: var(--muted); }
+  .backdrop { display: none; }
+
+  main { position: relative; overflow: auto; min-width: 0; min-height: 0; }
+  main:focus { outline: none; }
+
+  /* ===== Markdown reading direction: Sans (the values listed in the Values panel) ===== */
+  .md { --col: 680px; max-width: 760px; padding: 32px 40px 80px; overflow-wrap: break-word;
+    font-family: var(--font); font-size: 17px; line-height: 28.9px; }
+  .md > :first-child { margin-top: 0; }
+  .md :is(h1, h2, h3, h4) { font-family: var(--font); max-width: var(--col); color: var(--text); }
+  .md h1 { font-weight: 700; letter-spacing: -0.02em; }
+  .md h2 { font-weight: 700; letter-spacing: -0.01em; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  .md h3 { font-weight: 600; letter-spacing: normal; }
+  .md h4 { font-weight: 600; letter-spacing: normal; }
+  .md h1 { font-size: 32px; line-height: 40px; margin: 0px 0 20px; }
+  .md h2 { font-size: 24px; line-height: 31.2px; margin: 56px 0 16px; }
+  .md h3 { font-size: 20px; line-height: 27px; margin: 40px 0 12px; }
+  .md h4 { font-size: 18px; line-height: 25.2px; margin: 32px 0 8px; }
+  .md :is(h1, h2, h3, h4):focus { outline: none; }
+  .md :is(h1, h2, h3, h4):focus-visible { outline: 2px solid var(--focus); outline-offset: 4px; }
+  .md p { margin: 0 0 20px; max-width: var(--col); }
+  .md ul, .md ol { margin: 0 0 20px; padding-left: 28px; max-width: var(--col); }
+  .md li + li { margin-top: 10px; }
+  .md li > p { margin: 0 0 12px; }
+  .md li > p:last-child { margin-bottom: 0; }
+  .md li > :is(ul, ol) { margin: 10px 0 0; }
+  .md blockquote { margin: 0 0 24px; padding: 2px 0 2px 20px; border-left: 3px solid var(--line); color: var(--muted); font-style: normal; max-width: var(--col); }
+  .md blockquote > :last-child { margin-bottom: 0; }
+  .md code { font-family: var(--mono); font-size: 15px; background: var(--surface-2); border: 1px solid var(--border); padding: 0 4px; border-radius: 4px; }
+  .md pre { font-family: var(--mono); font-size: 15px; line-height: 24px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    padding: 16px 20px; overflow-x: auto; margin: 0 0 24px; max-width: var(--col); }
+  .md pre code { background: none; border: 0; padding: 0; font-size: inherit; }
+  .tok-k { color: var(--key); } .tok-s { color: var(--str); } .tok-c { color: var(--muted); }
+  .md table { border-collapse: collapse; width: 100%; max-width: 680px; font-family: inherit; font-size: 15px; line-height: 22.5px;
+    background: var(--surface); border: 1px solid var(--border); margin: 0 0 20px; display: block; overflow-x: auto; }
+  .md th, .md td { text-align: left; vertical-align: top; padding: 10px 14px; border-bottom: 1px solid var(--border); }
+  .md tr:last-child td { border-bottom: 0; }
+  .md th { background: var(--surface-2); font-weight: 600; font-size: 13px; color: var(--muted); }
+  .md a { color: var(--accent); }
+
+  @container app (max-width: 899px) {
+    .md { padding: 20px 16px 56px; font-size: 16px; line-height: 26.4px; }
+    .md h1 { font-size: 28px; line-height: 35px; margin: 0px 0 18px; }
+    .md h2 { font-size: 22px; line-height: 28.6px; margin: 44px 0 14px; }
+    .md h3 { font-size: 18px; line-height: 24.3px; margin: 32px 0 10px; }
+    .md h4 { font-size: 17px; line-height: 23.8px; margin: 28px 0 8px; }
+    .md p, .md ul, .md ol { margin-bottom: 18px; }
+    .md li + li, .md li > :is(ul, ol) { margin-top: 8px; }
+    .md code { font-size: 14px; }
+    .md pre { font-size: 14px; line-height: 22.4px; }
+    .md table { font-size: 14px; line-height: 21px; }
+    .md th { font-size: 12px; }
+  }
+
+  /* Status bar */
+  .status { display: flex; align-items: center; min-height: 30px; background: var(--surface-2); border-top: 1px solid var(--border); font-size: 12px; color: var(--muted); flex-wrap: wrap; }
+  .status > * { display: flex; align-items: center; gap: 6px; padding: 4px 12px; border-right: 1px solid var(--border); white-space: nowrap; }
+  .status .grow { flex: 1; border-right: 0; justify-content: flex-end; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); flex: none; }
+
+  @container app (max-width: 899px) {
+    .outline-btn { display: inline-flex; }
+    .brand span, .file-path, .type label, .theme label { display: none; }
+    .brand { border-right: 0; padding-right: 0; }
+    .workspace { grid-template-columns: minmax(0, 1fr); }
+    .sidebar { position: fixed; top: 0; bottom: 0; left: 0; width: min(300px, 86vw); z-index: 40; transform: translateX(-100%); visibility: hidden;
+      transition: transform .18s ease, visibility .18s; box-shadow: 0 0 40px rgb(0 0 0 / .25); }
+    .app.drawer-open .sidebar { transform: none; visibility: visible; }
+    .app.drawer-open .backdrop { display: block; position: fixed; inset: 0; z-index: 39; background: rgb(0 0 0 / .35); }
+    .status .opt { display: none; }
+  }
+  @container app (max-width: 560px) { .chip .chip-text { display: none; } }
+
+  /* ===== Artboard-only (not product UI): state switcher and Values panel, dashed like the CSV artboards ===== */
+  .artboard-ctl { position: fixed; right: 16px; bottom: 44px; z-index: 50; font-size: 12px; border: 1px dashed var(--muted); border-radius: 10px; padding: 6px 8px;
+    background: var(--bg); display: grid; gap: 4px; font-family: var(--font); line-height: 1.5; }
+  .artboard-ctl div { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .artboard-ctl button { border: 1px solid var(--border); background: var(--surface); border-radius: 6px; padding: 3px 8px; cursor: pointer; font-size: 12px; }
+  .artboard-ctl button[aria-pressed="true"] { border-color: var(--text); font-weight: 600; }
+  .values { position: fixed; right: 16px; top: 64px; bottom: 132px; width: 344px; z-index: 50; overflow: auto; font: 12px/1.45 var(--font);
+    border: 1px dashed var(--muted); border-radius: 10px; background: var(--bg); padding: 10px 12px; color: var(--text); }
+  .values h2 { margin: 0; font-size: 12px; font-weight: 700; }
+  .values .v-note { margin: 2px 0 8px; color: var(--muted); }
+  .values table { border-collapse: collapse; width: 100%; }
+  .values th, .values td { text-align: left; vertical-align: top; padding: 3px 4px; border-bottom: 1px solid var(--border); }
+  .values thead th { color: var(--muted); font-weight: 600; }
+  .values tbody th { font-weight: 400; color: var(--muted); width: 34%; }
+  .values td { font-family: var(--mono); font-size: 11.5px; overflow-wrap: anywhere; }
+  .values .v-sec th { padding-top: 10px; color: var(--text); font-weight: 700; border-bottom-color: var(--muted); }
+  .values .v-src { margin: 10px 0 0; color: var(--muted); }
+
+  body.no-anim .sidebar { transition: none !important; } /* artboard width switch: no drawer slide */
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; } }
+</style>
+</head>
+<body>
+<div class="frame">
+<div class="app" id="app">
+<header class="toolbar">
+  <button class="btn outline-btn" type="button" id="outlineBtn" aria-controls="sidebar" aria-expanded="false">
+    <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4h12M2 8h12M2 12h8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>Outline
+  </button>
+  <div class="brand">
+    <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="1" y="3" width="18" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M5 13V7l2.5 3L10 7v6M13 7l2 6 2-6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+    <span>mview</span>
+  </div>
+  <div class="file">
+    <span class="file-name">mview.md</span>
+    <span class="chip" title="Where this content came from">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 1.5h5l3.5 3.5v9.5h-8.5z M9 1.5V5h3.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
+      <span class="sr">Source:</span><span class="chip-text">file</span>
+    </span>
+    <span class="file-path">~/dev/multi-viewer/odd/tasks/mview.md</span>
+  </div>
+  <div class="spacer"></div>
+  <div class="type">
+    <label for="typeSel">Render as</label>
+    <select id="typeSel">
+      <option value="auto">Auto · Markdown</option>
+      <option value="markdown">Markdown</option>
+      <option value="mermaid">Mermaid</option>
+      <option value="json">JSON</option>
+      <option value="csv">CSV</option>
+    </select>
+  </div>
+  <div class="theme">
+    <label for="themeSel">Theme</label>
+    <select id="themeSel">
+      <option value="system">System</option>
+      <option value="light" selected>Light</option>
+      <option value="dark">Dark</option>
+    </select>
+  </div>
+</header>
+
+<div class="workspace">
+  <nav class="sidebar" id="sidebar" aria-label="Outline">
+    <div class="side-head">
+      <h2>Outline</h2>
+      <div class="side-sub" id="outlineSub">Headings</div>
+    </div>
+    <ul class="outline" id="outline"></ul>
+    <div class="side-foot">Click an item to jump to it.</div>
+  </nav>
+  <div class="backdrop" id="backdrop"></div>
+
+  <main id="main" tabindex="-1">
+    <section class="view" aria-label="Markdown document">
+      <!-- Real content of odd/tasks/mview.md rendered with markdown-it (title, intro and "## Specs" for context; S13 through T7).
+           Appended for the artboard because the excerpt has none: "## Log" with L62 as a blockquote, the Doc type from the
+           Server contract as a code block, and today's values from S15 as a table (h4 headings). -->
+      <article class="md">
+<h1 id="h-mview-cli-viewer-for-markdown-mermaid-and-json" tabindex="-1">mview — CLI viewer for Markdown, Mermaid and JSON</h1>
+<p>Local CLI (<code>mview</code>) that opens the browser on a 127.0.0.1 server and renders Markdown (with embedded Mermaid), Mermaid and JSON from a file, the clipboard or stdin. Node + TypeScript CLI, Svelte frontend bundled into the package. v0.1 MVP = S1–S8; anything else (tabs, YAML, daemon reuse) is out of scope.</p>
+<h2 id="h-specs" tabindex="-1">Specs</h2>
+<ul>
+<li>
+<p><strong>S13 — CSV and TSV tables.</strong> User (L34): &quot;podemos hacer una feature para añadir soporte para csv?&quot;; answers (L34): &quot;Tabla + ordenar + buscar (recomendado)&quot;, &quot;CSV y TSV, delimitador autodetectado&quot;, &quot;Siempre es encabezado&quot;, &quot;Sí, artboards nuevos (recomendado)&quot;; (L35): &quot;Parser propio en src/shared/csv.ts (recomendado)&quot;, &quot;Tope de 5.000 filas (recomendado)&quot;, &quot;Lista de columnas&quot;, &quot;Sí, aplicalos tal cual&quot;.</p>
+<ul>
+<li><strong>Type.</strong> New document type <code>csv</code> (<code>DocType</code>/<code>DOC_TYPES</code> in <code>src/shared/detect.ts</code>, label &quot;CSV&quot; in the type labels, <code>Doc.type</code> in the contract) for comma-, semicolon- and tab-separated content. The delimiter is not part of <code>Doc</code>.</li>
+<li><strong>One shared module.</strong> <code>src/shared/csv.ts</code> (own code, no new dependency — Q3) exports <code>parseCsv(text, delimiter)</code> and <code>detectDelimiter(text, filename?)</code>. <code>detectType</code> (CLI and browser) and the CSV view both use it; nothing else splits CSV.</li>
+<li><strong>Delimiter.</strong> <code>.tsv</code> → tab, always. <code>.csv</code> and a manual <code>csv</code> choice → <code>;</code> if it qualifies, else <code>,</code>. Content without a known extension → the first delimiter that qualifies in the order tab, <code>;</code>, <code>,</code>. A delimiter <em>qualifies</em> when, parsing with it, the first 20 records (blank records skipped; records, not physical lines, so a quoted line break does not end one; detection reads at most those 20 records) all have the same number of fields and that number is at least 2; if the 20-record window ends inside an open quote, that delimiter does not qualify.</li>
+<li><strong>Detection.</strong> Extension first: <code>.csv</code>/<code>.tsv</code> → csv (S4's <code>.md/.mmd/.json</code> unchanged). Without a known extension: JSON object/array → json; Mermaid keyword → mermaid; <em>tabular</em> → csv; otherwise markdown. Content is tabular when it has at least 2 non-blank records, some delimiter qualifies, and none of those first 20 records' first line, after trimming, starts with <code>|</code>, <code>#</code> or <code>---</code> (front matter is not skipped here, unlike S4). A trailing empty line is ignored.</li>
+<li><strong>Parsing (RFC 4180).</strong> Fields may be wrapped in double quotes; inside quotes the delimiter and line breaks are literal and <code>&quot;&quot;</code> is one <code>&quot;</code>. An unclosed quote runs to the end of the text. A <code>&quot;</code> inside an unquoted field is literal text. A UTF-8 BOM is ignored; <code>\r\n</code> and <code>\n</code> both end records. Blank lines between records are skipped. A trailing delimiter makes an empty last field.</li>
+<li><strong>Header and ragged rows.</strong> The first record is always the header. Rows shorter than the header get empty cells. Rows longer than the header add columns named <code>Column &lt;n&gt;</code> (1-based position, e.g. <code>Column 4</code> when the header has 3 cells); an empty header cell is also shown as <code>Column &lt;n&gt;</code>. Duplicate header names are kept as they are. Content that yields one column renders as one column; content with only a header shows the header and &quot;No rows&quot;; empty content shows &quot;No rows&quot;.</li>
+<li><strong>Table.</strong> The header stays visible while scrolling. Cells are plain text (never HTML or Markdown), cut to one line with an ellipsis, with the full value on hover. Styling reuses the Markdown table colours and padding (<code>.md th/td</code>) and adds only the sticky header and the cell width cap.</li>
+<li><strong>Sort.</strong> Clicking a column header sorts by it: ascending, then descending, then back to file order; clicking another column starts that one at ascending and clears the previous sort. A cell is <em>empty</em> when it is blank after trimming; empty cells stay last in both directions. A column sorts numerically when it has at least one non-empty cell and every non-empty cell, trimmed, matches <code>^[+-]?(\d+(\.\d*)?|\.\d+)$</code>; otherwise it sorts as text with <code>Intl.Collator(undefined, { sensitivity: &quot;base&quot; })</code>. Sorting is stable: equal values keep file order.</li>
+<li><strong>Search.</strong> Reuses the JSON view's search pattern (search box, Clear, highlight via the existing <code>highlightParts</code>, moved to a neutral <code>src/web/lib/text.ts</code>) and the existing status override path for the count. The search text is trimmed; matching is a case-insensitive, locale-independent substring test on data cells only (not the header). An empty box shows every row. Rows are filtered first, then sorted.</li>
+<li><strong>Large files: pages (L45–L46, replaces the Q4 5,000-row cap).</strong> <code>&lt;total&gt;</code> is the number of data rows in the file and <code>&lt;shown&gt;</code> the number that match the search; numbers use the existing <code>formatCount</code> grouping (e.g. <code>74,920</code>). The shown rows, in their current sort order, are split into pages of 200 rows (<code>PAGE_SIZE</code>, one constant in <code>src/web/lib/csvTable.ts</code>); only the current page is drawn, so every row can be reached. A pager below the table shows <code>«</code> first, <code>‹</code> previous, <code>Rows &lt;a&gt;–&lt;b&gt; of &lt;shown&gt;</code> (e.g. <code>Rows 201–400 of 74,920</code>), <code>›</code> next and <code>»</code> last; buttons that cannot move are disabled; the pager is hidden when the shown rows fit on one page, including 0 rows. There are no keyboard shortcuts for changing page. The status bar keeps <code>&lt;shown&gt; of &lt;total&gt; rows</code>; the &quot;showing the first 5,000&quot; notice is removed. <strong>The page follows the selection:</strong> while a row is selected and shown, the current page is the one that holds it — after ↑/↓, a sort, a search or a live reload. Without a selected row: a search or sort change goes to page 1; otherwise (live reload) the page stays, clamped to the last page. The pager buttons scroll the table back to the top; a page change caused by the selection scrolls the selected row into view. The search updates on every keystroke (no delay, L45). Before timings are the L45 numbers; after T34, load, search, sort and page change are measured once on the same 100,000-row file and recorded in the Log.</li>
+<li><strong>Outline.</strong> The sidebar lists the column names; clicking one scrolls that column into view and highlights its header. For CSV documents the sidebar starts collapsed on wide screens and the toolbar's &quot;Outline&quot; button (always visible for CSV, shown pressed when open) opens and closes it with a slide/fade (L38); below 900 px it keeps working as the existing overlay drawer. Other document types keep today's sidebar behavior.</li>
+<li><strong>Row inspector (L36–L37, chosen artboard).</strong> Clicking a row selects it (accent background, left accent bar) and opens an inspector panel on the right (340 px; below 1100 px it opens from the bottom at 42vh) that lists every column of that row with its full value, empty cells shown as an italic &quot;empty&quot;, including extra <code>Column &lt;n&gt;</code> cells, and &quot;Row &lt;n&gt; of &lt;total&gt; in file order&quot;. ↑/↓ move the selection through all shown rows in their current order (the page follows, see &quot;Large files&quot;), and do nothing at the first or last shown row; <code>Esc</code> or the panel's × closes it and returns focus to the row; it also closes when search hides the selected row, a live reload removes it, or the pager buttons show a page without it; when it closes this way the row is no longer selected and focus stays where it is (search box or pager button); if the focused pager button becomes disabled, focus moves to an enabled pager button (L47–L48). Nothing is selected and the panel is closed when a document loads. The panel opens and closes with a slide/fade; with reduced motion it appears without animation.</li>
+<li><strong>Integration.</strong> The type selector is built from <code>DOC_TYPES</code> and the type labels (no hard-coded options) and gains <code>CSV</code>; choosing it parses the current content as CSV (delimiter rule above). The app chooses the view with an explicit branch per type (<code>json</code> no longer falls under a catch-all <code>else</code>). Live reload (S2), theme (S8), auto-close and detach (S10–S11) work the same for CSV.</li>
+<li><strong>Docs and skill.</strong> The README formats table and the agent skill (S12, bullet 2) list <code>.md</code>, <code>.mmd</code>, <code>.json</code>, <code>.csv</code> or <code>.tsv</code>; an agent may use mview to show the human a table longer than about 20 rows.</li>
+<li><strong>Design.</strong> Chosen artboard: <code>design/mview-csv/03-table-inspector.html</code> (&quot;Table and inspector&quot;, L39), with the two comment changes of L37–L38; tokens from <code>design/system.md</code>. Artboard-only controls (the data/search switcher) are not product UI. The artboards follow the patterns above (Workbench toolbar, JSON-style search, status bar count) instead of inventing new ones.</li>
+</ul>
+</li>
+<li>
+<p><strong>S14 — Servers that stop by themselves.</strong> User (L54): &quot;hay alguna forma de manejar el cierre de los servidores? por ejemplo en 4 terminales abro 4 documentos , los leo y cierro la ventana.. el proceso de la terminal sigue corriendo. los leo y minimizo las ventanas y me olvido de ellos, de igual forma los servers siguen corriendo&quot;; answers (L54): &quot;A. Auto-close por defecto (recomendado)&quot;, &quot;B. Apagar pestañas olvidadas (recomendado)&quot;, &quot;30 minutos (recomendado)&quot;; (L55): &quot;--no-auto-close (recomendado)&quot;, &quot;'Stopped' siempre (recomendado)&quot;, &quot;Sí, aplicalos tal cual (recomendado)&quot;.</p>
+<ul>
+<li><strong>Auto-close by default (A).</strong> <code>--auto-close</code> now defaults to on: every server stops under S11's rules (10 s after the last open page disconnects, 60 s if no page ever connected), and the foreground process prints <code>mview: no open pages, stopping</code> to stderr and exits 0, freeing the terminal. This holds for files, <code>--paste</code>, stdin, the empty paste page and <code>--no-open</code>. Passing <code>--auto-close</code> explicitly changes nothing. <code>Press Ctrl+C to stop.</code> is still printed in the foreground. No server code changes: the existing <code>idle</code> option of <code>startServer</code> (<code>src/cli/server.ts</code>) and the exit path are reused; only the default in <code>src/cli/args.ts</code> changes.</li>
+<li><strong><code>--no-auto-close</code>.</strong> Turns it off (the parser's existing <code>--no-</code> form for boolean options): the server runs until Ctrl+C, as before S14. <code>--detach --no-auto-close</code> exits 2 with <code>mview: --detach always stops by itself; drop --no-auto-close</code> on stderr, starting nothing; this check runs before S10's <code>--detach needs a file</code> check. Every other combination is allowed.</li>
+<li><strong>Forgotten tabs (B).</strong> When a page becomes hidden (<code>document.visibilityState === &quot;hidden&quot;</code>, e.g. minimized or a background tab), it records the time. It closes its <code>/api/events</code> stream once it has been hidden for 30 minutes without becoming visible, measured as real elapsed time (<code>Date.now()</code>), checked by a timer and again whenever visibility changes, so throttled timers or a sleeping laptop still count. The document stays on screen. Becoming visible before that resets the count. With auto-close on, the server stops 10 s after its last page disconnects. The 30 minutes are <code>HIDDEN_CLOSE_MS</code> in <code>src/web/lib/events.ts</code>; tests use a shorter value.</li>
+<li><strong>Reconnecting and &quot;Stopped&quot;.</strong> A page reconnects when it becomes visible after closing its stream, and when its stream drops for any other reason (e.g. Ctrl+C on a <code>--no-auto-close</code> server). It makes exactly one check: a request to <code>/api/doc</code> with its token. If that succeeds, it opens a new event stream; a file page (<code>source: &quot;file&quot;</code>) then shows the document from that response and <code>Live · watching &lt;name&gt;</code> again. If the server answers with another error (e.g. 500 because the watched file is missing at that moment), the server is alive: the page opens a new stream and reloads as on a live reload, showing the error as S2 says (L58). If the new stream opened right after a check fails before it ever opens, whatever answered is not this mview (e.g. another server now on the old port): the page stops as below instead of checking again, so it never loops (L59). If the check gets no answer (network error) or a 403 (the token is not this server's), it does not retry: a file page shows <code>Stopped — run mview again for live reload</code> in the status bar instead of today's <code>Disconnected — retrying</code> (<code>src/web/App.svelte</code>), and the document stays on screen. Pages of other sources (paste, stdin, empty) never replace their content when reconnecting (pasted content exists only in the browser, S3) and keep their current status text.</li>
+<li><strong>Docs.</strong> <code>--help</code> (including its last sentence, which today says the server stops with Ctrl+C) and the README describe the default auto-close, <code>--no-auto-close</code> and the 30-minute hidden-tab rule; <code>--help</code> keeps mentioning <code>--auto-close</code>. The agent skill (S12) does not change: agents use <code>--detach</code>, which already stops by itself.</li>
+</ul>
+</li>
+<li>
+<p><strong>S15 — Comfortable reading for Markdown.</strong> User (L62): &quot;quiero trabajar un poco en la legibilidad y lectura comoda de los archivos markdown, estuve leyendo varios y se me hace incomoda la lectura&quot;; answers (L62): &quot;Letra chica / poco interlineado&quot;, &quot;Títulos y estructura poco claros&quot;, &quot;Texto apretado (párrafos, listas)&quot;, &quot;Solo mejores valores por defecto (recomendado)&quot;, &quot;Una sans y una serif (recomendado)&quot;, sample: &quot;jsutamente el doc de las specs de este proyecto&quot;; (L63): &quot;Dos: sans y serif (recomendado)&quot;, &quot;CSV queda igual (recomendado)&quot;, &quot;Sí, v0.5.0 al terminar (recomendado)&quot;, &quot;Sí, aplicalos tal cual (recomendado)&quot;.</p>
+<ul>
+<li><strong>Problems to fix.</strong> In the Markdown view: (1) small text and tight line height; (2) headings that do not separate sections clearly; (3) little space between paragraphs and list items. Today (<code>src/web/styles.css</code>): the Markdown text inherits <code>14px/1.5</code> from the global <code>body</code> rule (line 29); <code>.md</code> caps the article at <code>max-width: 980px</code> (line 96), paragraphs, lists and blockquotes at <code>78ch</code> (line 104) and tables at <code>760px</code> (line 112); <code>h1</code> 28px, <code>h2</code> 18px with a bottom border, <code>h3</code> 16px, <code>h4</code>–<code>h6</code> 14px; 12px after paragraphs, lists and blockquotes; 2px between list items.</li>
+<li><strong>Better defaults only.</strong> No new toolbar controls and nothing remembered between runs. The font size and line height are set on <code>.md</code> itself, never on <code>body</code>, so the toolbar, sidebar, status bar and the JSON, CSV and raw Mermaid views keep their current look. Inside Markdown, inline code and code blocks scale with the body (each artboard states their size), and tables, blockquotes and fenced Mermaid diagrams follow the artboard's values. The column stays left-aligned as today. Each direction sets the text column as one fixed maximum width (e.g. in px), replacing <code>78ch</code>, and states the article and table caps.</li>
+<li><strong>CSV unchanged.</strong> The CSV table has its own copy of the table styles (<code>.t th, .t td</code>, <code>styles.css:214</code>); it keeps today's values even if Markdown tables change. The comment at <code>styles.css:202</code> and S13's &quot;reuses the Markdown table colours and padding (<code>.md th/td</code>)&quot; are corrected to say CSV copies today's values (L63).</li>
+<li><strong>Two directions (T38).</strong> System fonts only, no downloaded fonts (S6: works offline); code stays in <code>--mono</code>. (1) <strong>Sans:</strong> body and headings in today's <code>--font</code>, larger. (2) <strong>Serif:</strong> body in the existing reading stack from <code>design/mview-viewer/01-reader.html</code> (<code>&quot;Iowan Old Style&quot;, &quot;Palatino Linotype&quot;, Palatino, Georgia, serif</code>), headings in <code>--font</code>, starting from that artboard's values (19px/1.7, <code>h1</code> 40px, <code>h2</code> 26px, 17px on narrow screens) scaled to the Workbench layout.</li>
+<li><strong>Design first (S9).</strong> Two artboards under <code>design/mview-reading/</code>, each rendering the same real content: S13 and the start of <code>## Tasks</code> of this document (<code>odd/tasks/mview.md</code>: headings of several levels, long paragraphs, nested lists, inline code, a code block, a table, a blockquote). Each artboard has an in-artboard switch for light/dark and for 1440 px / 800 px width, and lists its values: font families for body, headings and code; body size and line height; column, article and table widths; heading sizes and spacing; paragraph and list spacing; code and table sizes. The user picks one before any code. Once chosen, it is the visual spec for <code>.md</code> and overrides <code>02-workbench.html</code> for the Markdown view.</li>
+<li><strong>Check (T39).</strong> On this document at 1440 px and 800 px, light and dark, the computed CSS values of the real <code>.md</code> view (<code>getComputedStyle</code> on body text, each heading level, lists, code, tables) equal the values listed on the chosen artboard. Screenshots of the JSON, CSV and raw Mermaid views before and after show no difference. Existing Markdown behavior (sanitizing, remote image placeholders, fenced Mermaid, heading outline and focus in <code>src/web/components/MarkdownView.svelte</code>) is unchanged and existing tests pass. <code>design/system.md</code> (type scale) is updated to the chosen values.</li>
+</ul>
+</li>
+</ul>
+<h3 id="h-server-contract-shared-by-cli-and-frontend" tabindex="-1">Server contract (shared by CLI and frontend)</h3>
+<ul>
+<li><code>GET /</code> → frontend <code>index.html</code>; static assets under <code>/assets/*</code>. These carry no document data and do not require the token.</li>
+<li>Token delivery: the CLI prints and opens <code>/?t=&lt;token&gt;</code>; the frontend reads it from <code>location.search</code>. Without a token, or with an invalid one, the page shows &quot;This page needs the link printed by mview&quot;.</li>
+<li><code>GET /api/doc?t=&lt;token&gt;</code> → <code>Doc</code> = <code>{ name: string|null, type: &quot;markdown&quot;|&quot;mermaid&quot;|&quot;json&quot;|&quot;csv&quot;, content: string, source: &quot;file&quot;|&quot;paste&quot;|&quot;stdin&quot;|&quot;empty&quot; }</code>; read failure → <code>500 { error: string }</code>.</li>
+<li><code>GET /api/events?t=&lt;token&gt;</code> → SSE; emits <code>event: change</code> when the watched file changes. The token goes in the query string because <code>EventSource</code> cannot set headers.</li>
+<li>Only <code>/api/*</code> requires the token: missing/wrong → <code>403</code>. Every route accepts exactly <code>Host: 127.0.0.1:&lt;port&gt;</code> and <code>Host: localhost:&lt;port&gt;</code>, compared case-insensitively as HTTP requires (T14); any other value (including the host without a port, or <code>[::1]</code>) gets <code>403</code> (DNS-rebinding guard). Unknown path → <code>404</code>.</li>
+<li>Shared code lives in <code>src/shared/</code>: <code>detect.ts</code> (<code>detectType(content, filename?)</code>, <code>firstMeaningfulLine</code> — T13) and <code>doc.ts</code> (<code>Doc</code>, <code>DocSource</code>, empty doc). Both CLI and frontend import them; neither redefines them.</li>
+</ul>
+<h2 id="h-tasks" tabindex="-1">Tasks</h2>
+<p><code>Risk: item N</code> refers to this high-risk list: (1) irreversible data effects; (2) security — auth, tokens, guards, sandbox, CSP; (3) changing contracts others consume; (4) concurrency; (5) delivery/environment (release, CI, dependencies); (6) no test would catch a regression.</p>
+<ul>
+<li>[x] T1 — Scaffold package (TS, Vite+Svelte, Vitest, build, bin) · S6,S7 · commit: d3d79cb</li>
+<li>[x] T2 — Type detection module + tests · S4 · commit: 395de1e</li>
+<li>[x] T3 — CLI + server: args, file/paste/stdin, token, 127.0.0.1, SSE watch, open browser · S2,S3,S5,S6 · Risk: item 2 · commit: 6ec1371</li>
+<li>[x] T8 — Move <code>Doc</code>/<code>DocSource</code>/empty doc to <code>src/shared/doc.ts</code> (contract) · S2,S3 · commit: dac423a</li>
+<li>[x] T9 — Design 3 frontend directions with gentle-design, iterate with the user, choose one · S1,S3,S4,S8,S9 · chosen: <code>design/mview-viewer/02-workbench.html</code> · commit: ba14be7</li>
+<li>[x] T4 — Frontend: Markdown + highlight + DOMPurify + Mermaid (fenced and raw, zoom/pan/export) · S1,S4,S6,S8 · Risk: item 2 · implements 02-workbench · commit: 944d3fe</li>
+<li>[x] T5 — Frontend: JSON tree (collapse, search, copy path) · S1,S8 · implements 02-workbench · commit: 944d3fe</li>
+<li>[x] T6 — Frontend: empty-page paste area, type selector, theme · S3,S8 · implements 02-workbench · commit: 944d3fe</li>
+<li>[x] T7 — README + <code>--help</code> · S2,S3,S6 · commit: caea53c (<code>--help</code> in 6ec1371)</li>
+</ul>
+<h2 id="h-log" tabindex="-1">Log</h2>
+<h3 id="h-l62-l63" tabindex="-1">L62–L63</h3>
+<blockquote>
+<p>L62 (user): &quot;quiero trabajar un poco en la legibilidad y lectura comoda de los archivos markdown, estuve leyendo varios y se me hace incomoda la lectura, como podriamos trabajar en eso?&quot; — Answers: &quot;Letra chica / poco interlineado&quot;, &quot;Títulos y estructura poco claros&quot;, &quot;Texto apretado (párrafos, listas)&quot; (not chosen: &quot;Columna pegada a la izquierda&quot;); &quot;Solo mejores valores por defecto (recomendado)&quot;; &quot;Una sans y una serif (recomendado)&quot;; sample: &quot;jsutamente el doc de las specs de este proyecto&quot;. Added S15 and T38–T40; pending user review and goldfish before design.</p>
+</blockquote>
+<h4 id="h-doc-from-the-server-contract" tabindex="-1"><code>Doc</code> (from the Server contract)</h4>
+<pre><code class="language-ts"><span class="tok-c">// GET /api/doc?t=&lt;token&gt; → Doc</span>
+<span class="tok-c">// read failure → 500 { error: string }</span>
+<span class="tok-k">type</span> Doc = {
+  name: <span class="tok-k">string</span> | <span class="tok-k">null</span>;
+  <span class="tok-k">type</span>: <span class="tok-s">"markdown"</span> | <span class="tok-s">"mermaid"</span> | <span class="tok-s">"json"</span> | <span class="tok-s">"csv"</span>;
+  content: <span class="tok-k">string</span>;
+  source: <span class="tok-s">"file"</span> | <span class="tok-s">"paste"</span> | <span class="tok-s">"stdin"</span> | <span class="tok-s">"empty"</span>;
+};</code></pre>
+<h4 id="h-today-s-markdown-values-s15-src-web-styles-css" tabindex="-1">Today's Markdown values (S15, <code>src/web/styles.css</code>)</h4>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Today</th>
+<th>Where</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Body text</td>
+<td>14px / 1.5</td>
+<td>inherited from the global body rule, line 29</td>
+</tr>
+<tr>
+<td>Article</td>
+<td>max-width 980px</td>
+<td>.md, line 96</td>
+</tr>
+<tr>
+<td>Paragraphs, lists, blockquotes</td>
+<td>max-width 78ch, 12px after</td>
+<td>line 104</td>
+</tr>
+<tr>
+<td>Between list items</td>
+<td>2px</td>
+<td>line 105</td>
+</tr>
+<tr>
+<td>Tables</td>
+<td>max-width 760px</td>
+<td>line 112</td>
+</tr>
+<tr>
+<td>h1 / h2 / h3 / h4–h6</td>
+<td>28px / 18px / 16px / 14px</td>
+<td>lines 98–101</td>
+</tr>
+</tbody>
+</table>
+      </article>
+    </section>
+  </main>
+</div>
+
+<footer class="status" aria-label="Status">
+  <div><span class="dot" aria-hidden="true"></span><span>Live · watching mview.md</span></div>
+  <div>Markdown · auto-detected</div>
+  <div class="grow" id="stMsg" role="status" aria-live="polite"></div>
+</footer>
+</div>
+</div>
+
+<aside class="values" id="values" aria-labelledby="valuesTitle">
+  <h2 id="valuesTitle">Values — Sans (artboard only, not product UI)</h2>
+  <p class="v-note">Today's system sans (--font), larger and looser. Exactly what this artboard's <code>.md</code> CSS uses. Toolbar, sidebar and status bar are unchanged Workbench.</p>
+  <table>
+    <thead><tr><th scope="col">Element</th><th scope="col">1440 px</th><th scope="col">800 px (≤ 899)</th></tr></thead>
+    <tbody>
+        <tr class="v-sec"><th colspan="3" scope="colgroup">Fonts</th></tr>
+        <tr data-check="[[&quot;.md p&quot;,&quot;font-family&quot;,&quot;-apple-system, BlinkMacSystemFont, \&quot;Segoe UI\&quot;, Roboto, \&quot;Helvetica Neue\&quot;, Arial, sans-serif&quot;,&quot;-apple-system, BlinkMacSystemFont, \&quot;Segoe UI\&quot;, Roboto, \&quot;Helvetica Neue\&quot;, Arial, sans-serif&quot;]]"><th scope="row">Body</th><td>--font (system sans)</td><td>same</td></tr>
+        <tr data-check="[[&quot;.md h1&quot;,&quot;font-family&quot;,&quot;-apple-system, BlinkMacSystemFont, \&quot;Segoe UI\&quot;, Roboto, \&quot;Helvetica Neue\&quot;, Arial, sans-serif&quot;,&quot;-apple-system, BlinkMacSystemFont, \&quot;Segoe UI\&quot;, Roboto, \&quot;Helvetica Neue\&quot;, Arial, sans-serif&quot;],[&quot;.md h2&quot;,&quot;font-family&quot;,&quot;-apple-system, BlinkMacSystemFont, \&quot;Segoe UI\&quot;, Roboto, \&quot;Helvetica Neue\&quot;, Arial, sans-serif&quot;,&quot;-apple-system, BlinkMacSystemFont, \&quot;Segoe UI\&quot;, Roboto, \&quot;Helvetica Neue\&quot;, Arial, sans-serif&quot;],[&quot;.md h3&quot;,&quot;font-family&quot;,&quot;-apple-system, BlinkMacSystemFont, \&quot;Segoe UI\&quot;, Roboto, \&quot;Helvetica Neue\&quot;, Arial, sans-serif&quot;,&quot;-apple-system, BlinkMacSystemFont, \&quot;Segoe UI\&quot;, Roboto, \&quot;Helvetica Neue\&quot;, Arial, sans-serif&quot;],[&quot;.md h4&quot;,&quot;font-family&quot;,&quot;-apple-system, BlinkMacSystemFont, \&quot;Segoe UI\&quot;, Roboto, \&quot;Helvetica Neue\&quot;, Arial, sans-serif&quot;,&quot;-apple-system, BlinkMacSystemFont, \&quot;Segoe UI\&quot;, Roboto, \&quot;Helvetica Neue\&quot;, Arial, sans-serif&quot;]]"><th scope="row">Headings h1–h4</th><td>--font (system sans)</td><td>same</td></tr>
+        <tr data-check="[[&quot;.md p code&quot;,&quot;font-family&quot;,&quot;ui-monospace, SFMono-Regular, Menlo, Consolas, monospace&quot;,&quot;ui-monospace, SFMono-Regular, Menlo, Consolas, monospace&quot;],[&quot;.md pre&quot;,&quot;font-family&quot;,&quot;ui-monospace, SFMono-Regular, Menlo, Consolas, monospace&quot;,&quot;ui-monospace, SFMono-Regular, Menlo, Consolas, monospace&quot;]]"><th scope="row">Code (inline, blocks)</th><td>--mono</td><td>same</td></tr>
+        <tr data-check="[[&quot;.md td&quot;,&quot;font-family&quot;,&quot;-apple-system, BlinkMacSystemFont, \&quot;Segoe UI\&quot;, Roboto, \&quot;Helvetica Neue\&quot;, Arial, sans-serif&quot;,&quot;-apple-system, BlinkMacSystemFont, \&quot;Segoe UI\&quot;, Roboto, \&quot;Helvetica Neue\&quot;, Arial, sans-serif&quot;]]"><th scope="row">Tables</th><td>--font (inherits body)</td><td>same</td></tr>
+        <tr class="v-sec"><th colspan="3" scope="colgroup">Body text (on .md)</th></tr>
+        <tr data-check="[[&quot;.md p&quot;,&quot;font-size&quot;,&quot;17px&quot;,&quot;16px&quot;],[&quot;.md p&quot;,&quot;line-height&quot;,&quot;28.9px&quot;,&quot;26.4px&quot;],[&quot;.md li&quot;,&quot;font-size&quot;,&quot;17px&quot;,&quot;16px&quot;],[&quot;.md li&quot;,&quot;line-height&quot;,&quot;28.9px&quot;,&quot;26.4px&quot;]]"><th scope="row">Size / line height</th><td>17px / 1.7 (28.9px)</td><td>16px / 1.65 (26.4px)</td></tr>
+        <tr class="v-sec"><th colspan="3" scope="colgroup">Widths</th></tr>
+        <tr data-check="[[&quot;.md p&quot;,&quot;max-width&quot;,&quot;680px&quot;,&quot;680px&quot;],[&quot;.md ul&quot;,&quot;max-width&quot;,&quot;680px&quot;,&quot;680px&quot;],[&quot;.md pre&quot;,&quot;max-width&quot;,&quot;680px&quot;,&quot;680px&quot;],[&quot;.md h2&quot;,&quot;max-width&quot;,&quot;680px&quot;,&quot;680px&quot;]]"><th scope="row">Text column (p, lists, quote, code block, headings)</th><td>max-width 680px</td><td>same</td></tr>
+        <tr data-check="[[&quot;.md&quot;,&quot;max-width&quot;,&quot;760px&quot;,&quot;760px&quot;],[&quot;.md&quot;,&quot;padding-left&quot;,&quot;40px&quot;,&quot;16px&quot;],[&quot;.md&quot;,&quot;padding-top&quot;,&quot;32px&quot;,&quot;20px&quot;]]"><th scope="row">Article (.md)</th><td>max-width 760px; padding 32px 40px 80px (top, sides, bottom)</td><td>padding 20px 16px 56px</td></tr>
+        <tr data-check="[[&quot;.md table&quot;,&quot;max-width&quot;,&quot;680px&quot;,&quot;680px&quot;]]"><th scope="row">Table</th><td>max-width 680px</td><td>same</td></tr>
+        <tr class="v-sec"><th colspan="3" scope="colgroup">Headings (size / line height · weight · space above / below)</th></tr>
+        <tr data-check="[[&quot;.md h1&quot;,&quot;font-size&quot;,&quot;32px&quot;,&quot;28px&quot;],[&quot;.md h1&quot;,&quot;line-height&quot;,&quot;40px&quot;,&quot;35px&quot;],[&quot;.md h1&quot;,&quot;font-weight&quot;,&quot;700&quot;,&quot;700&quot;],[&quot;.md h1&quot;,&quot;margin-top&quot;,&quot;0px&quot;,&quot;0px&quot;],[&quot;.md h1&quot;,&quot;margin-bottom&quot;,&quot;20px&quot;,&quot;18px&quot;]]"><th scope="row">h1</th><td>32px / 40px · 700 · 0 / 20px</td><td>28px / 35px · 700 · 0 / 18px</td></tr>
+        <tr data-check="[[&quot;.md h2&quot;,&quot;font-size&quot;,&quot;24px&quot;,&quot;22px&quot;],[&quot;.md h2&quot;,&quot;line-height&quot;,&quot;31.2px&quot;,&quot;28.6px&quot;],[&quot;.md h2&quot;,&quot;font-weight&quot;,&quot;700&quot;,&quot;700&quot;],[&quot;.md h2&quot;,&quot;margin-top&quot;,&quot;56px&quot;,&quot;44px&quot;],[&quot;.md h2&quot;,&quot;margin-bottom&quot;,&quot;16px&quot;,&quot;14px&quot;]]"><th scope="row">h2 (+ 1px --border rule, 8px below text)</th><td>24px / 31.2px · 700 · 56 / 16px</td><td>22px / 28.6px · 700 · 44 / 14px</td></tr>
+        <tr data-check="[[&quot;.md h3&quot;,&quot;font-size&quot;,&quot;20px&quot;,&quot;18px&quot;],[&quot;.md h3&quot;,&quot;line-height&quot;,&quot;27px&quot;,&quot;24.3px&quot;],[&quot;.md h3&quot;,&quot;font-weight&quot;,&quot;600&quot;,&quot;600&quot;],[&quot;.md h3&quot;,&quot;margin-top&quot;,&quot;40px&quot;,&quot;32px&quot;],[&quot;.md h3&quot;,&quot;margin-bottom&quot;,&quot;12px&quot;,&quot;10px&quot;]]"><th scope="row">h3</th><td>20px / 27px · 600 · 40 / 12px</td><td>18px / 24.3px · 600 · 32 / 10px</td></tr>
+        <tr data-check="[[&quot;.md h4&quot;,&quot;font-size&quot;,&quot;18px&quot;,&quot;17px&quot;],[&quot;.md h4&quot;,&quot;line-height&quot;,&quot;25.2px&quot;,&quot;23.8px&quot;],[&quot;.md h4&quot;,&quot;font-weight&quot;,&quot;600&quot;,&quot;600&quot;],[&quot;.md h4&quot;,&quot;margin-top&quot;,&quot;32px&quot;,&quot;28px&quot;],[&quot;.md h4&quot;,&quot;margin-bottom&quot;,&quot;8px&quot;,&quot;8px&quot;]]"><th scope="row">h4</th><td>18px / 25.2px · 600 · 32 / 8px</td><td>17px / 23.8px · 600 · 28 / 8px</td></tr>
+        <tr class="v-sec"><th colspan="3" scope="colgroup">Paragraphs and lists</th></tr>
+        <tr data-check="[[&quot;.md > p&quot;,&quot;margin-bottom&quot;,&quot;20px&quot;,&quot;18px&quot;],[&quot;.md > ul&quot;,&quot;margin-bottom&quot;,&quot;20px&quot;,&quot;18px&quot;]]"><th scope="row">After a paragraph / list / table</th><td>20px</td><td>18px</td></tr>
+        <tr data-check="[[&quot;.md li + li&quot;,&quot;margin-top&quot;,&quot;10px&quot;,&quot;8px&quot;]]"><th scope="row">Between list items (li + li, nested list above)</th><td>10px</td><td>8px</td></tr>
+        <tr data-check="[[&quot;.md li > p:not(:last-child)&quot;,&quot;margin-bottom&quot;,&quot;12px&quot;,&quot;12px&quot;]]"><th scope="row">Inside an item (li &gt; p, not last)</th><td>12px</td><td>same</td></tr>
+        <tr data-check="[[&quot;.md ul&quot;,&quot;padding-left&quot;,&quot;28px&quot;,&quot;28px&quot;]]"><th scope="row">List indent (ul/ol padding-left)</th><td>28px</td><td>same</td></tr>
+        <tr class="v-sec"><th colspan="3" scope="colgroup">Code</th></tr>
+        <tr data-check="[[&quot;.md p code&quot;,&quot;font-size&quot;,&quot;15px&quot;,&quot;14px&quot;]]"><th scope="row">Inline code</th><td>15px; padding 0 4px; --surface-2, 1px --border, radius 4px</td><td>14px</td></tr>
+        <tr data-check="[[&quot;.md pre&quot;,&quot;font-size&quot;,&quot;15px&quot;,&quot;14px&quot;],[&quot;.md pre&quot;,&quot;line-height&quot;,&quot;24px&quot;,&quot;22.4px&quot;],[&quot;.md pre&quot;,&quot;padding-left&quot;,&quot;20px&quot;,&quot;20px&quot;],[&quot;.md pre&quot;,&quot;margin-bottom&quot;,&quot;24px&quot;,&quot;24px&quot;]]"><th scope="row">Code block</th><td>15px / 24px; padding 16px 20px; 24px below</td><td>14px / 22.4px</td></tr>
+        <tr class="v-sec"><th colspan="3" scope="colgroup">Tables</th></tr>
+        <tr data-check="[[&quot;.md td&quot;,&quot;font-size&quot;,&quot;15px&quot;,&quot;14px&quot;],[&quot;.md td&quot;,&quot;line-height&quot;,&quot;22.5px&quot;,&quot;21px&quot;],[&quot;.md td&quot;,&quot;padding-top&quot;,&quot;10px&quot;,&quot;10px&quot;],[&quot;.md td&quot;,&quot;padding-left&quot;,&quot;14px&quot;,&quot;14px&quot;]]"><th scope="row">Cell (td)</th><td>15px / 22.5px; padding 10px 14px</td><td>14px / 21px</td></tr>
+        <tr data-check="[[&quot;.md th&quot;,&quot;font-size&quot;,&quot;13px&quot;,&quot;12px&quot;]]"><th scope="row">Header (th)</th><td>13px · 600 · --muted on --surface-2</td><td>12px</td></tr>
+        <tr class="v-sec"><th colspan="3" scope="colgroup">Blockquote</th></tr>
+        <tr data-check="[[&quot;.md blockquote&quot;,&quot;padding-left&quot;,&quot;20px&quot;,&quot;20px&quot;],[&quot;.md blockquote&quot;,&quot;border-left-width&quot;,&quot;3px&quot;,&quot;3px&quot;],[&quot;.md blockquote&quot;,&quot;font-style&quot;,&quot;normal&quot;,&quot;normal&quot;],[&quot;.md blockquote&quot;,&quot;margin-bottom&quot;,&quot;24px&quot;,&quot;24px&quot;]]"><th scope="row">Style</th><td>3px solid --line left; padding 2px 0 2px 20px; --muted; normal; 24px below</td><td>same</td></tr>
+    </tbody>
+  </table>
+  <p class="v-src">Colours: existing tokens only (--text, --muted, --border, --line, --surface, --surface-2). Text column is left-aligned, as today.</p>
+</aside>
+
+<div class="artboard-ctl" aria-label="Artboard state (not part of the product)">
+  <div>Theme:
+    <button type="button" data-theme-btn="light" aria-pressed="true">Light</button>
+    <button type="button" data-theme-btn="dark" aria-pressed="false">Dark</button>
+  </div>
+  <div>Width:
+    <button type="button" data-w="1440" aria-pressed="true">1440 px</button>
+    <button type="button" data-w="800" aria-pressed="false">800 px</button>
+    <button type="button" id="valuesBtn" aria-controls="values" aria-pressed="true">Values</button>
+  </div>
+</div>
+
+<script>
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const OUTLINE = [{"lv":0,"label":"mview — CLI viewer for Markdown, Mermaid and JSON","id":"h-mview-cli-viewer-for-markdown-mermaid-and-json"},{"lv":1,"label":"Specs","id":"h-specs"},{"lv":2,"label":"Server contract (shared by CLI and frontend)","id":"h-server-contract-shared-by-cli-and-frontend"},{"lv":1,"label":"Tasks","id":"h-tasks"},{"lv":1,"label":"Log","id":"h-log"},{"lv":2,"label":"L62–L63","id":"h-l62-l63"},{"lv":3,"label":"Doc (from the Server contract)","id":"h-doc-from-the-server-contract"},{"lv":3,"label":"Today's Markdown values (S15, src/web/styles.css)","id":"h-today-s-markdown-values-s15-src-web-styles-css"}];
+
+/* Outline: built from the article's headings */
+const list = $("#outline");
+for (const it of OUTLINE) {
+  const li = document.createElement("li"), b = document.createElement("button");
+  b.type = "button"; b.style.setProperty("--lv", it.lv); b.dataset.id = it.id;
+  const ico = document.createElement("span"); ico.className = "o-ico"; ico.setAttribute("aria-hidden", "true"); ico.textContent = "#";
+  const lab = document.createElement("span"); lab.className = "o-label"; lab.textContent = it.label;
+  b.append(ico, lab);
+  b.addEventListener("click", () => { setCurrent(it.id); const el = document.getElementById(it.id);
+    el.scrollIntoView({ block: "start", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+    el.focus({ preventScroll: true }); if (isNarrow()) setDrawer(false, false); });
+  li.append(b); list.append(li);
+}
+$("#outlineSub").textContent = "Headings · " + OUTLINE.length;
+function setCurrent(id) { $$("#outline button").forEach(b => b.setAttribute("aria-current", String(b.dataset.id === id))); }
+setCurrent(OUTLINE[0].id);
+$("#main").addEventListener("scroll", () => {
+  const top = $("#main").getBoundingClientRect().top + 24; let cur = OUTLINE[0].id;
+  for (const it of OUTLINE) if (document.getElementById(it.id).getBoundingClientRect().top <= top) cur = it.id;
+  setCurrent(cur);
+}, { passive: true });
+
+/* Narrow: outline drawer */
+const isNarrow = () => $(".frame").clientWidth <= 899;
+function setDrawer(open, returnFocus = true) {
+  $("#app").classList.toggle("drawer-open", open);
+  $("#outlineBtn").setAttribute("aria-expanded", String(open));
+  if (open) ($("#outline button") || $("#sidebar")).focus();
+  else if (returnFocus) $("#outlineBtn").focus();
+}
+$("#outlineBtn").addEventListener("click", () => setDrawer(!$("#app").classList.contains("drawer-open")));
+$("#backdrop").addEventListener("click", () => setDrawer(false));
+document.addEventListener("keydown", e => { if (e.key === "Escape" && $("#app").classList.contains("drawer-open")) setDrawer(false); });
+
+/* Theme (toolbar select and artboard switch stay in sync) */
+function setTheme(v) {
+  const t = v === "system" ? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light") : v;
+  document.documentElement.dataset.theme = t;
+  $("#themeSel").value = v;
+  $$("[data-theme-btn]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.themeBtn === t)));
+}
+$("#themeSel").addEventListener("change", e => setTheme(e.target.value));
+$$("[data-theme-btn]").forEach(b => b.addEventListener("click", () => setTheme(b.dataset.themeBtn)));
+
+/* Width */
+function setWidth(w) {
+  document.body.classList.add("no-anim");
+  requestAnimationFrame(() => requestAnimationFrame(() => document.body.classList.remove("no-anim")));
+  document.body.classList.toggle("w-800", w === "800");
+  $$("[data-w]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.w === w)));
+  if (!isNarrow()) setDrawer(false, false);
+}
+$$("[data-w]").forEach(b => b.addEventListener("click", () => setWidth(b.dataset.w)));
+$("#valuesBtn").addEventListener("click", e => { const v = $("#values"); v.hidden = !v.hidden; e.currentTarget.setAttribute("aria-pressed", String(!v.hidden)); });
+</script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+{
+  "title": "mview Markdown reading",
+  "brief": "Comfortable reading for the Markdown view (S15): larger text and line height, headings that separate sections, more space between paragraphs and list items, inside the unchanged Workbench shell. Content: S13–S15, the Server contract and the start of ## Tasks of odd/tasks/mview.md; light/dark and 1440/800 px switches; every value listed in an artboard-only Values panel.",
+  "feature": "odd/tasks/mview.md",
+  "artboards": [
+    {
+      "file": "01-sans.html",
+      "title": "Sans",
+      "tradeoff": "Keeps today's system sans everywhere, so it feels like the same app, only larger (17px/1.7, 680px column); less of a 'reading' feel on long prose than a serif",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "file": "02-serif.html",
+      "title": "Serif",
+      "tradeoff": "Book-like body (Iowan/Palatino 19px/1.7, 720px column) with sans headings, code and tables: strongest reading comfort and heading contrast; looks less like the rest of the tool and Iowan is macOS-only (Palatino/Georgia elsewhere)",
+      "width": 1440,
+      "height": 900
+    }
+  ]
+}
