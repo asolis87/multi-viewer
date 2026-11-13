@@ -1,6 +1,6 @@
 {
   "name": "mview",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Open Markdown, Mermaid and JSON from the terminal or clipboard in your browser.",
   "type": "module",
   "license": "MIT",
