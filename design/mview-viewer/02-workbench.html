@@ -167,6 +167,18 @@
   .punc, .meta { color: var(--muted); }
   .root { color: var(--muted); }
   mark { background: var(--hit); color: inherit; border-radius: 2px; padding: 0 1px; }
+
+  /* S16 (T41): go to each match — counter, previous/next, current-match mark. Same rules in mview-csv/03-table-inspector.html.
+     Existing tokens only: the current mark is --accent fill + --accent-ink text (the .btn.primary pair) plus a ring
+     (1px --surface gap, 2px --accent), so it differs from the --hit marks by shape as well as colour. */
+  .q-count { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .q-nav { display: inline-flex; gap: 4px; }
+  .q-status .q-nav .btn { min-width: 28px; padding: 0 6px; }
+  .q-nav .btn svg { width: 14px; height: 14px; }
+  @media (pointer: coarse) { .q-status .q-nav .btn { min-height: var(--target); min-width: var(--target); } }
+  mark.is-current { background: var(--accent); color: var(--accent-ink); box-shadow: 0 0 0 1px var(--surface), 0 0 0 3px var(--accent); }
+  /* The current match sits past the ellipsis: the row label stays cut and shows a 2px accent bar at its bottom edge. */
+  .sel.has-hidden-current { box-shadow: inset 0 -2px var(--accent); }
   .raw { flex: 1; margin: 0; overflow: auto; padding: 12px 16px; font: 13px/1.6 var(--mono); white-space: pre; }
 
   .inspector { overflow: auto; background: var(--surface); padding: 16px; display: flex; flex-direction: column; gap: 14px; }
@@ -401,7 +413,11 @@ curl -X POST localhost:8080/orders \
               <input id="q" type="search" placeholder="Search keys and values" autocomplete="off" />
             </label>
             <div class="q-status" id="qStatus" hidden>
-              <span id="qCount" role="status"></span>
+              <span class="q-count" id="qCount" role="status"></span>
+              <span class="q-nav">
+                <button class="btn" type="button" id="qPrev" aria-label="Previous match" title="Previous match (Shift+Enter)"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 10l4-4 4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+                <button class="btn" type="button" id="qNext" aria-label="Next match" title="Next match (Enter)"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+              </span>
               <button class="btn" type="button" id="qClear">Clear search</button>
             </div>
             <div class="spacer"></div>
@@ -526,6 +542,11 @@ Expecting 'SOLID_OPEN_ARROW', 'DOTTED_OPEN_ARROW', 'SOLID_ARROW',
     <button type="button" data-conn="off" aria-pressed="false">Disconnected</button>
     <button type="button" data-conn="stdin" aria-pressed="false">From stdin</button>
     <button type="button" id="simSave">Simulate save</button>
+  </div>
+  <div>JSON search:
+    <button type="button" data-jq="re">“re”</button>
+    <button type="button" data-jq="zzz">No match</button>
+    <button type="button" id="presetCollapsed">Match inside a collapsed container</button>
   </div>
 </div>
 
@@ -720,31 +741,67 @@ function shortMeta(v) {
   if (isObj(v)) return `{${Object.keys(v).length}}`;
   return v === null ? "null" : typeof v;
 }
-function hl(text, q) {
+function hl(text, q, current) {
   const s = String(text), f = document.createDocumentFragment();
   const i = q ? s.toLowerCase().indexOf(q) : -1;
   if (i < 0) { f.append(s); return f; }
-  f.append(s.slice(0, i), h("mark", null, s.slice(i, i + q.length)), s.slice(i + q.length));
+  f.append(s.slice(0, i), h("mark", current ? { class: "is-current" } : null, s.slice(i, i + q.length)), s.slice(i + q.length));
   return f;
 }
-function valueNode(v, q) {
-  if (v === null) return h("span", { class: "nul" }, "null");
-  if (typeof v === "string") return h("span", { class: "s" }, '"', hl(v, q), '"');
-  if (typeof v === "number") return h("span", { class: "n" }, hl(v, q));
-  return h("span", { class: "b" }, hl(String(v), q));
+function valueNode(v, q, current) {
+  if (v === null) return h("span", { class: "nul" }, hl("null", q, current));
+  if (typeof v === "string") return h("span", { class: "s" }, '"', hl(v, q, current), '"');
+  if (typeof v === "number") return h("span", { class: "n" }, hl(v, q, current));
+  return h("span", { class: "b" }, hl(String(v), q, current));
+}
+
+/* ---------- S16: go to each match ---------- */
+/* One match = a key or a scalar value (as shown) containing the query; tree order, key before value.
+   Array indices and the root are never matches. The list never depends on what is collapsed. */
+let jMatches = [], curMatch = -1, lastQ = "";
+function jsonMatches(q) {
+  const out = [];
+  if (!q) return out;
+  (function walk(key, v, path) {
+    if (typeof key === "string" && key.toLowerCase().includes(q)) out.push({ path, part: "key" });
+    if (!isObj(v)) { if (String(v).toLowerCase().includes(q)) out.push({ path, part: "value" }); return; }
+    for (const [k, x] of entriesOf(v)) walk(k, x, childPath(path, k));
+  })(null, DATA, "");
+  return out;
+}
+/* Open one container on the way to the current match (search mode keeps user toggles in qFlip). */
+function openPath(p) {
+  if (p === "") return;
+  if (getQ()) { qMode === "collapse" ? qFlip.add(p) : qFlip.delete(p); }
+  else collapsed.delete(p);
+}
+/* Wraps around; opens collapsed ancestors; never changes the selected node and never moves focus. */
+function goToMatch(i) {
+  const n = jMatches.length; if (!n) return;
+  curMatch = ((i % n) + n) % n;
+  let p = index.get(jMatches[curMatch].path)?.parent;
+  while (p !== null && p !== undefined) { openPath(p); p = index.get(p)?.parent; }
+  renderTree();
+  // The row is scrolled (not the mark), so a label cut with an ellipsis stays cut.
+  $("#tree mark.is-current")?.closest(".row")?.scrollIntoView({ block: "nearest", inline: "nearest" });
 }
 const selfMatch = (key, v, q) => !!q && ((key !== null && String(key).toLowerCase().includes(q)) || (!isObj(v) && String(v).toLowerCase().includes(q)));
 const getQ = () => $("#q").value.trim();
 
 function renderTree(focus) {
   const raw = getQ(), q = raw.toLowerCase();
-  let hits = 0;
+  const qChanged = raw !== lastQ; lastQ = raw;
+  if (qChanged) curMatch = 0;
+  jMatches = jsonMatches(q);
+  curMatch = jMatches.length ? Math.min(Math.max(curMatch, 0), jMatches.length - 1) : -1;
+  const cm = jMatches[curMatch];
+  const isCur = (path, part) => !!cm && cm.path === path && cm.part === part;
   function node(key, v, path, depth) {
-    const self = selfMatch(key, v, q); if (self) hits++;
+    const self = selfMatch(key, v, q);
     const label = key === null ? "root" : String(key);
     const keyPart = key === null ? h("span", { class: "root" }, "root")
       : typeof key === "number" ? h("span", { class: "idx" }, String(key))
-      : h("span", { class: "k" }, '"', hl(key, q), '"');
+      : h("span", { class: "k" }, '"', hl(key, q, isCur(path, "key")), '"');
     const wrap = h("div", { class: "node" });
     const row = h("div", { class: "row" + (path === selected ? " is-selected" : ""), style: "--d:" + depth });
     let anyHit = self;
@@ -768,7 +825,7 @@ function renderTree(focus) {
     } else {
       row.append(h("span", { class: "twisty-pad" }),
         h("button", { class: "sel", type: "button", "data-path": path, "aria-current": path === selected ? "true" : null },
-          keyPart, h("span", { class: "punc" }, ": "), valueNode(v, q)));
+          keyPart, h("span", { class: "punc" }, ": "), valueNode(v, q, isCur(path, "value"))));
       wrap.append(row);
     }
     return { el: wrap, hit: anyHit };
@@ -778,8 +835,13 @@ function renderTree(focus) {
   const sels = $$("#tree .sel"), stop = findSel(selected) || sels[0];
   sels.forEach(b => { b.tabIndex = b === stop ? 0 : -1; });
   $("#qStatus").hidden = !raw;
-  $("#qCount").textContent = raw ? (hits ? `${hits} ${hits === 1 ? "match" : "matches"}` : `No matches for “${raw}”`) : "";
+  // S16: "<current> of <total>" replaces "<n> matches".
+  $("#qCount").textContent = raw ? (jMatches.length ? `${curMatch + 1} of ${jMatches.length}` : `No matches for “${raw}”`) : "";
+  $("#qPrev").disabled = $("#qNext").disabled = !jMatches.length;
+  const mk = $("#tree mark.is-current"), sel = mk?.closest(".sel");
+  if (sel && mk.getBoundingClientRect().right > sel.getBoundingClientRect().right + 0.5) sel.classList.add("has-hidden-current");
   if (focus) { const b = findSel(focus); if (b) b.focus(); }
+  return qChanged;
 }
 function chevron() {
   // static SVG chevron built from a template element; no markup strings
@@ -844,8 +906,20 @@ $("#tree").addEventListener("keydown", e => {
 // keep roving focus: only the selected row is in the tab order
 $("#tree").addEventListener("focusin", e => { const b = e.target.closest(".sel"); if (b) $$("#tree .sel").forEach(x => x.tabIndex = x === b ? 0 : -1); });
 
-$("#q").addEventListener("input", () => { qFlip.clear(); qMode = null; renderTree(); });
+$("#q").addEventListener("input", () => {
+  qFlip.clear(); qMode = null;
+  const changed = renderTree();
+  // S16: a new query makes the first match current and brings it into view; focus stays in the search box.
+  if (changed && jMatches.length) goToMatch(0);
+});
 $("#q").addEventListener("keydown", e => { if (e.key === "Escape" && getQ()) { e.stopPropagation(); clearSearch(); } });
+$("#q").addEventListener("keydown", e => {
+  if (e.key !== "Enter" || !getQ()) return;
+  e.preventDefault();
+  goToMatch(curMatch + (e.shiftKey ? -1 : 1));
+});
+$("#qPrev").addEventListener("click", () => goToMatch(curMatch - 1));
+$("#qNext").addEventListener("click", () => goToMatch(curMatch + 1));
 function clearSearch() { $("#q").value = ""; qFlip.clear(); qMode = null; renderTree(); $("#q").focus(); }
 $("#qClear").addEventListener("click", clearSearch);
 $("#expandAll").addEventListener("click", () => { collapsed.clear(); qFlip.clear(); qMode = "expand"; renderTree(); });
@@ -865,7 +939,7 @@ $("#copyValue").addEventListener("click", () => { const n = index.get(selected);
 
 function setData(v) {
   DATA = v; index.clear(); indexAll(v, "", null, null);
-  collapsed = new Set(); qFlip.clear(); qMode = null; $("#q").value = "";
+  collapsed = new Set(); qFlip.clear(); qMode = null; $("#q").value = ""; curMatch = -1;
   selected = index.has('customer["x-segment"]') ? 'customer["x-segment"]' : "";
   $("#raw").textContent = JSON.stringify(v, null, 2);
   renderTree(); updateInspector();
@@ -993,6 +1067,23 @@ $$("[data-conn]").forEach(b => b.addEventListener("click", () => {
   else { if (state.source !== "file") Object.assign(state, { source: "file" }, FILES[state.type]); state.conn = c; }
   render();
 }));
+/* JSON search presets (S16): show the JSON view and type a query. */
+function showJson(q) {
+  setData(ORDER);
+  Object.assign(state, { demo: "file", source: "file", type: "json", detected: "json", manual: false }, FILES.json);
+  activeOutline = null; render(); setJsonMode(false);
+  const input = $("#q"); input.value = q; input.dispatchEvent(new Event("input")); input.focus({ preventScroll: true });
+}
+$$("[data-jq]").forEach(b => b.addEventListener("click", () => showJson(b.dataset.jq)));
+/* Preset: “re” (6 matches), current = 3 of 6 ("returning"); the user collapsed `totals` and `["shipping.address"]` during
+   the search. Enter or Next match goes to 4 of 6 (key `currency` inside `totals`) and opens `totals`; the selection stays. */
+$("#presetCollapsed").addEventListener("click", () => {
+  showJson("re");
+  qFlip.add("totals"); qFlip.add('["shipping.address"]');
+  goToMatch(2);
+  clearTimeout(msgTimer);
+  $("#stMsg").textContent = "Press Enter: the next match is inside the collapsed “totals”";
+});
 $("#simSave").addEventListener("click", () => {
   if (state.source !== "file" || state.conn !== "live") { announce("Live reload needs a watched file and a live connection"); return; }
   const t = new Date().toTimeString().slice(0, 8);
