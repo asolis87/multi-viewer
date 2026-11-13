@@ -10,8 +10,8 @@
   import CsvView from "./components/CsvView.svelte";
   import PasteView from "./components/PasteView.svelte";
   import LoadError from "./components/LoadError.svelte";
-  import { fetchDoc, readToken, watchEvents, type Connection } from "./lib/api.js";
-  import { keepEventsOpen, reloadOnChange } from "./lib/events.js";
+  import { fetchDoc, readToken, watchEvents, type DocResult } from "./lib/api.js";
+  import { keepEventsOpen, liveStatus, reloadOnChange, replaceOnReconnect, type Connection } from "./lib/events.js";
   import { detectType, type Doc } from "./lib/doc.js";
   import { choose, effectiveType, freshContent, reload, selectValue, TYPE_LABEL, type SelectValue, type TypeChoice } from "./lib/typeState.js";
   import { renderMarkdown, type DiagramBlock } from "./lib/markdown.js";
@@ -66,18 +66,9 @@
   );
   const watching = $derived(doc?.source === "file" && !pastedHere);
 
-  const live = $derived.by((): { text: string; dot: "ok" | "off" | "idle" } => {
-    if (pastedHere) return { text: "Not watching · pasted in this tab", dot: "idle" };
-    if (!doc) return { text: loadError ? "Not connected" : "Connecting…", dot: "idle" };
-    if (doc.source === "file") {
-      if (connection === "live") return { text: `Live · watching ${name}`, dot: "ok" };
-      if (connection === "disconnected") return { text: "Disconnected — retrying", dot: "off" };
-      return { text: "Connecting…", dot: "idle" };
-    }
-    if (doc.source === "stdin") return { text: "Not watching · read from stdin", dot: "idle" };
-    if (doc.source === "paste") return { text: "Not watching · from clipboard", dot: "idle" };
-    return { text: "Waiting for input", dot: "idle" };
-  });
+  const live = $derived(
+    liveStatus({ source: doc?.source ?? null, name, hasDoc: !!doc, loadFailed: !!loadError, pastedHere, connection }),
+  );
 
   const typeText = $derived.by(() => {
     if (loadError) return "Type: —";
@@ -92,6 +83,10 @@
     const mine = ++seq;
     const result = await fetchDoc(token);
     if (mine !== seq || pastedHere) return;
+    apply(result);
+  }
+
+  function apply(result: DocResult) {
     if (result.ok) {
       loadError = null;
       const first = doc === null;
@@ -244,9 +239,16 @@
   function onEventsChange() {
     if (reloadOnChange({ source: doc?.source ?? null, pastedHere, loadStatus: loadError?.status ?? null })) void load();
   }
+  // Reconnect (S14): only a watched file page takes the fresh document; pasted, stdin and empty
+  // pages keep their content.
+  function onReconnectDoc(fresh: Doc) {
+    if (!replaceOnReconnect({ source: doc?.source ?? null, pastedHere, loadStatus: loadError?.status ?? null })) return;
+    seq++; // this response is newer than any in-flight load
+    apply({ ok: true, doc: fresh });
+  }
   $effect(() => {
     if (!eventsOpen) return;
-    return watchEvents(token, onEventsChange, (c) => (connection = c));
+    return watchEvents(token, { onChange: onEventsChange, onDoc: onReconnectDoc, onConnection: (c) => (connection = c) });
   });
 
   $effect(() => {

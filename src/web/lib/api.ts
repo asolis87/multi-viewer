@@ -1,4 +1,5 @@
 import type { Doc } from "./doc.js";
+import { connectLive, type Connection } from "./events.js";
 
 /** The per-run token from the URL printed by the CLI (`/?t=<token>`). */
 export function readToken(search: string): string {
@@ -30,25 +31,24 @@ export async function fetchDoc(token: string): Promise<DocResult> {
   return { ok: true, doc: body as Doc };
 }
 
-export type Connection = "connecting" | "live" | "disconnected";
-
 /**
- * Subscribe to live reload. `onChange` fires on every `change` event and after a
- * reconnect (the file may have changed while disconnected). EventSource retries by itself.
+ * Subscribe to live reload for this page (S2, S11, S14): `onChange` fires on every `change` event;
+ * `onDoc` gets the document from a successful reconnect check. See `connectLive`.
  */
-export function watchEvents(token: string, onChange: () => void, onConnection: (c: Connection) => void): () => void {
-  const source = new EventSource(`/api/events?t=${encodeURIComponent(token)}`);
-  let dropped = false;
-  onConnection("connecting");
-  source.onopen = () => {
-    onConnection("live");
-    if (dropped) onChange();
-    dropped = false;
+export function watchEvents(
+  token: string,
+  handlers: { onChange: () => void; onDoc: (doc: Doc) => void; onConnection: (c: Connection) => void },
+): () => void {
+  const live = connectLive({
+    ...handlers,
+    openStream: () => new EventSource(`/api/events?t=${encodeURIComponent(token)}`),
+    checkDoc: () => fetchDoc(token),
+    isHidden: () => document.visibilityState === "hidden",
+  });
+  const onVisibility = () => live.visibilityChanged();
+  document.addEventListener("visibilitychange", onVisibility);
+  return () => {
+    document.removeEventListener("visibilitychange", onVisibility);
+    live.stop();
   };
-  source.onerror = () => {
-    dropped = true;
-    onConnection("disconnected");
-  };
-  source.addEventListener("change", onChange);
-  return () => source.close();
 }
