@@ -83,18 +83,30 @@ export function connectLive(deps: LiveDeps): { visibilityChanged(): void; stop()
     stream = null;
   }
 
-  function open() {
+  function stopForGood() {
+    state = "stopped";
+    clear();
+    deps.onConnection("stopped");
+  }
+
+  /** `afterCheck`: opened right after a reconnect check, so it must open before it may check again. */
+  function open(afterCheck = false) {
     const s = deps.openStream();
     stream = s;
     state = "open";
+    let opened = false;
     deps.onConnection("connecting");
     s.onopen = () => {
+      opened = true;
       if (stream === s) deps.onConnection("live");
     };
     s.onerror = () => {
       if (stream !== s) return;
       closeStream();
-      void check();
+      // A stream that fails before opening right after a check means whatever answered the check
+      // is not this mview (e.g. another server on the old port): stop instead of looping (L59).
+      if (afterCheck && !opened) stopForGood();
+      else void check();
     };
     s.addEventListener("change", () => {
       if (stream === s) deps.onChange();
@@ -114,13 +126,11 @@ export function connectLive(deps: LiveDeps): { visibilityChanged(): void; stop()
     if (ended) return;
     if (!result.ok && (result.status === 0 || result.status === 403)) {
       // No answer, or the token is not this server's: the mview that served this page is gone.
-      state = "stopped";
-      clear();
-      deps.onConnection("stopped");
+      stopForGood();
       return;
     }
     if (result.ok) deps.onDoc(result.doc);
-    open();
+    open(true);
     // The server answered with an error (e.g. 500: the watched file is missing right now, S2):
     // it is alive, so reload through the live-reload path, which shows the error (L58).
     if (!result.ok) deps.onChange();

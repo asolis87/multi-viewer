@@ -219,6 +219,80 @@ describe("reconnecting and Stopped (S14, T36)", () => {
     expect(page.streams).toHaveLength(2);
   });
 
+  it("a stream that fails before opening right after a check stops instead of looping (no endless retry, L59)", async () => {
+    for (const result of [
+      { ok: false, status: 500, error: "not mview" },
+      { ok: true, doc: FILE_DOC },
+    ] as DocResult[]) {
+      const page = fakePage({ check: async () => result });
+      page.stream.onopen?.();
+      page.stream.onerror?.();
+      await flush();
+      expect(page.streams).toHaveLength(2);
+      page.stream.onerror?.(); // the new stream never opened: whatever answered is not this mview
+      await flush();
+      expect(page.connections.at(-1)).toBe("stopped");
+      expect(page.checks).toBe(1);
+      expect(page.streams).toHaveLength(2);
+      expect(page.streams[1].closed).toBe(true);
+      expect(page.pendingTimers).toBe(0);
+    }
+  });
+
+  it("a stream that opened after a reconnect gets a fresh single check when it drops later", async () => {
+    const page = fakePage();
+    page.stream.onopen?.();
+    page.stream.onerror?.();
+    await flush();
+    page.stream.onopen?.();
+    page.stream.onerror?.();
+    await flush();
+    expect(page.checks).toBe(2);
+    expect(page.streams).toHaveLength(3);
+    expect(page.connections).not.toContain("stopped");
+  });
+
+  it("a visibility change or another error during a check does not start a second check or stream", async () => {
+    let release: (r: DocResult) => void = () => {};
+    const page = fakePage({ check: () => new Promise<DocResult>((r) => (release = r)) });
+    page.stream.onopen?.();
+    page.stream.onerror?.();
+    page.stream.onerror?.();
+    page.setHidden(true);
+    page.setHidden(false);
+    release({ ok: true, doc: FILE_DOC });
+    await flush();
+    expect(page.checks).toBe(1);
+    expect(page.streams).toHaveLength(2);
+  });
+
+  it("stop() during a pending check opens nothing and leaves no timers", async () => {
+    let release: (r: DocResult) => void = () => {};
+    const page = fakePage({ check: () => new Promise<DocResult>((r) => (release = r)) });
+    page.setHidden(true);
+    page.stream.onerror?.();
+    page.live.stop();
+    release({ ok: true, doc: FILE_DOC });
+    await flush();
+    expect(page.streams).toHaveLength(1);
+    expect(page.docs).toHaveLength(0);
+    expect(page.pendingTimers).toBe(0);
+  });
+
+  it("events from an old stream after a reconnect are ignored", async () => {
+    const page = fakePage();
+    const old = page.stream;
+    old.onopen?.();
+    old.onerror?.();
+    await flush();
+    old.emitChange();
+    old.onerror?.();
+    await flush();
+    expect(page.changes).toBe(0);
+    expect(page.checks).toBe(1);
+    expect(page.streams).toHaveLength(2);
+  });
+
   it("a check that throws counts as a failure", async () => {
     const page = fakePage({ check: async () => Promise.reject(new Error("x")) });
     page.stream.onerror?.();
