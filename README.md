@@ -34,6 +34,8 @@ Installing straight from the source (`pnpm add -g github:asolis87/multi-viewer`)
 
 The file extension wins when it is known. You can always override the detected type from the selector in the page header.
 
+In the JSON and CSV search, a counter shows `<current> of <total>` matches; Enter and Shift+Enter (or the arrow buttons next to the box) go to the next and previous match, wrapping around.
+
 The **Theme** selector in the page header switches between System (follows your OS), Light and Dark. The choice is not remembered: every run starts on System.
 
 ## Usage

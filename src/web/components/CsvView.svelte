@@ -3,9 +3,11 @@
   import { parseCsv } from "../../shared/csv.js";
   import {
     buildTable,
+    cellMatches,
     columnOutline,
     delimiterFor,
     isEmptyCell,
+    matchPage,
     moveSelection,
     nextSort,
     pageFor,
@@ -16,7 +18,7 @@
     viewRows,
     type SortState,
   } from "../lib/csvTable.js";
-  import { highlightParts } from "../lib/text.js";
+  import { clampMatch, highlightParts, matchLabel, stepMatch } from "../lib/text.js";
   import { prefersReducedMotion, type SideOutline } from "../lib/ui.js";
 
   interface Props {
@@ -96,6 +98,39 @@
     else if (next !== before) void scrollTop();
   });
 
+  /** Every matching shown cell, in shown order across pages (S16). */
+  const matches = $derived(cellMatches(table, view, query));
+  /** Current match (index into `matches`), -1 when there is none. */
+  let cur = $state(-1);
+  const current = $derived(matches[cur] ?? null);
+  /** The current match sits past its cell's ellipsis: the cell shows an accent bar (T41). */
+  let hiddenCurrent = $state(false);
+
+  // A live reload or a sort changes the list: clamp the current match, scroll nothing (S16).
+  $effect.pre(() => {
+    const n = matches.length;
+    untrack(() => (cur = clampMatch(cur, n)));
+  });
+
+  // A new query: the first match becomes current and is brought into view; focus stays in the box.
+  let seenQuery = "";
+  $effect(() => {
+    const now = q;
+    if (now === seenQuery) return;
+    seenQuery = now;
+    untrack(() => {
+      cur = matches.length ? 0 : -1;
+      if (matches.length) void goToMatch(0);
+    });
+  });
+
+  // Mark a current match cut off by the ellipsis (measured after the DOM is drawn).
+  $effect(() => {
+    const m = current;
+    void drawn;
+    hiddenCurrent = m !== null && cutOff(cellEl(m.row, m.col));
+  });
+
   $effect(() => onstatus(rowStatus(view.length, table.rows.length)));
   $effect(() => onoutline(columnOutline(table)));
   $effect(() => onactive(target === null ? null : `col-${target}`));
@@ -123,6 +158,47 @@
   async function scrollTop() {
     await tick();
     if (scrollEl) scrollEl.scrollTop = 0;
+  }
+
+  function cellEl(row: number, col: number): HTMLTableCellElement | null {
+    return (rowEl(row)?.children[col] as HTMLTableCellElement | undefined) ?? null;
+  }
+
+  function cutOff(td: HTMLElement | null): boolean {
+    const box = td?.querySelector(".cell")?.getBoundingClientRect();
+    if (!td || !box) return false;
+    return [...td.querySelectorAll("mark")].some((m) => m.getBoundingClientRect().right > box.right + 0.5);
+  }
+
+  /**
+   * Go to match `i` (wraps). A match on another page shows that page and, like the pager buttons,
+   * closes the inspector when the selected row is not on it. Never selects and never moves focus.
+   */
+  async function goToMatch(i: number) {
+    const n = matches.length;
+    if (!n) return;
+    cur = stepMatch(i, n, 0);
+    const m = matches[cur]!;
+    const to = matchPage(m);
+    if (to !== page) {
+      page = to;
+      if (selected !== null && !pageRows(view, page).includes(selected)) selected = null;
+    }
+    await tick();
+    // The cell is scrolled (as in the artboard), not the mark: a cell cut with an ellipsis stays cut
+    // and the mark's ring is not clipped at the edge.
+    cellEl(m.row, m.col)?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }
+
+  function onSearchKeydown(e: KeyboardEvent) {
+    if (e.key === "Escape" && q) {
+      e.preventDefault();
+      e.stopPropagation();
+      clearSearch();
+    } else if (e.key === "Enter" && q) {
+      e.preventDefault();
+      void goToMatch(stepMatch(cur, matches.length, e.shiftKey ? -1 : 1));
+    }
   }
 
   /** Pager buttons: show a page, scroll to the top; a selection not on it closes (focus stays). */
@@ -201,7 +277,9 @@
   }
 </script>
 
-{#snippet marked(text: string)}{#each highlightParts(text, q) as part, i (i)}{#if part.hit}<mark>{part.text}</mark>{:else}{part.text}{/if}{/each}{/snippet}
+{#snippet marked(text: string, isCurrent: boolean)}{#each highlightParts(text, q) as part, i (i)}{#if part.hit}<mark class:is-current={isCurrent}>{part.text}</mark>{:else}{part.text}{/if}{/each}{/snippet}
+
+{#snippet chevron(up: boolean)}<svg viewBox="0 0 16 16" aria-hidden="true"><path d={up ? "M4 10l4-4 4 4" : "M4 6l4 4 4-4"} fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>{/snippet}
 
 {#snippet sortIcon(dir: SortState["dir"] | null)}
   <svg class="sort-ico" viewBox="0 0 12 12" aria-hidden="true"
@@ -223,13 +301,7 @@
         <input
           bind:this={searchEl}
           bind:value={query}
-          onkeydown={(e) => {
-            if (e.key === "Escape" && q) {
-              e.preventDefault();
-              e.stopPropagation();
-              clearSearch();
-            }
-          }}
+          onkeydown={onSearchKeydown}
           type="search"
           placeholder="Search cells"
           autocomplete="off"
@@ -237,6 +309,11 @@
       </label>
       {#if q}
         <div class="q-status">
+          <span class="q-count" role="status">{matchLabel(cur, matches.length, q)}</span>
+          <span class="q-nav">
+            <button class="btn" type="button" aria-label="Previous match" title="Previous match (Shift+Enter)" disabled={!matches.length} onclick={() => goToMatch(stepMatch(cur, matches.length, -1))}>{@render chevron(true)}</button>
+            <button class="btn" type="button" aria-label="Next match" title="Next match (Enter)" disabled={!matches.length} onclick={() => goToMatch(stepMatch(cur, matches.length, 1))}>{@render chevron(false)}</button>
+          </span>
           <button class="btn" type="button" onclick={clearSearch}>Clear search</button>
         </div>
       {/if}
@@ -276,7 +353,10 @@
             <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
             <tr data-row={index} tabindex={index === tabStop ? 0 : -1} class:is-selected={isSel} aria-current={isSel ? "true" : undefined}>
               {#each row as value, c (c)}
-                <td class:num={table.numeric[c]}><div class="cell" title={value || undefined}>{@render marked(value)}</div></td>
+                {@const isCur = current !== null && current.row === index && current.col === c}
+                <td class:num={table.numeric[c]} class:has-hidden-current={isCur && hiddenCurrent}
+                  ><div class="cell" title={value || undefined}>{@render marked(value, isCur)}</div></td
+                >
               {/each}
             </tr>
           {/each}

@@ -310,3 +310,69 @@ describe("moveSelection (↑/↓ over every shown row)", () => {
     expect(moveSelection([], null, 1)).toBeNull();
   });
 });
+
+describe("cellMatches (S16: one match per shown cell, in shown order)", () => {
+  const t = buildTable([
+    ["name", "city", "note"],
+    ["Rojas", "Lima", "rojas again"],
+    ["Ana", "Rojas town", ""],
+    ["Bo", "Quito", "x"],
+    ["Cy", "Rojo", "ROJAS"],
+  ]);
+
+  it("lists every matching cell row by row, left to right; a row with several matching cells is several matches", async () => {
+    const { cellMatches } = await import("../../src/web/lib/csvTable.js");
+    const view = viewRows(t, "rojas", null);
+    expect(cellMatches(t, view, " ROJAS ")).toEqual([
+      { row: 0, col: 0, pos: 0 },
+      { row: 0, col: 2, pos: 0 },
+      { row: 1, col: 1, pos: 1 },
+      { row: 3, col: 2, pos: 2 },
+    ]);
+  });
+
+  it("follows the sort order of the shown rows", async () => {
+    const { cellMatches } = await import("../../src/web/lib/csvTable.js");
+    const view = viewRows(t, "rojas", { col: 0, dir: "ascending" });
+    expect(cellMatches(t, view, "rojas")).toEqual([
+      { row: 1, col: 1, pos: 0 },
+      { row: 3, col: 2, pos: 1 },
+      { row: 0, col: 0, pos: 2 },
+      { row: 0, col: 2, pos: 2 },
+    ]);
+  });
+
+  it("has no matches for a blank query or no match", async () => {
+    const { cellMatches } = await import("../../src/web/lib/csvTable.js");
+    expect(cellMatches(t, viewRows(t, "  ", null), "  ")).toEqual([]);
+    expect(cellMatches(t, viewRows(t, "zz", null), "zz")).toEqual([]);
+  });
+
+  it("gives each match the page of its row position, across pages and sorts", async () => {
+    const { cellMatches, matchPage } = await import("../../src/web/lib/csvTable.js");
+    const big = bigTable(450);
+    const view = viewRows(big, "odd", null);
+    const m = cellMatches(big, view, "odd");
+    expect(m).toHaveLength(225);
+    expect(matchPage(m[0]!)).toBe(0);
+    expect(matchPage(m[199]!)).toBe(0);
+    expect(matchPage(m[200]!)).toBe(1);
+    expect(m[200]).toEqual({ row: 401, col: 1, pos: 200 });
+    const sorted = viewRows(big, "odd", { col: 0, dir: "descending" });
+    const ms = cellMatches(big, sorted, "odd");
+    expect(ms[0]).toEqual({ row: 449, col: 1, pos: 0 });
+    expect(matchPage(ms[224]!)).toBe(1);
+  });
+
+  it("next/previous wrap over the cell matches; a sort or reload clamps the current one", async () => {
+    const { cellMatches } = await import("../../src/web/lib/csvTable.js");
+    const { stepMatch, clampMatch } = await import("../../src/web/lib/text.js");
+    const m = cellMatches(t, viewRows(t, "rojas", null), "rojas");
+    expect(stepMatch(3, m.length, 1)).toBe(0);
+    expect(stepMatch(0, m.length, -1)).toBe(3);
+    const reloaded = buildTable([["name"], ["Rojas"]]);
+    const after = cellMatches(reloaded, viewRows(reloaded, "rojas", null), "rojas");
+    expect(clampMatch(3, after.length)).toBe(0);
+    expect(clampMatch(3, 0)).toBe(-1);
+  });
+});

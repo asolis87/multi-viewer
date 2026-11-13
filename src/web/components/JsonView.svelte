@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onDestroy, tick } from "svelte";
+  import { onDestroy, tick, untrack } from "svelte";
   import {
     ancestorsOf,
     countLabel,
@@ -16,7 +16,7 @@
     type JsonNode,
     type JsonValue,
   } from "../lib/json.js";
-  import { highlightParts } from "../lib/text.js";
+  import { clampMatch, highlightParts, matchLabel, stepMatch } from "../lib/text.js";
   import type { SideOutline } from "../lib/ui.js";
 
   interface Props {
@@ -64,6 +64,38 @@
   const rows = $derived(visibleRows(index, collapsed));
   const node = $derived(index.get(selected));
   const q = $derived(query.trim());
+  /** Current match (index into `search.matches`), -1 when there is none (S16). */
+  let cur = $state(-1);
+  const current = $derived(search.matches[cur] ?? null);
+  /** The current match sits past the row label's ellipsis: the label shows an accent bar (T41). */
+  let hiddenCurrent = $state(false);
+
+  // A live reload changes the list: clamp the current match, scroll nothing (S16). Collapsing by hand
+  // does not change the list (it is built from the index, not the visible rows).
+  $effect.pre(() => {
+    const n = search.matches.length;
+    untrack(() => (cur = clampMatch(cur, n)));
+  });
+
+  // A new query: the first match becomes current and is brought into view; focus stays in the box.
+  let seenQuery = "";
+  $effect(() => {
+    const now = q;
+    if (now === seenQuery) return;
+    seenQuery = now;
+    untrack(() => {
+      cur = search.matches.length ? 0 : -1;
+      if (search.matches.length) void goToMatch(0);
+    });
+  });
+
+  // Mark a current match cut off by the ellipsis (measured after the DOM is drawn).
+  $effect(() => {
+    const m = current;
+    void rows;
+    void raw;
+    hiddenCurrent = m !== null && cutOff(findRow(m.path));
+  });
   // Single tab stop: the selected row, or its nearest visible ancestor when it is collapsed away.
   const tabStop = $derived.by(() => {
     const visible = new Set(rows.map((r) => r.node.path));
@@ -110,6 +142,37 @@
   function clearSearch() {
     query = "";
     searchEl?.focus();
+  }
+
+  function cutOff(sel: HTMLElement | null): boolean {
+    const mark = sel?.querySelector("mark.is-current");
+    if (!sel || !mark) return false;
+    return mark.getBoundingClientRect().right > sel.getBoundingClientRect().right + 0.5;
+  }
+
+  /** Go to match `i` (wraps): open collapsed ancestors; never change the selection or move focus (S16). */
+  async function goToMatch(i: number) {
+    const n = search.matches.length;
+    if (!n || raw) return;
+    cur = stepMatch(i, n, 0);
+    const m = search.matches[cur]!;
+    const anc = new Set(ancestorsOf(index, m.path));
+    if ([...collapsed].some((p) => anc.has(p))) collapsed = new Set([...collapsed].filter((p) => !anc.has(p)));
+    await tick();
+    // The row is scrolled (as in the artboard), not the mark: a label cut with an ellipsis stays cut
+    // and the mark's ring is not clipped at the edge.
+    findRow(m.path)?.closest(".row")?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }
+
+  function onSearchKeydown(ev: KeyboardEvent) {
+    if (ev.key === "Escape" && q) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      clearSearch();
+    } else if (ev.key === "Enter" && q) {
+      ev.preventDefault();
+      void goToMatch(stepMatch(cur, search.matches.length, ev.shiftKey ? -1 : 1));
+    }
   }
 
   function findRow(path: string): HTMLButtonElement | null {
@@ -206,7 +269,9 @@
   }
 </script>
 
-{#snippet marked(text: string)}{#each highlightParts(text, q) as part, i (i)}{#if part.hit}<mark>{part.text}</mark>{:else}{part.text}{/if}{/each}{/snippet}
+{#snippet marked(text: string, isCurrent: boolean)}{#each highlightParts(text, q) as part, i (i)}{#if part.hit}<mark class:is-current={isCurrent}>{part.text}</mark>{:else}{part.text}{/if}{/each}{/snippet}
+
+{#snippet chevron(up: boolean)}<svg viewBox="0 0 16 16" aria-hidden="true"><path d={up ? "M4 10l4-4 4 4" : "M4 6l4 4 4-4"} fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>{/snippet}
 
 {#if !parsed.ok}
   <section class="view-scroll" aria-label="JSON parse error">
@@ -237,13 +302,7 @@
               bind:this={searchEl}
               bind:value={query}
               oninput={onSearchInput}
-              onkeydown={(e) => {
-                if (e.key === "Escape" && q) {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  clearSearch();
-                }
-              }}
+              onkeydown={onSearchKeydown}
               type="search"
               placeholder="Search keys and values"
               autocomplete="off"
@@ -251,7 +310,11 @@
           </label>
           {#if q}
             <div class="q-status">
-              <span role="status">{search.hits.size ? `${search.hits.size} ${search.hits.size === 1 ? "match" : "matches"}` : `No matches for “${q}”`}</span>
+              <span class="q-count" role="status">{matchLabel(cur, search.matches.length, q)}</span>
+              <span class="q-nav">
+                <button class="btn" type="button" aria-label="Previous match" title="Previous match (Shift+Enter)" disabled={!search.matches.length} onclick={() => goToMatch(stepMatch(cur, search.matches.length, -1))}>{@render chevron(true)}</button>
+                <button class="btn" type="button" aria-label="Next match" title="Next match (Enter)" disabled={!search.matches.length} onclick={() => goToMatch(stepMatch(cur, search.matches.length, 1))}>{@render chevron(false)}</button>
+              </span>
               <button class="btn" type="button" onclick={clearSearch}>Clear search</button>
             </div>
           {/if}
@@ -283,6 +346,7 @@
             {@const n = row.node}
             {@const container = isContainer(n.value)}
             {@const isSel = n.path === selected}
+            {@const curPart = current !== null && current.path === n.path ? current.part : null}
             <div class="row" class:is-selected={isSel} style:--d={n.depth}>
               {#if container && n.path !== ""}
                 <button
@@ -300,6 +364,7 @@
               {/if}
               <button
                 class="sel"
+                class:has-hidden-current={curPart !== null && hiddenCurrent}
                 type="button"
                 data-path={n.path}
                 tabindex={n.path === tabStop ? 0 : -1}
@@ -313,15 +378,15 @@
                 {:else if typeof n.key === "number"}
                   <span class="idx">{n.key}</span><span class="punc">: </span>
                 {:else}
-                  <span class="k">"{@render marked(n.key)}"</span><span class="punc">: </span>
+                  <span class="k">"{@render marked(n.key, curPart === "key")}"</span><span class="punc">: </span>
                 {/if}
                 {#if container}
                   {@const arr = Array.isArray(n.value)}
                   <span class="meta">{arr ? "[" : "{"} {countLabel(n.value)} {arr ? "]" : "}"}</span>
                 {:else if typeof n.value === "string"}
-                  <span class="s">"{@render marked(n.value)}"</span>
+                  <span class="s">"{@render marked(n.value, curPart === "value")}"</span>
                 {:else}
-                  <span class={valueClass(n.value)}>{@render marked(primitiveText(n.value))}</span>
+                  <span class={valueClass(n.value)}>{@render marked(primitiveText(n.value), curPart === "value")}</span>
                 {/if}
               </button>
             </div>

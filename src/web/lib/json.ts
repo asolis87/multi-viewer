@@ -80,11 +80,19 @@ export function primitiveText(v: JsonValue): string {
   return typeof v === "string" ? v : String(v);
 }
 
+/** One search match (S16): the key or the scalar value of a node. */
+export interface JsonMatch {
+  path: string;
+  part: "key" | "value";
+}
+
 export interface SearchResult {
   /** Paths whose key or primitive value contains the query. */
   hits: Set<string>;
   /** Containers that must be expanded so every hit is visible. */
   expand: Set<string>;
+  /** Every match in tree order, key before value; independent of what is collapsed (S16). */
+  matches: JsonMatch[];
 }
 
 /** Case-insensitive search over object keys and primitive values (array indices are not keys). */
@@ -92,15 +100,19 @@ export function searchJson(index: Map<string, JsonNode>, query: string): SearchR
   const q = query.trim().toLowerCase();
   const hits = new Set<string>();
   const expand = new Set<string>();
-  if (!q) return { hits, expand };
+  const matches: JsonMatch[] = [];
+  if (!q) return { hits, expand, matches };
+  // The index is in document (tree) order, so the matches are too.
   for (const node of index.values()) {
     const keyHit = typeof node.key === "string" && node.key.toLowerCase().includes(q);
     const valueHit = !isContainer(node.value) && primitiveText(node.value).toLowerCase().includes(q);
     if (!keyHit && !valueHit) continue;
+    if (keyHit) matches.push({ path: node.path, part: "key" });
+    if (valueHit) matches.push({ path: node.path, part: "value" });
     hits.add(node.path);
     for (const a of ancestorsOf(index, node.path)) expand.add(a);
   }
-  return { hits, expand };
+  return { hits, expand, matches };
 }
 
 export interface VisibleRow {
