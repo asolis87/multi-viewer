@@ -103,6 +103,19 @@
   .q-status .btn { min-height: 28px; padding: 0 8px; font-size: 12px; }
   mark { background: var(--hit); color: inherit; border-radius: 2px; padding: 0 1px; }
 
+  /* S16 (T41): go to each match — counter, previous/next, current-match mark. Same rules in 02-workbench.html (JSON).
+     Existing tokens only: the current mark is --accent fill + --accent-ink text (the .btn.primary pair) plus a ring
+     (1px --surface gap, 2px --accent), so it differs from the --hit marks by shape as well as colour. */
+  .q-count { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .q-nav { display: inline-flex; gap: 4px; }
+  .q-status .q-nav .btn { min-width: 28px; padding: 0 6px; }
+  .q-nav .btn svg { width: 14px; height: 14px; }
+  @media (pointer: coarse) { .q-status .q-nav .btn { min-height: var(--target); min-width: var(--target); } }
+  mark.is-current { background: var(--accent); color: var(--accent-ink); box-shadow: 0 0 0 1px var(--surface), 0 0 0 3px var(--accent); }
+  /* The current match sits past the ellipsis: the cell stays cut and shows a 2px accent bar at its bottom edge. */
+  .t td.has-hidden-current { box-shadow: inset 0 -2px var(--accent); }
+  .t tbody tr.is-selected td.has-hidden-current:first-child { box-shadow: inset 2px 0 var(--accent), inset 0 -2px var(--accent); }
+
   /* Table: Markdown table colours and padding (.md th/td) + sticky header + cell width cap. */
   .grid-scroll { flex: 1; overflow: auto; min-height: 0; background: var(--surface); scroll-padding-top: var(--target); /* rows revealed by ↑/↓ or sort stay below the sticky header */ }
   .t { border-collapse: separate; border-spacing: 0; min-width: 100%; font-size: 13.5px; background: var(--surface); }
@@ -251,6 +264,11 @@
             <input id="q" type="search" placeholder="Search cells" autocomplete="off" />
           </label>
           <div class="q-status" id="qStatus" hidden>
+            <span class="q-count" id="qCount" role="status"></span>
+            <span class="q-nav">
+              <button class="btn" type="button" id="qPrev" aria-label="Previous match" title="Previous match (Shift+Enter)"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 10l4-4 4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+              <button class="btn" type="button" id="qNext" aria-label="Next match" title="Next match (Enter)"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+            </span>
             <button class="btn" type="button" id="qClear">Clear search</button>
           </div>
         </div>
@@ -303,6 +321,7 @@
     <button type="button" data-q="mx">“mx”</button>
     <button type="button" data-q="ar">“ar”</button>
     <button type="button" data-q="zzz">No match</button>
+    <button type="button" id="presetOtherPage">Match on another page</button>
   </div>
 </div>
 
@@ -385,7 +404,7 @@ function buildModel(ds) {
   return { name: ds.name, cols, numeric, rows: ds.rows };
 }
 
-const state = { ds: "small", model: buildModel(SMALL), sort: { col: 3, dir: "ascending" }, q: "", target: 3, selected: null, page: 0, list: [] };
+const state = { ds: "small", model: buildModel(SMALL), sort: { col: 3, dir: "ascending" }, q: "", target: 3, selected: null, page: 0, list: [], matches: [], cur: -1 };
 const cell = (r, i) => r[i] ?? "";
 
 function visibleRows() {
@@ -459,7 +478,7 @@ function renderBody({ mode = "follow", reset = false } = {}) {
     if (DIRECTION.gutter) tr.append(h("td", { class: "gutter" }, String(ri + 1)));
     for (let c = 0; c < cols.length; c++) {
       const v = cell(r, c);
-      tr.append(h("td", { class: numeric[c] ? "num" : null }, h("div", { class: "cell", title: v || null }, highlight(v, q))));
+      tr.append(h("td", { class: numeric[c] ? "num" : null, "data-c": c }, h("div", { class: "cell", title: v || null }, highlight(v, q))));
     }
     frag.append(tr);
   }
@@ -472,6 +491,12 @@ function renderBody({ mode = "follow", reset = false } = {}) {
   $("#caption").textContent = `${state.model.name}, ${s}`;
   $("#qStatus").hidden = !state.q.trim();
   if (DIRECTION.inspector) renderInspector();
+  // S16: the match list follows the shown rows (search, sort, reload); the current position is clamped, nothing scrolls.
+  state.matches = cellMatches();
+  const n = state.matches.length;
+  state.cur = n ? Math.min(Math.max(state.cur, 0), n - 1) : -1;
+  renderCounter();
+  paintCurrent();
   return { pageChanged: state.page !== before, followed: mode === "follow" && pos !== -1 };
 }
 function renderPager() {
@@ -526,10 +551,58 @@ function revealColumn(i) {
   closeDrawerAfterPick();
 }
 function applySearch(value) {
+  const changed = value.trim() !== state.q.trim();
   state.q = value;
+  if (changed) state.cur = 0;
   const r = renderBody({ reset: true });
   if (r.pageChanged) r.followed ? revealSelected() : ($("#scroller").scrollTop = 0);
+  // S16: a new query makes the first match current and brings it into view; focus stays in the search box.
+  if (changed && state.matches.length) goToMatch(0);
 }
+
+/* ---------- S16: go to each match ---------- */
+/* One match = one shown cell whose text contains the query; ordered row by row in the shown order (across pages), left to right. */
+function cellMatches() {
+  const q = state.q.trim().toLowerCase(), out = [];
+  if (!q) return out;
+  const { rows, cols } = state.model;
+  state.list.forEach((ri, pos) => { const r = rows[ri]; for (let c = 0; c < cols.length; c++) if (cell(r, c).toLowerCase().includes(q)) out.push({ ri, c, pos }); });
+  return out;
+}
+function renderCounter() {
+  const n = state.matches.length, raw = state.q.trim();
+  $("#qCount").textContent = !raw ? "" : n ? `${fmt(state.cur + 1)} of ${fmt(n)}` : `No matches for “${raw}”`;
+  $("#qPrev").disabled = $("#qNext").disabled = !n;
+}
+function paintCurrent() {
+  $$("#tbody mark.is-current").forEach(m => m.classList.remove("is-current"));
+  $$("#tbody .has-hidden-current").forEach(x => x.classList.remove("has-hidden-current"));
+  const m = state.matches[state.cur];
+  const td = m ? $(`#tbody tr[data-row="${m.ri}"] td[data-c="${m.c}"]`) : null;
+  if (!td) return null;
+  const marks = $$("mark", td), box = $(".cell", td).getBoundingClientRect();
+  marks.forEach(x => x.classList.add("is-current"));
+  if (marks.some(x => x.getBoundingClientRect().right > box.right + 0.5)) td.classList.add("has-hidden-current");
+  return td;
+}
+/* Wraps around. A match on another page shows that page; like the pager buttons, that closes the Inspector when the
+   selected row is not on it. Never selects anything and never moves focus. */
+function goToMatch(i) {
+  const n = state.matches.length; if (!n) return;
+  state.cur = ((i % n) + n) % n;
+  const page = Math.floor(state.matches[state.cur].pos / PAGE_SIZE);
+  if (page !== state.page) { state.page = page; renderBody({ mode: "pager" }); }
+  else { renderCounter(); paintCurrent(); }
+  // The cell (not the mark) is scrolled, so a cell cut with an ellipsis stays cut.
+  $("#tbody td.has-hidden-current, #tbody mark.is-current")?.closest("td")?.scrollIntoView({ block: "nearest", inline: "nearest" });
+}
+$("#qPrev").addEventListener("click", () => goToMatch(state.cur - 1));
+$("#qNext").addEventListener("click", () => goToMatch(state.cur + 1));
+$("#q").addEventListener("keydown", e => {
+  if (e.key !== "Enter" || !state.q.trim()) return;
+  e.preventDefault();
+  goToMatch(state.cur + (e.shiftKey ? -1 : 1));
+});
 function clearSearch() { $("#q").value = ""; applySearch(""); $("#q").focus(); }
 $("#q").addEventListener("input", e => applySearch(e.target.value));
 $("#q").addEventListener("keydown", e => { if (e.key === "Escape" && state.q.trim()) { e.preventDefault(); clearSearch(); } });
@@ -574,6 +647,18 @@ $$("[data-ds]").forEach(b => b.addEventListener("click", () => {
   $("#scroller").scrollTop = 0;
 }));
 $$("[data-q]").forEach(b => b.addEventListener("click", () => { $("#q").value = b.dataset.q; applySearch(b.dataset.q); }));
+/* Preset (S16): 100,000 rows, “Rojas”, a row on page 1 open in the Inspector, current match = the last one on page 1.
+   Enter or Next match goes to page 2 and closes the Inspector (its row is not there); Shift+Enter stays on page 1. */
+$("#presetOtherPage").addEventListener("click", () => {
+  $('[data-ds="large"]').click();
+  $("#q").value = "Rojas"; applySearch("Rojas");
+  selectRow($("#tbody tr[data-row]"), false);
+  let last = 0;
+  state.matches.forEach((m, i) => { if (m.pos < PAGE_SIZE) last = i; });
+  goToMatch(last);
+  $("#q").focus({ preventScroll: true });
+  $("#stMsg").textContent = "Press Enter: the next match is on page 2";
+});
 
 /* ---------- inspector: selected row in full ---------- */
 function renderInspector() {
