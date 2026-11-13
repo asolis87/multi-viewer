@@ -112,14 +112,18 @@ export function connectLive(deps: LiveDeps): { visibilityChanged(): void; stop()
       result = { ok: false, status: 0, error: "" };
     }
     if (ended) return;
-    if (!result.ok) {
+    if (!result.ok && (result.status === 0 || result.status === 403)) {
+      // No answer, or the token is not this server's: the mview that served this page is gone.
       state = "stopped";
       clear();
       deps.onConnection("stopped");
       return;
     }
-    deps.onDoc(result.doc);
+    if (result.ok) deps.onDoc(result.doc);
     open();
+    // The server answered with an error (e.g. 500: the watched file is missing right now, S2):
+    // it is alive, so reload through the live-reload path, which shows the error (L58).
+    if (!result.ok) deps.onChange();
   }
 
   /** Close the stream once the page has been hidden long enough; otherwise wait for the rest. */

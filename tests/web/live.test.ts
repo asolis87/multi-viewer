@@ -171,10 +171,10 @@ describe("reconnecting and Stopped (S14, T36)", () => {
     expect(page.changes).toBe(0); // the check already brought the fresh document
   });
 
-  it("a failed check (network error or non-200) stops: no new stream, no further attempts", async () => {
+  it("a failed check (network error or 403) stops: no new stream, no further attempts", async () => {
     for (const result of [
       { ok: false, status: 0, error: "down" },
-      { ok: false, status: 500, error: "boom" },
+      { ok: false, status: 403, error: "token" },
     ] as DocResult[]) {
       const page = fakePage({ limit: 100, check: async () => result });
       page.stream.onopen?.();
@@ -193,6 +193,18 @@ describe("reconnecting and Stopped (S14, T36)", () => {
       expect(page.checks).toBe(1);
       expect(page.streams).toHaveLength(1);
     }
+  });
+
+  it("a check answered with another HTTP error (e.g. 500, file missing) means the server is alive: reconnect and reload through the live-reload path (S2, L58)", async () => {
+    const page = fakePage({ limit: 100, check: async () => ({ ok: false, status: 500, error: "file not found" }) as DocResult });
+    page.stream.onopen?.();
+    page.stream.onerror?.();
+    await flush();
+    expect(page.checks).toBe(1);
+    expect(page.connections).not.toContain("stopped");
+    expect(page.streams).toHaveLength(2);
+    expect(page.docs).toHaveLength(0);
+    expect(page.changes).toBe(1); // the page refetches and shows the error, as on a live reload
   });
 
   it("a dropped stream makes the same single check and reconnects when the server answers", async () => {
