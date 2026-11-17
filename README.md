@@ -7,6 +7,7 @@ mview README.md              # open a file; the page live-reloads when you save 
 mview --paste                # open whatever is in your clipboard
 curl -s api/thing | mview    # open piped content
 mview                        # empty page: paste with Cmd/Ctrl+V
+mview review plan.md         # comment on a plan, approve or request changes; the result goes to stdout
 ```
 
 ## Install
@@ -46,6 +47,9 @@ mview --paste           Open the current clipboard content
 <command> | mview       Open content piped through stdin
 mview                   Open an empty page where you can paste (Cmd/Ctrl+V)
 mview --detach <file>   Start in the background, print the URL and return
+mview review <file>     Open a Markdown file for review and wait for the
+                        decision: comment on its lines in the page, then
+                        Approve or Request changes (see "Review" below)
 mview skill print       Print the bundled agent skill (SKILL.md)
 mview skill install --agent pi|claude|codex [--force]
                         Install the agent skill: pi and codex share
@@ -74,6 +78,34 @@ A page that stays hidden (minimized window or background tab) for 30 minutes dis
 
 `mview --detach <file>` is for scripts and AI agents that must not block on the server. It checks the file first (same `file not found` / `not a file` errors), then starts the server in the background with `--auto-close`, opens the browser (unless `--no-open`), prints only `mview: <url>` and exits 0 — no `Press Ctrl+C to stop.`. `--port` and `--no-open` are passed on to the background server. It needs a file: without one, or with `--paste`, it exits 2 with `mview: --detach needs a file` (piped stdin is not read). It always stops by itself: `--detach --no-auto-close` exits 2 with `mview: --detach always stops by itself; drop --no-auto-close`. If the background server cannot start (for example the `--port` is in use), its error is printed and the exit code is 1. Once started it writes nothing more and stops by itself as described above.
 
+## Review
+
+`mview review <file>` opens a Markdown plan or spec as a review page and waits until you submit a decision. In the page, select text (or use a block's comment control) to leave a comment on those source lines: a **Change request** (the default), an **Answer** to an open question, or a **Note**. Then press **Request changes** (needs at least one comment) or **Approve** (**Approve with comments** when there are comments).
+
+It takes exactly one file: `.md`, `.markdown`, or a file without a known extension (otherwise exit 1 with `mview: review needs a Markdown file: <file>`; no file or more than one exits 2 with `mview: review takes one Markdown file`). The file is checked like any other (`file not found` / `not a file`, exit 1). `--port`, `--no-open` and `--auto-close` work as usual; `--paste`, `--detach` and `--no-auto-close` exit 2 with `mview: review takes a file and waits for the decision`. Piped stdin is not read. `mview ./review` still opens a file named `review`.
+
+Both startup lines (`mview: <url>` and `Press Ctrl+C to stop.`) go to stderr, so stdout carries only the result, written as Markdown when you submit. Comments are in document order (by start line, then the order you wrote them), each with its kind, its source lines, the quoted selection (`> ` on each line, left out for whole-block comments) and your text (a `#` at the start of a line, after at most three spaces, gets a `\` before it):
+
+```markdown
+# Review: plan.md
+Decision: changes_requested
+Comments: 2
+
+## 1. Change request — lines 12–14
+> Use Flask for the server
+
+Use FastAPI instead.
+
+## 2. Answer — line 40
+> Should the cache be shared?
+
+Yes, one cache per process.
+```
+
+`Decision:` is `approved`, `approved_with_comments` or `changes_requested`. Exit codes: `0` approved (with or without comments), `3` changes requested, `130` interrupted, `4` no decision — every page closed (10 seconds after the last one, or 60 seconds if none opened) without a submission, which prints `mview: review closed without a decision` on stderr and nothing on stdout; `1` and `2` as for any other command. `Ctrl+C` (or SIGTERM) stops it with exit code `130` and prints nothing on stdout, so an interrupted review never reads as approved. No file is written; to keep the result, redirect it: `mview review plan.md > plan.review.md`.
+
+The page sends the decision back with `POST /api/review`, which exists only on servers started by `mview review` and accepts one submission per run; it requires the run's token, the page's own `Origin`, a JSON body and at most 256 KB. Every other server still answers `405` to any `POST`.
+
 ## Agent skill
 
 mview ships a skill ([`skills/mview/SKILL.md`](skills/mview/SKILL.md)) that tells AI coding agents to show you Mermaid diagrams, long JSON, long Markdown and CSV/TSV tables with `mview --detach <file>` instead of only printing them in the chat. It is never installed automatically; install it for one agent at a time:
@@ -98,6 +130,7 @@ Rendered content is often pasted or AI-generated, so mview treats it as untruste
 
 - The server listens on `127.0.0.1` only and rejects requests with a foreign `Host` header.
 - Every run uses a random token in the URL; API requests without it get `403`.
+- The server is read-only, except for the one review submission of `mview review` (same token, same-origin `Origin` and JSON only).
 - Markdown HTML is sanitized with DOMPurify, Mermaid runs with `securityLevel: 'strict'`, and the page ships a strict Content-Security-Policy.
 - Remote images are never loaded, so a document cannot report that you opened it. They are replaced by a "Remote image blocked" box with the alt text and the URL. `data:` images still render; local relative images (`./img.png`) are not served yet.
 - Everything is bundled: no CDN, no telemetry, works offline.

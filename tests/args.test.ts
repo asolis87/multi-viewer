@@ -115,6 +115,48 @@ describe("parseCliArgs", () => {
     });
   });
 
+  describe("review subcommand (S17)", () => {
+    const oneFile = { kind: "usage", message: "review takes one Markdown file" };
+    const waits = { kind: "usage", message: "review takes a file and waits for the decision" };
+
+    it("review <file> with the default options", () => {
+      expect(parseCliArgs(["review", "plan.md"])).toEqual({ kind: "review", file: "plan.md", open: true, port: 0 });
+    });
+
+    it("--port, --no-open and --auto-close work as today", () => {
+      expect(parseCliArgs(["review", "--no-open", "--port", "4000", "--auto-close", "plan.md"])).toEqual({
+        kind: "review",
+        file: "plan.md",
+        open: false,
+        port: 4000,
+      });
+      expect(parseCliArgs(["review", "--port", "abc", "plan.md"])).toEqual({ kind: "error", message: "Invalid --port: abc" });
+    });
+
+    it("none or more than one file is a usage error", () => {
+      expect(parseCliArgs(["review"])).toEqual(oneFile);
+      expect(parseCliArgs(["review", "--no-open"])).toEqual(oneFile);
+      expect(parseCliArgs(["review", "a.md", "b.md"])).toEqual(oneFile);
+    });
+
+    it("--paste, -p, --detach and --no-auto-close are usage errors", () => {
+      for (const flag of ["--paste", "-p", "--detach", "--no-auto-close"]) {
+        expect(parseCliArgs(["review", flag, "plan.md"]), flag).toEqual(waits);
+        expect(parseCliArgs(["review", flag]), flag).toEqual(waits);
+      }
+    });
+
+    it("only the first argument makes it a subcommand; ./review is a file", () => {
+      expect(parseCliArgs(["./review"])).toMatchObject({ kind: "run", file: "./review" });
+      expect(parseCliArgs(["--no-open", "review"])).toMatchObject({ kind: "run", file: "review", open: false });
+    });
+
+    it("review --help shows the help; an unknown option is an error", () => {
+      expect(parseCliArgs(["review", "--help"])).toEqual({ kind: "help" });
+      expect(parseCliArgs(["review", "--bogus", "plan.md"]).kind).toBe("error");
+    });
+  });
+
   it("--help, -h and --version, -v", () => {
     expect(parseCliArgs(["--help"])).toEqual({ kind: "help" });
     expect(parseCliArgs(["-h"])).toEqual({ kind: "help" });
