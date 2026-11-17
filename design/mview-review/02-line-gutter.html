@@ -1,0 +1,812 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="light dark" />
+<title>mview — Review mode · Line gutter</title>
+<style>
+/*@core-css*/
+  /* Tokens: design/system.md (synced from src/web/styles.css). Shell: design/mview-viewer/02-workbench.html. Markdown: design/mview-reading/02-serif.html. */
+  :root {
+    --bg: #f6f7f9; --surface: #ffffff; --surface-2: #eef0f3; --surface-3: #e3e7eb; --text: #1b1f24; --muted: #57606a;
+    --border: #d5dae0; --line: #8c959f; --accent: #0b5fcc; --accent-ink: #ffffff; --accent-soft: #e2ecfb;
+    --ok: #1a7f37; --warn: #9a6700; --danger: #b42318; --danger-soft: #fdecea; --focus: #0b5fcc;
+    --key: #8250df; --str: #116329; --num: #a3480b; --bool: #0b5fcc; --hit: #ffe58a; --grid: #c4cbd3;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    --target: 36px;
+    color-scheme: light;
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1216; --surface: #161a1f; --surface-2: #1d2228; --surface-3: #262c33; --text: #e6e9ed; --muted: #9ba5af;
+    --border: #2c333b; --line: #6b7580; --accent: #6ea8ff; --accent-ink: #0b1220; --accent-soft: #1a2a44;
+    --ok: #4ac26b; --warn: #d4a72c; --danger: #ff8a80; --danger-soft: #3a1d1c; --focus: #8bb9ff;
+    --key: #d2a8ff; --str: #7ee2a8; --num: #ffa657; --bool: #79c0ff; --hit: #6b5a12; --grid: #2a3038;
+    color-scheme: dark;
+  }
+  @media (pointer: coarse) { :root { --target: 44px; } }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--bg); color: var(--text); font: 14px/1.5 var(--font); overflow: hidden; }
+  button, select, input, textarea { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  [hidden] { display: none !important; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  code, kbd, pre { font-family: var(--mono); }
+  kbd { font-size: 12px; border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 4px; padding: 1px 6px; background: var(--surface); color: var(--text); }
+  .app { height: 100vh; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }
+
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: var(--target); min-width: var(--target);
+    padding: 0 12px; border: 1px solid var(--border); background: var(--surface); border-radius: 6px; cursor: pointer; font-size: 13px; white-space: nowrap; }
+  .btn:hover { background: var(--surface-2); }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+  .btn.primary:hover { filter: brightness(1.08); }
+  .btn.ghost { border-color: transparent; background: transparent; }
+  .btn.ghost:hover { background: var(--surface-2); }
+  .btn:disabled { cursor: not-allowed; opacity: .55; }
+  .btn:disabled:hover { background: var(--surface); filter: none; }
+  .btn svg { width: 16px; height: 16px; flex: none; }
+
+  .toolbar { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 6px 12px; background: var(--surface); border-bottom: 1px solid var(--border); min-width: 0; }
+  .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; letter-spacing: -0.02em; padding-right: 12px; border-right: 1px solid var(--border); }
+  .brand svg { width: 20px; height: 20px; }
+  .outline-btn { display: none; }
+  .file { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .file-name { font-weight: 600; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .chip { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 8px; border-radius: 12px; border: 1px solid var(--border);
+    background: var(--surface-2); font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .chip svg { width: 13px; height: 13px; }
+  .spacer { flex: 1; }
+  .type, .theme { display: flex; align-items: center; gap: 8px; }
+  .type label, .theme label { font-size: 12px; color: var(--muted); }
+  .type select, .theme select { min-height: var(--target); padding: 0 30px 0 10px; border: 1px solid var(--border); border-radius: 6px; background-color: var(--surface);
+    appearance: none; cursor: pointer; font-size: 13px;
+    background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+    background-position: calc(100% - 15px) 52%, calc(100% - 10px) 52%; background-size: 5px 5px; background-repeat: no-repeat; }
+  .type select:disabled { cursor: not-allowed; opacity: .6; }
+
+  .workspace { display: grid; grid-template-columns: 260px minmax(0, 1fr); min-height: 0; }
+  .sidebar { background: var(--surface); border-right: 1px solid var(--border); overflow: auto; display: flex; flex-direction: column; }
+  .side-head { padding: 14px 16px 6px; }
+  .side-head h2 { margin: 0; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+  .side-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .outline { list-style: none; margin: 0; padding: 4px 8px 16px; }
+  .outline button { width: 100%; display: flex; align-items: center; gap: 8px; min-height: var(--target); padding: 4px 8px 4px calc(8px + var(--lv, 0) * 14px);
+    border: 0; background: none; border-radius: 6px; cursor: pointer; text-align: left; font-size: 13px; }
+  .outline button:hover { background: var(--surface-2); }
+  .outline button[aria-current="true"] { background: var(--accent-soft); color: var(--text); box-shadow: inset 2px 0 var(--accent); font-weight: 600; }
+  .outline .o-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .outline .o-ico { width: 14px; color: var(--muted); flex: none; text-align: center; font-size: 11px; }
+  .side-foot { margin-top: auto; padding: 12px 16px; border-top: 1px solid var(--border); font-size: 12px; color: var(--muted); }
+  .backdrop { display: none; }
+  main { position: relative; overflow: auto; min-width: 0; min-height: 0; }
+  main:focus { outline: none; }
+
+  /* Markdown: reading direction "Serif" (S15), as in src/web/styles.css */
+  .md { --col: 720px; max-width: 800px; padding: 32px 40px 80px; overflow-wrap: break-word; font-family: var(--serif); font-size: 19px; line-height: 32.3px; }
+  .md > :first-child { margin-top: 0; }
+  .md :is(h1, h2, h3) { font-family: var(--font); max-width: var(--col); color: var(--text); }
+  .md h1 { font-size: 36px; line-height: 43.2px; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 24px; }
+  .md h2 { font-size: 26px; line-height: 32.5px; font-weight: 700; letter-spacing: -0.02em; margin: 56px 0 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  .md h3 { font-size: 21px; line-height: 27.3px; font-weight: 600; margin: 40px 0 12px; }
+  .md :is(h1, h2, h3):focus { outline: none; }
+  .md :is(h1, h2, h3):focus-visible { outline: 2px solid var(--focus); outline-offset: 4px; }
+  .md p { margin: 0 0 22px; max-width: var(--col); }
+  .md ul { margin: 0 0 22px; padding-left: 30px; max-width: var(--col); }
+  .md li + li { margin-top: 10px; }
+  .md li > p { margin: 0 0 12px; }
+  .md li > p:last-child { margin-bottom: 0; }
+  .md li > ul { margin: 10px 0 0; }
+  .md code { font-size: 16px; background: var(--surface-2); border: 1px solid var(--border); padding: 0 4px; border-radius: 4px; }
+  .md pre { font-size: 15px; line-height: 24px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px 20px; overflow-x: auto; margin: 12px 0 26px; max-width: var(--col); }
+  .md pre code { background: none; border: 0; padding: 0; font-size: inherit; }
+  .hljs-section, .hljs-title { color: var(--bool); }
+  .hljs-quote, .hljs-comment { color: var(--muted); font-style: italic; }
+  .hljs-strong { font-weight: 700; } .hljs-emphasis { font-style: italic; }
+  .hljs-bullet, .hljs-number { color: var(--num); }
+  .hljs-code, .hljs-string { color: var(--str); }
+
+  .status { display: flex; align-items: center; min-height: 30px; background: var(--surface-2); border-top: 1px solid var(--border); font-size: 12px; color: var(--muted); flex-wrap: wrap; }
+  .status > * { display: flex; align-items: center; gap: 6px; padding: 4px 12px; border-right: 1px solid var(--border); white-space: nowrap; }
+  .status .grow { flex: 1; border-right: 0; justify-content: flex-end; }
+  .status strong { color: var(--text); font-weight: 600; }
+  .status .btn { min-height: 22px; padding: 0 8px; font-size: 12px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); flex: none; }
+  .dot.idle { background: transparent; border: 2px solid var(--line); }
+
+  /* ===== Review mode (S17): shared pieces ===== */
+  .doc-wrap { position: relative; }
+  /* Commented quote, current comment, and the selection kept while the popover is open (CSS Custom Highlight API). */
+  ::highlight(rv-quote) { background-color: var(--hit); color: var(--text); text-decoration: underline 2px var(--warn); } /* underline: the cue does not rely on the fill alone */
+  ::highlight(rv-active) { background-color: var(--accent); color: var(--accent-ink); }
+  ::highlight(rv-sel) { background-color: var(--accent-soft); color: var(--text); text-decoration: underline 2px var(--accent); }
+  /* Whole-block comments (block control or a selection across blocks): the whole block is marked. */
+  /* The --warn bar on the left (3px, outside the 4px fill) keeps whole-block marks visible where the --hit fill is close to the page colour. */
+  .md .rv-block, .md .rv-active-block { background: var(--hit); box-shadow: 0 0 0 4px var(--hit), -7px 0 0 0 var(--warn); border-radius: 2px; }
+  .md .rv-active-block { box-shadow: 0 0 0 4px var(--hit), -7px 0 0 0 var(--warn), 0 0 0 6px var(--accent); }
+  .md pre.rv-block, .md pre.rv-active-block { background: var(--surface); }
+  .md .rv-target { outline: 2px dashed var(--accent); outline-offset: 4px; border-radius: 2px; }
+
+  /* Block comment controls: one absolutely placed row per block start (built from the blocks' line ranges). */
+  .ctl-layer { position: absolute; left: 0; top: 0; width: 0; height: 0; }
+  .ctl-row { position: absolute; display: flex; align-items: center; gap: 4px; height: 32px; }
+  .blk-btn { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 1px solid var(--border); border-radius: 6px;
+    background: var(--surface); color: var(--muted); cursor: pointer; opacity: 0; }
+  .blk-btn svg { width: 16px; height: 16px; }
+  .blk-btn:hover { background: var(--surface-2); color: var(--text); }
+  .ctl-row.is-hover .blk-btn, .ctl-row:hover .blk-btn, .blk-btn:focus-visible { opacity: 1; }
+  @media (hover: none) { .blk-btn { opacity: 1; } }
+  @media (pointer: coarse) { .blk-btn { width: var(--target); height: var(--target); } }
+  .is-sent .blk-btn { display: none; }
+  .ctl-mk { display: inline-flex; align-items: center; gap: 4px; min-height: 24px; padding: 0 6px; border: 1px solid var(--accent); border-radius: 12px;
+    background: var(--accent-soft); color: var(--accent); font: 600 11.5px var(--mono); cursor: pointer; }
+  .ctl-mk svg { width: 13px; height: 13px; }
+
+  /* Kinds: icon + label, never colour alone */
+  .kind { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: 12px; color: var(--text); white-space: nowrap; }
+  .kind svg { width: 14px; height: 14px; flex: none; }
+  .kind-change svg { color: var(--warn); } .kind-answer svg { color: var(--accent); } .kind-note svg { color: var(--muted); }
+  .lines { font: 12px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  /* Comment card (panel, rail, thread) */
+  .c-list { list-style: none; margin: 0; padding: 0; }
+  .c-item { display: grid; gap: 6px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    font: 13px/1.5 var(--font); font-style: normal; color: var(--text); cursor: pointer; }
+  .c-item:hover { border-color: var(--line); }
+  .c-item.is-active { border-color: var(--accent); box-shadow: inset 3px 0 var(--accent); }
+  .c-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .c-go { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; min-height: 28px; padding: 0; border: 0; background: none; border-radius: 4px; cursor: pointer; text-align: left; }
+  .c-num { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 12px; border: 1px solid var(--border);
+    background: var(--surface-2); font: 600 11.5px var(--mono); color: var(--text); }
+  .c-quote { margin: 0; padding: 0 0 0 10px; border-left: 3px solid var(--line); color: var(--muted); font: italic 13px/1.5 var(--serif);
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .c-whole { margin: 0; font-size: 12px; color: var(--muted); }
+  .c-text { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .c-gone { margin: 0; font-size: 12px; color: var(--muted); }
+  .c-actions { display: flex; gap: 4px; margin-left: -8px; }
+  .md .c-item p, .md .c-item blockquote { margin: 0; max-width: none; }
+  .md .c-list > li + li { margin-top: 0; }
+  .c-actions .btn { min-height: 28px; padding: 0 8px; font-size: 12px; }
+
+  /* File-changed notice (stays until submission) */
+  .notice { display: flex; align-items: center; gap: 8px; padding: 6px 12px; background: var(--surface-2); border: 1px solid var(--border);
+    box-shadow: inset 3px 0 var(--warn); border-radius: 6px; font-size: 13px; color: var(--text); }
+  .notice svg { width: 16px; height: 16px; color: var(--warn); flex: none; }
+
+  /* Decision buttons and the sent state */
+  .decide { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .req-hint { margin: 0; font-size: 12px; color: var(--muted); }
+  .sent-msg { display: inline-flex; align-items: center; gap: 8px; margin: 0; font-size: 13px; font-weight: 600; color: var(--text); }
+  .sent-msg svg { width: 16px; height: 16px; color: var(--ok); flex: none; }
+
+  /* Selection trigger and comment popover */
+  .sel-btn { position: fixed; z-index: 30; box-shadow: 0 4px 16px rgb(0 0 0 / .10); }
+  .sel-btn kbd { background: transparent; color: inherit; border-color: currentColor; }
+  .pop { position: fixed; z-index: 31; width: 380px; max-width: calc(100vw - 24px); display: grid; gap: 10px; padding: 14px; background: var(--surface);
+    border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 4px 16px rgb(0 0 0 / .10); font: 13px/1.5 var(--font); }
+  .pop-title { margin: 0; font-size: 13px; font-weight: 600; }
+  .pop .c-quote { -webkit-line-clamp: 3; }
+  .kinds { display: inline-flex; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; min-width: 0; }
+  .kinds legend { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .kinds label { position: relative; display: flex; align-items: center; gap: 6px; padding: 0 10px; min-height: calc(var(--target) - 2px); background: var(--surface);
+    color: var(--muted); cursor: pointer; white-space: nowrap; }
+  .kinds label + label { border-left: 1px solid var(--border); }
+  .kinds input { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; }
+  .kinds label:has(input:checked) { background: var(--surface-3); color: var(--text); font-weight: 600; }
+  .kinds label:has(input:focus-visible) { outline: 2px solid var(--focus); outline-offset: -2px; }
+  .kinds .kind { font-weight: inherit; font-size: 13px; color: inherit; }
+  .pop-lbl { display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; }
+  .pop-lbl span { font-weight: 400; color: var(--muted); }
+  .pop textarea { width: 100%; min-height: 88px; resize: vertical; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); font-size: 13px; line-height: 1.5; }
+  .pop textarea:focus-visible { outline-offset: 1px; }
+  .pop-foot { display: flex; align-items: center; gap: 8px; }
+  .pop-hint { flex: 1; margin: 0; font-size: 12px; color: var(--muted); }
+
+  /* Artboard-only (not product UI): state switcher, dashed like the earlier artboards */
+  .artboard-ctl { position: fixed; z-index: 50; display: grid; gap: 4px; padding: 6px 8px; border: 1px dashed var(--muted); border-radius: 10px;
+    background: var(--bg); font: 12px/1.5 var(--font); color: var(--text); }
+  .artboard-ctl div { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .artboard-ctl button { border: 1px solid var(--border); background: var(--surface); border-radius: 6px; padding: 3px 8px; cursor: pointer; font-size: 12px; }
+  .artboard-ctl button[aria-pressed="true"] { border-color: var(--text); font-weight: 600; }
+  .artboard-ctl .ab-note { color: var(--muted); }
+
+  @media (max-width: 899px) {
+    .outline-btn { display: inline-flex; }
+    .toolbar { flex-wrap: wrap; }
+    .brand span, .type label, .theme label { display: none; }
+    .brand { border-right: 0; padding-right: 0; }
+    .workspace { grid-template-columns: minmax(0, 1fr); }
+    .sidebar { position: fixed; top: 0; bottom: 0; left: 0; width: min(300px, 86vw); z-index: 40; transform: translateX(-100%); visibility: hidden;
+      transition: transform .18s ease, visibility .18s; box-shadow: 0 0 40px rgb(0 0 0 / .25); }
+    .app.drawer-open .sidebar { transform: none; visibility: visible; }
+    .app.drawer-open .backdrop { display: block; position: fixed; inset: 0; z-index: 39; background: rgb(0 0 0 / .35); }
+    .md { padding: 20px 16px 56px; font-size: 17px; line-height: 28.9px; }
+    .md h1 { font-size: 30px; line-height: 36px; margin: 0 0 20px; }
+    .md h2 { font-size: 23px; line-height: 28.75px; margin: 44px 0 14px; }
+    .md h3 { font-size: 19px; line-height: 24.7px; margin: 32px 0 10px; }
+    .md code { font-size: 14.5px; }
+    .md pre { font-size: 14px; line-height: 22.4px; }
+    .status .opt { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; } }
+/*@/core-css*/
+
+  /* ===== Direction 02 — Line gutter (code-review style): line numbers + markers, threads under the block, list in the sidebar ===== */
+  .rv-bar { position: sticky; top: 0; z-index: 5; padding: 8px 40px 8px 128px; background: var(--bg); border-bottom: 1px solid var(--border); }
+  .doc-wrap { padding-left: 128px; }
+  .md { padding-left: 24px; }
+  .ctl-layer { left: 0; }
+  .ctl-row { left: 0; width: 128px; padding: 0 6px 0 8px; height: 32px; }
+  .ctl-ln { flex: 1; text-align: right; font: 12px/32px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+  .ctl-row.is-hover .ctl-ln, .ctl-row:focus-within .ctl-ln { color: var(--text); font-weight: 600; }
+  .ctl-row .blk-btn { order: 3; }
+  .ctl-row .ctl-mk { order: 2; }
+  .doc-gutter { position: absolute; left: 0; top: 0; bottom: 0; width: 128px; border-right: 1px solid var(--border); background: var(--surface); }
+
+  /* Inline thread under the commented block (or after the last block of a multi-block comment) */
+  .thread { list-style: none; display: grid; gap: 8px; max-width: var(--col); margin: 12px 0 22px; padding: 0; }
+  .md li > .thread { margin: 10px 0 4px; }
+  .thread .c-item { box-shadow: inset 3px 0 var(--line); }
+  .thread .c-item.is-active { box-shadow: inset 3px 0 var(--accent); }
+
+  /* Sidebar: Outline / Comments tabs; the decision sits at the bottom of the sidebar */
+  .side-tabs { display: flex; padding: 10px 12px 4px; }
+  .side-tabs .seg { flex: 1; display: flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+  .side-tabs .seg button { flex: 1; border: 0; background: var(--surface); padding: 0 10px; min-height: calc(var(--target) - 2px); cursor: pointer; font-size: 13px; color: var(--muted); }
+  .side-tabs .seg button + button { border-left: 1px solid var(--border); }
+  .side-tabs .seg button[aria-selected="true"] { background: var(--surface-3); color: var(--text); font-weight: 600; }
+  .side-tabs .seg button:focus-visible { outline-offset: -2px; }
+  .tab-panel { flex: 1; min-height: 0; overflow: auto; }
+  #panelList { display: grid; gap: 8px; padding: 6px 12px 16px; }
+  #panelList .c-item { padding: 8px 10px; }
+  #panelList .c-quote { -webkit-line-clamp: 2; }
+  #panelList .c-text { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .panel-empty { margin: 0; padding: 8px 16px; font-size: 13px; color: var(--text); }
+  .side-sub.pad { padding: 4px 16px 0; margin: 0; }
+  .decide-foot { margin-top: 0; display: grid; gap: 8px; padding: 12px; border-top: 1px solid var(--border); background: var(--surface); }
+  .decide-foot .decide { display: grid; gap: 8px; }
+  .decide-foot .btn { width: 100%; }
+  .decide-foot .req-hint { margin: 0; }
+
+  .artboard-ctl { right: 16px; bottom: 40px; max-width: 280px; }
+  @media (max-width: 899px) {
+    .rv-bar { padding: 8px 16px 8px 64px; }
+    .doc-wrap { padding-left: 64px; }
+    .doc-gutter, .ctl-row { width: 64px; }
+    .ctl-row { padding: 0 2px 0 4px; }
+    .ctl-ln { display: none; }
+    .md { padding-left: 12px; }
+  }
+</style>
+</head>
+<body>
+<div class="app" id="app">
+<header class="toolbar">
+  <button class="btn outline-btn" type="button" id="outlineBtn" aria-controls="sidebar" aria-expanded="false">
+    <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4h12M2 8h12M2 12h8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>Review
+  </button>
+  <div class="brand">
+    <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="1" y="3" width="18" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M5 13V7l2.5 3L10 7v6M13 7l2 6 2-6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+    <span>mview</span>
+  </div>
+  <div class="file">
+    <span class="file-name">mview.md</span>
+    <span class="chip"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 1.5h5l3.5 3.5v9.5h-8.5z M9 1.5V5h3.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg><span class="sr">Source:</span>file</span>
+    <span class="chip"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>Review</span>
+  </div>
+  <div class="spacer"></div>
+  <div class="type">
+    <label for="typeSel">Render as</label>
+    <select id="typeSel" disabled><option>Auto · Markdown</option></select>
+  </div>
+  <div class="theme">
+    <label for="themeSel">Theme</label>
+    <select id="themeSel"><option value="system">System</option><option value="light" selected>Light</option><option value="dark">Dark</option></select>
+  </div>
+</header>
+
+<div class="workspace">
+  <nav class="sidebar" id="sidebar" aria-label="Review">
+    <div class="side-tabs">
+      <div class="seg" role="tablist" aria-label="Sidebar">
+        <button type="button" role="tab" id="tabOutline" aria-controls="panOutline" aria-selected="false" tabindex="-1">Outline</button>
+        <button type="button" role="tab" id="tabComments" aria-controls="panComments" aria-selected="true">Comments <span id="tabCount"></span></button>
+      </div>
+    </div>
+    <div class="tab-panel" id="panOutline" role="tabpanel" aria-labelledby="tabOutline" hidden>
+      <p class="side-sub pad">Headings</p>
+      <ul class="outline" id="outline"></ul>
+    </div>
+    <div class="tab-panel" id="panComments" role="tabpanel" aria-labelledby="tabComments">
+      <p class="side-sub pad" data-draft-note>In document order · drafts stay in this tab</p>
+      <p class="panel-empty" id="panelEmpty">No comments yet. Select text, or use + in the line gutter.</p>
+      <ol class="c-list" id="panelList" aria-label="Comments"></ol>
+    </div>
+    <div class="decide-foot">
+      <p class="req-hint" id="reqHint" data-req-hint>Add a comment to request changes, or approve the plan as it is.</p>
+      <div class="decide" data-decide>
+        <button class="btn primary" type="button" id="btnApprove">Approve</button>
+        <button class="btn" type="button" id="btnReq" aria-describedby="reqHint">Request changes</button>
+      </div>
+      <p class="sent-msg" data-sent hidden><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3 3 7-7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Review sent — you can close this tab</p>
+    </div>
+  </nav>
+  <div class="backdrop" id="backdrop"></div>
+
+  <main id="main" tabindex="-1">
+    <div class="rv-bar" data-notice hidden>
+      <div class="notice" role="status"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.8l6.5 12H1.5z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M8 6.5v3.2M8 11.6v.1" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>The file changed; line numbers may not match</div>
+    </div>
+    <div class="doc-wrap">
+      <div class="doc-gutter" aria-hidden="true"></div>
+      <article class="md" id="doc" aria-label="Markdown document">
+<!--@S17-->
+<!-- Real content of odd/tasks/mview.md rendered with markdown-it + highlight.js: title, intro, ## Specs, S17 (lines 73–103), ### Server contract. data-start/data-end = 1-based source lines from token.map (trailing blank lines trimmed). -->
+<h1 data-start="1" data-end="1" id="h-mview-cli-viewer-for-markdown-mermaid-and-json" tabindex="-1">mview — CLI viewer for Markdown, Mermaid and JSON</h1>
+<p data-start="3" data-end="3">Local CLI (<code>mview</code>) that opens the browser on a 127.0.0.1 server and renders Markdown (with embedded Mermaid), Mermaid and JSON from a file, the clipboard or stdin. Node + TypeScript CLI, Svelte frontend bundled into the package. v0.1 MVP = S1–S8; anything else (tabs, YAML, daemon reuse) is out of scope.</p>
+<h2 data-start="5" data-end="5" id="h-specs" tabindex="-1">Specs</h2>
+<ul>
+<li data-start="73" data-end="103">
+<p data-start="73" data-end="73"><strong>S17 — Review mode for Markdown plans.</strong> User (L80): &quot;me gustaria que este proyecto tenga una modalidad como un tipo whiteboard o visualizador. cuando se haga algun plan o algun feature, que pueda abrirlo en el visualizador md pero con un agregado, que podemos dejar comentarios en lineas puntuales, parrafos, funcionalidades,etc con solicitud de cambios, por ejemplo si algo de la spec no me gusto poder seleccionarlo y pedir un cambio, si quedaron preguntas abiertas poder responderlas de igual forma, la idea es revisar todo el dcumento, anotar cambios y mandar la solicitud. de igual forma dener un boton de aprobar e implementar.&quot;; answers (L81): &quot;1. C&quot;, &quot;2. solo Markdown&quot;, &quot;3. podemos comenzar por bloque y probar, si se necesita implementamos por fragmento&quot;; (L82): &quot;Híbrido: selección libre, ancla al bloque (Recommended)&quot;, &quot;Pedir cambios / Aprobar / Aprobar con comentarios&quot;, &quot;Tipo de comentario 'Respuesta' (Recommended)&quot;; (L84, after goldfish L83): &quot;No, solo stdout&quot;, &quot;Aviso y comentarios quietos (Recommended)&quot;, &quot;sessionStorage de la pestaña (Recommended)&quot;, &quot;Sí, aplicalos tal cual (Recommended)&quot;.</p>
+<ul>
+<li data-start="74" data-end="74"><strong>Terms.</strong> <em>gentle-design</em> is the design tool that writes HTML mockups, called <em>artboards</em>, under <code>design/&lt;slug&gt;/</code> (S9). <em>The T27 flow</em> is the release procedure of task T27. A <em>background command</em> is one an agent starts without waiting for it and is told about when it exits.</li>
+<li data-start="75" data-end="75"><strong>Command.</strong> When the first argument is <code>review</code> it is a subcommand (like <code>skill</code>, S12); <code>mview ./review</code> opens a file named <code>review</code>. <code>mview review &lt;file&gt;</code> takes exactly one file; none or more than one exits 2 with <code>mview: review takes one Markdown file</code>. The file is validated as S2 (same <code>file not found</code> / <code>not a file</code> errors, exit 1). Markdown only (L81): a file whose type by S4's extension rule is not markdown (<code>.md</code>, <code>.markdown</code>, or no known extension) exits 1 with <code>mview: review needs a Markdown file: &lt;file&gt;</code>. Piped stdin is not read. <code>--port</code>, <code>--no-open</code> and <code>--auto-close</code> work as today; <code>--paste</code>, <code>--detach</code> and <code>--no-auto-close</code> exit 2 with <code>mview: review takes a file and waits for the decision</code> (agents run it as a background command instead of <code>--detach</code>). It starts a server on the file, opens the browser and <strong>waits</strong> until the human submits. Both startup lines, <code>mview: &lt;url&gt;</code> and <code>Press Ctrl+C to stop.</code>, go to stderr, so stdout carries only the result. Ctrl+C stops it as today and prints nothing on stdout.</li>
+<li data-start="76" data-end="92"><strong>Result: stdout only (L84).</strong> On submission the CLI writes the result to stdout and exits; it writes no file (to keep one: <code>mview review plan.md &gt; plan.review.md</code>). Exit codes: <code>0</code> approved, with or without comments; <code>3</code> changes requested; <code>4</code> no decision — every page closed under S11's rules (10 s after the last page, 60 s if none opened) without a submission, printing <code>mview: review closed without a decision</code> on stderr and nothing on stdout; <code>1</code> and <code>2</code> as today. The result is Markdown, comments in document order (by start line, then creation order):<pre data-start="77" data-end="91"><code class="language-markdown hljs"><span class="hljs-section"># Review: plan.md</span>
+Decision: changes<span class="hljs-emphasis">_requested
+Comments: 2
+
+## 1. Change request — lines 12–14
+&gt; Use Flask for the server
+
+Use FastAPI instead.
+
+## 2. Answer — line 40
+&gt; Should the cache be shared?
+
+Yes, one cache per process.
+</span></code></pre>
+<code>Decision:</code> is <code>approved</code>, <code>approved_with_comments</code> or <code>changes_requested</code>. Each heading names the kind (<code>Change request</code>, <code>Answer</code>, <code>Note</code>) and the 1-based source lines (<code>line N</code> or <code>lines N–M</code>) as captured when the comment was made. The quote is the selected text with <code>&gt; </code> before each of its lines, omitted when the comment is on whole blocks. The comment text follows as typed, except that a line starting with <code>#</code> gets a <code>\</code> before it so it cannot end the comment's section.</li>
+<li data-start="93" data-end="93"><strong>Review page (contract).</strong> <code>Doc</code> gains <code>review?: true</code>, set only by servers started by <code>mview review</code>. Only such pages show the review UI and carry source line attributes; every other page, including the normal Markdown view (S15), is unchanged.</li>
+<li data-start="94" data-end="94"><strong>Anchoring: free selection, block anchor (L82).</strong> On a review page each rendered block carries its 1-based, inclusive source line range from markdown-it's <code>token.map</code>: paragraphs, headings, list items, blockquotes, table rows, code blocks and fenced Mermaid diagrams. Selecting text inside one block anchors to the innermost block that contains the whole selection (in a nested list, the inner item); the quote is the selected text, trimmed, at most 500 characters, and its first occurrence in that block is highlighted. A selection across several blocks anchors from the first block's start line to the last block's end line, keeps the quote for the result, and highlights each of those blocks whole. A block's comment control, used without a selection, comments on the whole block with no quote. Character-offset anchoring is out of scope (L81).</li>
+<li data-start="95" data-end="95"><strong>File changes during a review (L84).</strong> Live reload (S2) still shows the new content. Comments keep their line ranges and quotes as captured (no re-anchoring); their highlights are drawn on blocks with the same line range when one exists, otherwise the comment shows only in the panel. From the first change on, the notice <code>The file changed; line numbers may not match</code> stays visible until submission.</li>
+<li data-start="96" data-end="96"><strong>Comments.</strong> Kinds: <code>Change request</code> (default), <code>Answer</code> (for open questions; no automatic question detection, L82) and <code>Note</code>. The text is required (not blank). Several comments may share a block. A side panel lists them in document order with kind, lines and quote; clicking one scrolls to its block and marks it; each can be edited or deleted. Drafts live in the tab's <code>sessionStorage</code> under the run token: they survive a reload of that tab, are not shared with other tabs, and are cleared on submission (L84).</li>
+<li data-start="97" data-end="97"><strong>Staying open.</strong> A review page never closes its event stream because it is hidden: S14's 30-minute rule does not apply to review pages. Closing every tab still follows S11 and ends with exit 4.</li>
+<li data-start="98" data-end="98"><strong>Submitting.</strong> Two buttons: <code>Request changes</code> (enabled with at least one comment) and <code>Approve</code>, labelled <code>Approve with comments</code> when there are comments (L82). No confirmation. When the server accepts, it sends <code>event: submitted</code> to every open page of the run before stopping; every such page becomes read-only and shows <code>Review sent — you can close this tab</code> instead of its status text, and keeps it after the server stops (instead of S14's <code>Stopped</code>).</li>
+<li data-start="99" data-end="99"><strong>Server.</strong> Only a review server has <code>POST /api/review?t=&lt;token&gt;</code>. Checks run in this order, and the first that fails answers: allowed <code>Host</code> (<code>403</code>, as every route); method — <code>/api/review</code> accepts only <code>POST</code>, every other route only <code>GET</code>/<code>HEAD</code> (<code>405</code>); token (<code>403</code>); <code>Origin</code> equal to <code>http://</code> plus the request's <code>Host</code> (<code>403</code>); <code>Content-Type: application/json</code> (<code>415</code>); body at most 256 KB (<code>413</code>); not submitted yet (<code>409</code>); body valid (<code>400</code> with <code>{ error }</code> naming the reason). On other servers nothing changes: a <code>POST</code> anywhere gets <code>405</code> as today (S3 still holds) and <code>GET /api/review</code> gets <code>404</code>. A valid body is <code>{ decision, comments: [{ kind, startLine, endLine, quote?, text }] }</code> where <code>decision</code> is <code>approved</code>, <code>approved_with_comments</code> or <code>changes_requested</code>; <code>kind</code> is <code>change</code>, <code>answer</code> or <code>note</code>; lines are integers ≥ 1 with <code>startLine ≤ endLine</code>; <code>text</code> is not blank; <code>quote</code>, when present, is at most 500 characters. <code>approved</code> must have no comments; the other two decisions need at least one. Accepted → <code>200 { ok: true }</code>, then the <code>submitted</code> event, then the CLI writes the result and exits. The CSP is unchanged (<code>connect-src 'self'</code> allows the <code>fetch</code>; <code>form-action 'none'</code> stays).</li>
+<li data-start="100" data-end="100"><strong>Agent skill.</strong> The skill (S12) gains a section: when the human should review a plan or spec, write it to a <code>.md</code> file, run <code>mview review &lt;file&gt;</code> as a background command, give the human the <code>mview: &lt;url&gt;</code> line from stderr, and when it exits read stdout. <code>0</code> → continue with the step that was already authorized, applying any comments; <code>3</code> → revise the same file and run <code>mview review</code> again; <code>4</code> → ask the human in the chat. The decision answers that document only; it grants nothing else (no publishing, no unrelated work). <code>--help</code> and the README describe <code>review</code>.</li>
+<li data-start="101" data-end="101"><strong>Design first (S9).</strong> Artboards under <code>design/mview-review/</code> show the review mode on this document before code: selecting text, the comment popover with the three kinds, the comments panel, the file-changed notice, the two buttons, and the sent state, in light and dark; the user picks one.</li>
+<li data-start="102" data-end="102"><strong>Out of scope.</strong> Other document types, character-offset anchoring, re-anchoring after file changes, writing the result to a file (L84), replies or threads, several reviewers, editing the document from the page.</li>
+<li data-start="103" data-end="103"><strong>Check.</strong> Unit tests: line ranges per block type (including nested list items and table rows), the innermost-block and multi-block rules, result formatting (multi-line quotes, <code>#</code> lines in text), and each server status in the order above. CLI tests through the public command: exit codes 0, 3 and 4 with exact stdout and stderr, every usage error above, a non-Markdown file, and that a server started without <code>review</code> answers <code>405</code> to <code>POST /api/review</code> and <code>404</code> to <code>GET /api/review</code>. A headless browser check selects text, adds one comment of each kind, edits and deletes one, reloads the tab and still sees the drafts, submits, and sees the sent state; a non-review page has no line attributes.</li>
+</ul>
+</li>
+</ul>
+<h3 data-start="105" data-end="105" id="h-server-contract-shared-by-cli-and-frontend" tabindex="-1">Server contract (shared by CLI and frontend)</h3>
+<ul>
+<li data-start="107" data-end="107"><code>GET /</code> → frontend <code>index.html</code>; static assets under <code>/assets/*</code>. These carry no document data and do not require the token.</li>
+<li data-start="108" data-end="108">Token delivery: the CLI prints and opens <code>/?t=&lt;token&gt;</code>; the frontend reads it from <code>location.search</code>. Without a token, or with an invalid one, the page shows &quot;This page needs the link printed by mview&quot;.</li>
+<li data-start="109" data-end="109"><code>GET /api/doc?t=&lt;token&gt;</code> → <code>Doc</code> = <code>{ name: string|null, type: &quot;markdown&quot;|&quot;mermaid&quot;|&quot;json&quot;|&quot;csv&quot;, content: string, source: &quot;file&quot;|&quot;paste&quot;|&quot;stdin&quot;|&quot;empty&quot; }</code>; read failure → <code>500 { error: string }</code>.</li>
+<li data-start="110" data-end="110"><code>GET /api/events?t=&lt;token&gt;</code> → SSE; emits <code>event: change</code> when the watched file changes. The token goes in the query string because <code>EventSource</code> cannot set headers.</li>
+<li data-start="111" data-end="111"><code>POST /api/review?t=&lt;token&gt;</code> → only on servers started by <code>mview review</code> (S17), with the check order of S17; on other servers <code>POST</code> gets <code>405</code> as on every route and <code>GET /api/review</code> gets <code>404</code>. <code>Doc.review?: true</code> marks a review page (S17).</li>
+<li data-start="112" data-end="112">Only <code>/api/*</code> requires the token: missing/wrong → <code>403</code>. Every route accepts exactly <code>Host: 127.0.0.1:&lt;port&gt;</code> and <code>Host: localhost:&lt;port&gt;</code>, compared case-insensitively as HTTP requires (T14); any other value (including the host without a port, or <code>[::1]</code>) gets <code>403</code> (DNS-rebinding guard). Unknown path → <code>404</code>.</li>
+<li data-start="113" data-end="113">Shared code lives in <code>src/shared/</code>: <code>detect.ts</code> (<code>detectType(content, filename?)</code>, <code>firstMeaningfulLine</code> — T13) and <code>doc.ts</code> (<code>Doc</code>, <code>DocSource</code>, empty doc). Both CLI and frontend import them; neither redefines them.</li>
+</ul>
+<!--/@S17-->
+      </article>
+    </div>
+  </main>
+</div>
+
+<footer class="status" aria-label="Status">
+  <div><span class="dot" id="stDot" aria-hidden="true"></span><span id="stLive">Live · watching mview.md</span></div>
+  <div class="opt">Markdown · review</div>
+  <div id="stCount">No comments</div>
+  <div class="grow" id="stMsg" role="status" aria-live="polite"></div>
+</footer>
+</div>
+
+<!--@pop-->
+<button class="btn primary sel-btn" type="button" id="selBtn" hidden>
+  <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>Comment <kbd aria-hidden="true">C</kbd>
+</button>
+<div class="pop" id="pop" role="dialog" aria-labelledby="popTitle" hidden>
+  <p class="pop-title" id="popTitle">Comment on line 95</p>
+  <blockquote class="c-quote" id="popQuote"></blockquote>
+  <p class="c-whole" id="popWhole" hidden>Whole block, no quote</p>
+  <fieldset class="kinds">
+    <legend>Kind</legend>
+    <label><input type="radio" name="kind" value="change" checked /><span class="kind kind-change" data-icon="change">Change request</span></label>
+    <label><input type="radio" name="kind" value="answer" /><span class="kind kind-answer" data-icon="answer">Answer</span></label>
+    <label><input type="radio" name="kind" value="note" /><span class="kind kind-note" data-icon="note">Note</span></label>
+  </fieldset>
+  <div>
+    <label class="pop-lbl" for="popText">Comment <span>Required</span></label>
+    <textarea id="popText" required aria-required="true" aria-describedby="popHint"></textarea>
+  </div>
+  <div class="pop-foot">
+    <p class="pop-hint" id="popHint">Write a comment to add it.</p>
+    <button class="btn ghost" type="button" id="popCancel">Cancel</button>
+    <button class="btn primary" type="button" id="popSave" disabled>Add comment</button>
+  </div>
+</div>
+<!--/@pop-->
+<!--@ctl-->
+<div class="artboard-ctl" role="group" aria-label="Artboard state (not part of the product)">
+  <div><span class="ab-note">Artboard only ·</span> Theme:
+    <button type="button" data-theme-btn="light" aria-pressed="true">Light</button>
+    <button type="button" data-theme-btn="dark" aria-pressed="false">Dark</button>
+  </div>
+  <div>State:
+    <button type="button" data-state="none" aria-pressed="false">No comments</button>
+    <button type="button" data-state="selecting" aria-pressed="false">Selecting text</button>
+    <button type="button" data-state="popover" aria-pressed="false">Popover</button>
+    <button type="button" data-state="comments" aria-pressed="true">Comments</button>
+    <button type="button" data-state="sent" aria-pressed="false">Sent</button>
+  </div>
+  <div><button type="button" id="abChanged" aria-pressed="false">File changed</button></div>
+</div>
+<!--/@ctl-->
+
+<script>
+/* ===== Direction 02 — line gutter with markers, threads under the block, numbered list in the sidebar ===== */
+const DIR = {
+  render() {
+    const list = $("#panelList"); list.textContent = "";
+    R.comments.forEach((c, i) => list.append(card(c, i, { num: true })));
+    $("#panelEmpty").hidden = R.comments.length > 0;
+    $("#tabCount").textContent = R.comments.length ? "· " + R.comments.length : "";
+    /* Threads: one per anchor, after the block (inside a list item, at its end) */
+    $$(".thread", doc).forEach((t) => t.remove());
+    const groups = new Map();
+    R.comments.forEach((c, i) => { const bs = blocksFor(c); if (!bs.length) return; const at = bs[bs.length - 1];
+      if (!groups.has(at)) groups.set(at, []); groups.get(at).push([c, i]); });
+    for (const [at, items] of groups) {
+      const ol = el("ol", "thread"); ol.dataset.ui = ""; ol.setAttribute("aria-label", "Comments on " + lineLabel(items[0][0].start, items[0][0].end));
+      items.forEach(([c, i]) => { const li = card(c, i, { num: true }); li.removeAttribute("data-id"); li.dataset.thread = c.id; ol.append(li); });
+      if (at.tagName === "LI") at.append(ol); else at.after(ol);
+    }
+  },
+  layout() {},
+  markText(ids) { return ids.join(", "); },
+  reveal() { setTab("comments"); },
+};
+function setTab(name) {
+  const c = name === "comments";
+  $("#tabComments").setAttribute("aria-selected", String(c)); $("#tabOutline").setAttribute("aria-selected", String(!c));
+  $("#tabComments").tabIndex = c ? 0 : -1; $("#tabOutline").tabIndex = c ? -1 : 0;
+  $("#panComments").hidden = !c; $("#panOutline").hidden = c;
+}
+//@core-js
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const KIND = { change: "Change request", answer: "Answer", note: "Note" };
+/* DOM builders: no HTML strings. */
+const NS = "http://www.w3.org/2000/svg";
+const ST = { fill: "none", stroke: "currentColor", "stroke-width": "1.5", "stroke-linejoin": "round", "stroke-linecap": "round" };
+const SHAPES = {
+  change: [["path", { d: "M3 13l.8-3.2L10.6 3 13 5.4l-6.8 6.8L3 13z" }]],
+  answer: [["path", { d: "M6.5 4L3 7.5 6.5 11M3.5 7.5H9a4 4 0 0 1 4 4V13" }]],
+  note: [["rect", { x: "3", y: "2.5", width: "10", height: "11", rx: "1.5" }], ["path", { d: "M5.5 6h5M5.5 9h3" }]],
+  comment: [["path", { d: "M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z" }], ["path", { d: "M8 5.3v3.4M6.3 7h3.4" }]],
+};
+function icon(name) {
+  const s = document.createElementNS(NS, "svg"); s.setAttribute("viewBox", "0 0 16 16"); s.setAttribute("aria-hidden", "true");
+  for (const [tag, attrs] of SHAPES[name]) { const e = document.createElementNS(NS, tag); for (const [k, v] of Object.entries({ ...ST, ...attrs })) e.setAttribute(k, v); s.append(e); }
+  return s;
+}
+function el(tag, cls, ...kids) { const e = document.createElement(tag); if (cls) e.className = cls; e.append(...kids); return e; }
+const kindEl = (k) => el("span", "kind kind-" + k, icon(k), KIND[k]);
+/* Realistic review of S17 itself. Lines are the real source lines of odd/tasks/mview.md. */
+const SEED = [
+  { kind: "change", start: 75, end: 75, quote: "--paste, --detach and --no-auto-close exit 2 with mview: review takes a file and waits for the decision",
+    text: "Say in one sentence why --detach is rejected here; agents will try it first." },
+  { kind: "change", start: 77, end: 91, quote: null,
+    text: "Add a second example with Decision: approved and Comments: 0, so agents see the empty case too." },
+  { kind: "answer", start: 96, end: 96, quote: "no automatic question detection",
+    text: "Right — I will mark answers myself. No detection needed for v0.7." },
+  { kind: "note", start: 97, end: 98, quote: "Staying open. A review page never closes its event stream because it is hidden: S14's 30-minute rule does not apply to review pages. Closing every tab still follows S11 and ends with exit 4.\nSubmitting. Two buttons: Request changes",
+    text: "Both rules match how I review long plans: I leave the tab open for hours, then send once." },
+];
+const SELECT_DEMO = { start: 95, end: 95, quote: "Comments keep their line ranges and quotes as captured" };
+const GONE = ["77-91"]; /* artboard: after the simulated file change, no block has lines 77–91 any more */
+const R = { comments: [], seq: 0, fileChanged: false, sent: false, active: null, pop: null, sel: null, undo: null };
+const doc = $("#doc"), main = $("#main"), wrap = $(".doc-wrap"), trig = $("#selBtn"), pop = $("#pop");
+const reduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+const lineLabel = (s, e) => (s === e ? "line " + s : "lines " + s + "–" + e);
+const isGone = (s, e) => R.fileChanged && GONE.includes(s + "-" + e);
+const blocks = () => $$("[data-start]", doc);
+const bS = (b) => +b.dataset.start, bE = (b) => +b.dataset.end;
+const elOf = (n) => (n.nodeType === 1 ? n : n.parentElement);
+
+function blockAt(s, e) { return isGone(s, e) ? null : blocks().find((b) => bS(b) === s && bE(b) === e) || null; }
+/* The blocks a comment marks: the block with its exact range, else every outermost block inside the range (multi-block). */
+function blocksFor(c) {
+  const one = blockAt(c.start, c.end);
+  if (one) return [one];
+  if (c.start === c.end) return [];
+  const inside = blocks().filter((b) => bS(b) >= c.start && bE(b) <= c.end && !isGone(bS(b), bE(b)));
+  return inside.filter((b) => !inside.some((o) => o !== b && o.contains(b)));
+}
+function textNodes(root) {
+  const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, { acceptNode: (n) => (elOf(n).closest("[data-ui]") ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT) });
+  const out = []; while (w.nextNode()) out.push(w.currentNode); return out;
+}
+/* First occurrence of the quote in the block (S17: "its first occurrence in that block is highlighted"). */
+function rangeFor(block, quote) {
+  const map = []; let all = "";
+  for (const n of textNodes(block)) { map.push([n, all.length]); all += n.data; }
+  const i = all.indexOf(quote); if (i < 0) return null;
+  const at = (k, end) => { for (let x = map.length - 1; x >= 0; x--) if (map[x][1] < k || (!end && map[x][1] === k)) return [map[x][0], k - map[x][1]]; return [map[0][0], 0]; };
+  const r = document.createRange(); const [sn, so] = at(i, false); const [en, eo] = at(i + quote.length, true);
+  r.setStart(sn, so); r.setEnd(en, eo); return r;
+}
+function paint() {
+  $$(".rv-block, .rv-active-block, .rv-target", doc).forEach((b) => b.classList.remove("rv-block", "rv-active-block", "rv-target"));
+  const quotes = [], act = [], sel = [];
+  for (const c of R.comments) {
+    const bs = blocksFor(c); if (!bs.length) continue;
+    const on = c.id === R.active;
+    if (bs.length === 1 && c.quote) { const r = rangeFor(bs[0], c.quote); if (r) { (on ? act : quotes).push(r); continue; } }
+    bs.forEach((b) => b.classList.add(on ? "rv-active-block" : "rv-block"));
+  }
+  if (R.sel) { if (R.sel.range) sel.push(R.sel.range); else blocksFor(R.sel).forEach((b) => b.classList.add("rv-target")); }
+  if (window.CSS && CSS.highlights && window.Highlight) {
+    CSS.highlights.set("rv-quote", new Highlight(...quotes));
+    CSS.highlights.set("rv-active", new Highlight(...act));
+    CSS.highlights.set("rv-sel", new Highlight(...sel));
+  }
+}
+/* Block comment controls (and, per direction, line labels and markers) placed at each block's top. */
+function buildLayer() {
+  let layer = $(".ctl-layer", wrap);
+  if (!layer) { layer = document.createElement("div"); layer.className = "ctl-layer"; layer.dataset.ui = ""; wrap.append(layer); }
+  layer.textContent = "";
+  const top0 = wrap.getBoundingClientRect().top, rows = [];
+  for (const b of blocks()) {
+    b._row = null;
+    if (isGone(bS(b), bE(b))) continue;
+    const top = b.getBoundingClientRect().top - top0;
+    const same = rows.find((r) => Math.abs(r.top - top) < 6);
+    if (same) same.b = b; else rows.push({ top, b }); /* nested blocks starting on the same line: keep the innermost */
+  }
+  for (const r of rows) {
+    const s = bS(r.b), e = bE(r.b);
+    const row = document.createElement("div"); row.className = "ctl-row"; row.style.top = r.top + "px";
+    const ln = document.createElement("span"); ln.className = "ctl-ln"; ln.setAttribute("aria-hidden", "true"); ln.textContent = s === e ? s : s + "–" + e;
+    const btn = document.createElement("button"); btn.type = "button"; btn.className = "blk-btn"; btn.append(icon("comment"));
+    btn.setAttribute("aria-label", "Comment on " + lineLabel(s, e)); btn.title = "Comment on the whole block (" + lineLabel(s, e) + ")";
+    btn.addEventListener("click", () => openPop({ start: s, end: e, quote: null, range: null }, btn));
+    row.append(ln, btn);
+    const ids = R.comments.map((c, i) => [c, i]).filter(([c]) => blocksFor(c)[0] === r.b).map(([, i]) => i + 1);
+    if (ids.length) {
+      const mk = document.createElement("button"); mk.type = "button"; mk.className = "ctl-mk";
+      if (DIR.markIcon !== false) mk.append(icon("comment"));
+      mk.append(DIR.markText(ids));
+      mk.setAttribute("aria-label", (ids.length > 1 ? "Comments " : "Comment ") + ids.join(", "));
+      mk.addEventListener("click", () => { setActive(R.comments[ids[0] - 1].id, false); if (DIR.reveal) DIR.reveal(); focusCard(R.comments[ids[0] - 1].id); });
+      row.append(mk);
+    }
+    r.b._row = row; layer.append(row);
+  }
+  DIR.layout();
+}
+function positionAt(node, rect) {
+  const m = main.getBoundingClientRect(), w = node.offsetWidth, h = node.offsetHeight;
+  const x = Math.min(Math.max(rect.left, m.left + 8), m.right - w - 12);
+  let y = rect.bottom + 8; if (y + h > m.bottom - 8) y = Math.max(m.top + 8, rect.top - h - 8);
+  node.style.left = x + "px"; node.style.top = y + "px";
+}
+function anchorRect(an, last) {
+  if (an.range) { const rs = an.range.getClientRects(); return last && rs.length ? rs[rs.length - 1] : an.range.getBoundingClientRect(); }
+  const b = blocksFor(an)[0]; if (!b) return main.getBoundingClientRect();
+  const r = b.getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, bottom: Math.min(r.bottom, r.top + 34) };
+}
+function positionFloating() {
+  if (R.pop) positionAt(pop, anchorRect(R.pop.an, false));
+  else if (!trig.hidden && R.sel) { const r = anchorRect(R.sel, true); positionAt(trig, { left: r.right - 40, right: r.right, top: r.top, bottom: r.bottom }); }
+}
+/* Free selection, block anchor: innermost block holding the whole selection, else first block start → last block end. */
+function readSelection() {
+  const s = getSelection(); if (!s.rangeCount || s.isCollapsed) return null;
+  const r = s.getRangeAt(0); if (!doc.contains(r.commonAncestorContainer)) return null;
+  if (elOf(r.startContainer).closest("[data-ui]") || elOf(r.endContainer).closest("[data-ui]")) return null;
+  let a = elOf(r.startContainer).closest("[data-start]"), b = elOf(r.endContainer).closest("[data-start]");
+  if (!a || !b) return null;
+  const quote = s.toString().trim().slice(0, 500); if (!quote) return null;
+  if (a.contains(b)) b = a; else if (b.contains(a)) a = b;
+  return { start: bS(a), end: bE(b), quote, range: r.cloneRange() };
+}
+function onSelect() {
+  if (R.sent || R.pop) return;
+  const an = readSelection();
+  if (!an) { if (!trig.hidden) { trig.hidden = true; R.sel = null; paint(); } return; }
+  R.sel = an; paint(); trig.hidden = false; positionFloating();
+}
+function openPop(an, ret, editId, noFocus) {
+  if (R.sent || !an) return;
+  const c = editId ? R.comments.find((x) => x.id === editId) : null;
+  R.pop = { an, ret: ret || null, editId: editId || null }; R.sel = an; trig.hidden = true;
+  $("#popTitle").textContent = (c ? "Edit comment on " : "Comment on ") + lineLabel(an.start, an.end);
+  $("#popQuote").hidden = !an.quote; $("#popQuote").textContent = an.quote || "";
+  $("#popWhole").hidden = !!an.quote; $("#popWhole").textContent = blocksFor(an).length > 1 ? "Whole blocks, no quote" : "Whole block, no quote";
+  $$("#pop input[name=kind]").forEach((i) => (i.checked = i.value === (c ? c.kind : "change")));
+  $("#popText").value = c ? c.text : ""; $("#popSave").textContent = c ? "Save" : "Add comment"; syncSave();
+  pop.hidden = false; paint(); positionFloating();
+  if (!noFocus) $("#popText").focus({ preventScroll: true });
+}
+function syncSave() {
+  const empty = !$("#popText").value.trim();
+  $("#popSave").disabled = empty;
+  $("#popHint").textContent = empty ? "Write a comment to add it." : "Ctrl+Enter or ⌘+Enter to save.";
+}
+function closePop(returnFocus) {
+  if (!R.pop) { pop.hidden = true; return; }
+  const ret = R.pop.ret; R.pop = null; R.sel = null; pop.hidden = true; paint();
+  if (returnFocus) (ret && document.contains(ret) ? ret : main).focus({ preventScroll: true });
+}
+function savePop() {
+  const text = $("#popText").value; if (!text.trim() || !R.pop) return;
+  const kind = $("#pop input[name=kind]:checked").value, { an, editId } = R.pop;
+  let id = editId;
+  if (editId) Object.assign(R.comments.find((c) => c.id === editId), { kind, text });
+  else { id = ++R.seq; R.comments.push({ id, seq: id, kind, start: an.start, end: an.end, quote: an.quote || null, text }); }
+  closePop(false); getSelection().removeAllRanges(); renderAll(); announce(editId ? "Comment saved" : "Comment added"); focusCard(id);
+}
+function focusCard(id) { const b = $('#panelList [data-id="' + id + '"] .c-go'); if (b) b.focus({ preventScroll: false }); }
+function del(id) {
+  const i = R.comments.findIndex((c) => c.id === id); if (i < 0) return;
+  R.undo = R.comments.splice(i, 1)[0]; if (R.active === id) R.active = null;
+  renderAll(); announce("Comment deleted", true); main.focus({ preventScroll: true });
+}
+function setActive(id, scroll = true) {
+  R.active = id; renderAll();
+  const c = R.comments.find((x) => x.id === id), b = c && blocksFor(c)[0];
+  if (b && scroll) b.scrollIntoView({ block: "center", behavior: reduced() ? "auto" : "smooth" });
+}
+function announce(msg, undo) {
+  const m = $("#stMsg"); m.textContent = msg;
+  if (undo && R.undo) { const u = document.createElement("button"); u.type = "button"; u.className = "btn"; u.textContent = "Undo";
+    u.addEventListener("click", () => { R.comments.push(R.undo); const id = R.undo.id; R.undo = null; renderAll(); announce("Comment restored"); focusCard(id); }); m.append(" ", u); }
+}
+function card(c, i, o = {}) {
+  const li = document.createElement("li");
+  li.className = "c-item" + (c.id === R.active ? " is-active" : ""); li.dataset.id = c.id;
+  const marked = blocksFor(c).length;
+  const go = el("button", "c-go"); go.type = "button";
+  if (o.num) go.append(el("span", "c-num", String(i + 1)));
+  go.append(kindEl(c.kind), el("span", "lines", lineLabel(c.start, c.end)));
+  li.append(el("div", "c-head", go));
+  li.append(c.quote ? el("blockquote", "c-quote", c.quote) : el("p", "c-whole", marked > 1 ? "Whole blocks" : "Whole block"));
+  li.append(el("p", "c-text", c.text));
+  if (!marked) li.append(el("p", "c-gone", "Not highlighted: no block has these lines now"));
+  if (!R.sent) {
+    const ed = el("button", "btn ghost", "Edit"), dl = el("button", "btn ghost", "Delete");
+    ed.type = dl.type = "button"; ed.dataset.act = "edit"; dl.dataset.act = "del";
+    li.append(el("div", "c-actions", ed, dl));
+  }
+  $(".c-go", li).setAttribute("aria-label", "Comment " + (i + 1) + ": " + KIND[c.kind] + ", " + lineLabel(c.start, c.end) + ". Show in the document");
+  if (!R.sent) {
+    $('[data-act="edit"]', li).setAttribute("aria-label", "Edit comment " + (i + 1));
+    $('[data-act="del"]', li).setAttribute("aria-label", "Delete comment " + (i + 1));
+    $('[data-act="edit"]', li).addEventListener("click", (e) => { e.stopPropagation(); openPop({ start: c.start, end: c.end, quote: c.quote, range: null }, e.currentTarget, c.id); });
+    $('[data-act="del"]', li).addEventListener("click", (e) => { e.stopPropagation(); del(c.id); });
+  }
+  li.addEventListener("click", () => setActive(c.id));
+  $(".c-go", li).addEventListener("click", (e) => { e.stopPropagation(); setActive(c.id); });
+  return li;
+}
+function renderAll() {
+  R.comments.sort((a, b) => a.start - b.start || a.seq - b.seq); /* document order: start line, then creation order */
+  const n = R.comments.length;
+  document.body.classList.toggle("is-sent", R.sent);
+  $$("[data-notice]").forEach((x) => (x.hidden = !R.fileChanged));
+  $("#btnReq").disabled = !n;
+  $("#btnApprove").textContent = n ? "Approve with comments" : "Approve";
+  $$("[data-req-hint]").forEach((h) => (h.hidden = n > 0 || R.sent));
+  $$("[data-draft-note]").forEach((h) => (h.hidden = R.sent));
+  $$("[data-decide]").forEach((d) => (d.hidden = R.sent));
+  $$("[data-sent]").forEach((d) => (d.hidden = !R.sent));
+  $("#stLive").textContent = R.sent ? "Review sent — you can close this tab" : "Live · watching mview.md";
+  $("#stDot").classList.toggle("idle", R.sent);
+  $("#stCount").textContent = n ? n + (n === 1 ? " comment" : " comments") : "No comments";
+  paint(); DIR.render();
+  requestAnimationFrame(buildLayer);
+}
+function decide(decision) {
+  if (R.sent || (decision === "changes_requested" && !R.comments.length)) return;
+  R.sent = true; R.decision = decision; R.active = null; closePop(false); trig.hidden = true; R.sel = null;
+  renderAll(); announce(""); main.focus({ preventScroll: true });
+}
+function applyState(name) {
+  R.sent = name === "sent"; R.active = null; R.undo = null; R.sel = null;
+  R.comments = name === "none" ? [] : SEED.map((c, i) => Object.assign({ id: i + 1, seq: i + 1 }, c));
+  R.seq = SEED.length; closePop(false); trig.hidden = true; getSelection().removeAllRanges(); announce("");
+  $$("[data-state]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.state === name)));
+  if (DIR.onState) DIR.onState(name);
+  renderAll();
+  requestAnimationFrame(() => {
+    if (name === "none") { main.scrollTop = 0; return; }
+    if (name === "selecting" || name === "popover") {
+      const b = blockAt(SELECT_DEMO.start, SELECT_DEMO.end); b.scrollIntoView({ block: "center" });
+      const an = Object.assign({}, SELECT_DEMO, { range: rangeFor(b, SELECT_DEMO.quote) });
+      if (name === "selecting") { R.sel = an; paint(); trig.hidden = false; positionFloating(); } else openPop(an, null, null, true);
+      return;
+    }
+    const b = blockAt(74, 74); if (b) main.scrollTop += b.getBoundingClientRect().top - main.getBoundingClientRect().top - 72;
+  });
+}
+
+/* Wiring */
+doc.addEventListener("mouseup", () => setTimeout(onSelect, 0));
+doc.addEventListener("keyup", (e) => { if (e.shiftKey) onSelect(); });
+doc.addEventListener("mouseover", (e) => {
+  const b = elOf(e.target).closest("[data-start]");
+  $$(".ctl-row.is-hover", wrap).forEach((r) => r.classList.remove("is-hover"));
+  let x = b; while (x && !x._row) x = x.parentElement && x.parentElement.closest("[data-start]");
+  if (x) x._row.classList.add("is-hover");
+});
+wrap.addEventListener("mouseleave", () => $$(".ctl-row.is-hover", wrap).forEach((r) => r.classList.remove("is-hover")));
+trig.addEventListener("click", () => openPop(R.sel, null));
+document.addEventListener("keydown", (e) => {
+  const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName);
+  if (!typing && !e.metaKey && !e.ctrlKey && !e.altKey && e.key.toLowerCase() === "c" && !trig.hidden) { e.preventDefault(); openPop(R.sel, null); }
+  if (e.key === "Escape" && R.pop) { e.preventDefault(); closePop(true); }
+  else if (e.key === "Escape" && !trig.hidden) { trig.hidden = true; R.sel = null; paint(); }
+  else if (e.key === "Escape" && $("#app").classList.contains("drawer-open")) setDrawer(false);
+});
+$("#popText").addEventListener("input", syncSave);
+$("#popText").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); savePop(); } });
+$("#popSave").addEventListener("click", savePop);
+$("#popCancel").addEventListener("click", () => closePop(true));
+document.addEventListener("mousedown", (e) => { if (R.pop && !pop.contains(e.target) && !$("#popText").value.trim() && !e.target.closest(".artboard-ctl")) closePop(false); });
+$$("#pop [data-icon]").forEach((s) => s.prepend(icon(s.dataset.icon)));
+$("#btnReq").addEventListener("click", () => decide("changes_requested"));
+$("#btnApprove").addEventListener("click", () => decide(R.comments.length ? "approved_with_comments" : "approved"));
+main.addEventListener("scroll", () => { positionFloating(); }, { passive: true });
+addEventListener("resize", () => { buildLayer(); positionFloating(); });
+
+/* Outline from the article's headings */
+for (const h of $$("h1, h2, h3", doc)) {
+  const li = document.createElement("li"), b = document.createElement("button");
+  b.type = "button"; b.style.setProperty("--lv", +h.tagName[1] - 1);
+  const ico = el("span", "o-ico", "#"); ico.setAttribute("aria-hidden", "true");
+  b.append(ico, el("span", "o-label", h.textContent));
+  b.addEventListener("click", () => { $$("#outline button").forEach((x) => x.setAttribute("aria-current", String(x === b)));
+    h.scrollIntoView({ block: "start", behavior: reduced() ? "auto" : "smooth" }); h.focus({ preventScroll: true }); setDrawer(false, false); });
+  li.append(b); $("#outline").append(li);
+}
+$("#outline button") && $("#outline button").setAttribute("aria-current", "true");
+function setDrawer(open, returnFocus = true) {
+  $("#app").classList.toggle("drawer-open", open); $("#outlineBtn").setAttribute("aria-expanded", String(open));
+  if (open) ($("#sidebar button") || $("#sidebar")).focus(); else if (returnFocus) $("#outlineBtn").focus();
+}
+$("#outlineBtn").addEventListener("click", () => setDrawer(!$("#app").classList.contains("drawer-open")));
+$("#backdrop").addEventListener("click", () => setDrawer(false));
+
+/* Theme: toolbar select and artboard switch stay in sync */
+function setTheme(t) {
+  document.documentElement.dataset.theme = t;
+  $$("[data-theme-btn]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.themeBtn === t)));
+}
+$("#themeSel").addEventListener("change", (e) => setTheme(e.target.value === "system" ? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light") : e.target.value));
+$$("[data-theme-btn]").forEach((b) => b.addEventListener("click", () => { setTheme(b.dataset.themeBtn); $("#themeSel").value = b.dataset.themeBtn; }));
+$$("[data-state]").forEach((b) => b.addEventListener("click", () => applyState(b.dataset.state)));
+$("#abChanged").addEventListener("click", (e) => { R.fileChanged = !R.fileChanged; e.currentTarget.setAttribute("aria-pressed", String(R.fileChanged)); renderAll(); });
+
+/* Artboard deep links for the canvas: #state=popover&theme=dark&changed=1 */
+const H = new URLSearchParams(location.hash.slice(1));
+setTheme(H.get("theme") === "dark" ? "dark" : "light"); $("#themeSel").value = document.documentElement.dataset.theme;
+if (H.get("changed") === "1") { R.fileChanged = true; $("#abChanged").setAttribute("aria-pressed", "true"); }
+applyState(["none", "selecting", "popover", "comments", "sent"].includes(H.get("state")) ? H.get("state") : "comments");
+//@/core-js
+$("#tabOutline").addEventListener("click", () => setTab("outline"));
+$("#tabComments").addEventListener("click", () => setTab("comments"));
+$(".side-tabs [role=tablist]").addEventListener("keydown", (e) => {
+  if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+  const next = $("#tabComments").getAttribute("aria-selected") === "true" ? "outline" : "comments";
+  setTab(next); (next === "comments" ? $("#tabComments") : $("#tabOutline")).focus();
+});
+</script>
+</body>
+</html>
