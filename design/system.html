@@ -131,12 +131,40 @@
   .ins-close { min-width: var(--target); min-height: var(--target); border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--muted); font-size: 16px; }
   .kv { display: grid; grid-template-columns: 56px 1fr; gap: 6px 10px; font-size: 13px; margin: 0; }
   .kv dt { color: var(--muted); } .kv dd { margin: 0; font-family: var(--mono); }
+  /* Review mode (S17, Margin rail) */
+  .tb-sep { width: 1px; align-self: stretch; margin: 4px 0; background: var(--border); }
+  .decide { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .sent-msg { display: inline-flex; align-items: center; gap: 8px; margin: 0; font-size: 13px; font-weight: 600; color: var(--text); }
+  .sent-msg svg { width: 16px; height: 16px; color: var(--ok); flex: none; }
+  .notice { display: flex; align-items: center; gap: 8px; padding: 6px 12px; background: var(--surface-2); border: 1px solid var(--border);
+    box-shadow: inset 3px 0 var(--warn); border-radius: 6px; font-size: 13px; color: var(--text); }
+  .notice svg { width: 16px; height: 16px; color: var(--warn); flex: none; }
+  .rv-quote { background: var(--hit); color: var(--text); text-decoration: underline 2px var(--warn); }
+  .rv-active { background: var(--accent); color: var(--accent-ink); }
+  .rv-sel { background: var(--accent-soft); color: var(--text); text-decoration: underline 2px var(--accent); }
+  .kind { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: 12px; color: var(--text); white-space: nowrap; }
+  .kind svg { width: 14px; height: 14px; flex: none; }
+  .kind-change svg { color: var(--warn); } .kind-answer svg { color: var(--accent); } .kind-note svg { color: var(--muted); }
+  .lines { font: 12px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .c-item { display: grid; gap: 6px; width: 320px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; font: 13px/1.5 var(--font); color: var(--text); }
+  .c-item.is-active { border-color: var(--accent); box-shadow: inset 3px 0 var(--accent); }
+  .c-head { display: flex; align-items: center; gap: 8px; }
+  .c-quote { margin: 0; padding: 0 0 0 10px; border-left: 3px solid var(--line); color: var(--muted); font: italic 13px/1.5 var(--serif); }
+  .c-text { margin: 0; }
+  .c-actions { display: flex; gap: 4px; margin-left: -8px; }
+  .c-actions .btn { min-height: 28px; padding: 0 8px; font-size: 12px; }
+  .blk-btn { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--muted); }
+  .blk-btn svg { width: 16px; height: 16px; }
+  .kinds { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+  .kinds span { display: flex; align-items: center; gap: 6px; padding: 0 10px; min-height: calc(var(--target) - 2px); background: var(--surface); color: var(--muted); font-size: 13px; }
+  .kinds span + span { border-left: 1px solid var(--border); }
+  .kinds span.on { background: var(--surface-3); color: var(--text); font-weight: 600; }
 </style>
 </head>
 <body>
 <header class="top">
   <h1>mview design system</h1>
-  <p>Synced read-only from <code>src/web/styles.css</code> (after S15 and S16). Left: light tokens. Right: dark tokens (<code>data-theme="dark"</code>).</p>
+  <p>Synced read-only from <code>src/web/styles.css</code> (after S15, S16 and S17). Left: light tokens. Right: dark tokens (<code>data-theme="dark"</code>).</p>
 </header>
 <main class="themes">
   <section class="pane light" id="paneLight" aria-label="Light theme"><h2>Light</h2></section>
@@ -158,7 +186,7 @@
   </section>
   <section><h3>Spacing</h3><div class="scale" data-scale></div></section>
   <section><h3>Radius</h3><div class="radii"><div style="border-radius:2px">2</div><div style="border-radius:4px">4</div><div style="border-radius:6px">6</div><div style="border-radius:8px">8</div><div style="border-radius:12px">12</div><div style="border-radius:50%">50%</div></div></section>
-  <section><h3>Shadows</h3><div class="shadows"><div style="box-shadow:0 4px 16px rgb(0 0 0 / .10)">floating tools</div><div style="box-shadow:0 0 40px rgb(0 0 0 / .25)">drawer</div><div style="box-shadow:inset 2px 0 var(--accent)">current bar</div><div style="box-shadow:inset 0 -2px var(--accent)">bottom bar</div><div style="box-shadow:inset 3px 0 var(--danger)">bad line</div></div></section>
+  <section><h3>Shadows</h3><div class="shadows"><div style="box-shadow:0 4px 16px rgb(0 0 0 / .10)">floating tools</div><div style="box-shadow:0 0 40px rgb(0 0 0 / .25)">drawer</div><div style="box-shadow:inset 2px 0 var(--accent)">current bar</div><div style="box-shadow:inset 0 -2px var(--accent)">bottom bar</div><div style="box-shadow:inset 3px 0 var(--danger)">bad line</div><div style="box-shadow:inset 3px 0 var(--warn)">notice bar</div><div style="box-shadow:inset 3px 0 var(--accent);border-color:var(--accent)">current comment</div><div style="background:var(--hit);box-shadow:0 0 0 4px var(--hit), -7px 0 0 0 var(--warn)">whole-block comment</div></div></section>
   <section><h3>Components</h3>
     <div class="row-c"><button class="btn primary" type="button">Copy path</button><button class="btn" type="button">Expand all</button><button class="btn ghost" type="button">Export SVG</button><button class="btn" type="button" disabled>Disabled</button><kbd>Esc</kbd></div>
     <div class="row-c"><span class="chip">file</span><span class="lbl">Render as</span><select aria-label="Render as"><option>Auto · CSV</option></select><span class="manual-tag">Manual</span><span class="lbl">Theme</span><select aria-label="Theme"><option>System</option><option>Light</option><option>Dark</option></select></div>
@@ -187,6 +215,14 @@
       <div class="ins"><div class="ins-head"><h4>Row</h4><button class="ins-close" type="button" aria-label="Close">×</button></div><dl class="kv"><dt>order_id</dt><dd>A-1043</dd><dt>total</dt><dd>12.00</dd></dl></div>
     </div>
     <div class="row-c"><div class="status" style="width:100%"><div><span class="dot"></span>Live · watching mview.md</div><div><span class="dot off"></span>Disconnected</div><div><span class="dot idle"></span>Stopped — run mview again for live reload</div><div>CSV · 2 of 2 rows</div><div class="grow">Copied path</div></div></div>
+    <div class="row-c"><span class="lbl">Review toolbar</span><span class="tb-sep" aria-hidden="true" style="height:36px"></span><div class="decide"><button class="btn" type="button">Request changes</button><button class="btn primary" type="button">Approve with comments</button></div><p class="sent-msg"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3 3 7-7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Review sent — you can close this tab</p></div>
+    <div class="row-c"><div class="notice" role="status" style="flex:1"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.8l6.5 12H1.5z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M8 6.5v3.2M8 11.6v.1" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>The file changed; line numbers may not match</div></div>
+    <div class="row-c" style="font:17px/1.7 var(--serif)"><span><span class="rv-quote">commented quote</span> · <span class="rv-active">current comment</span> · <span class="rv-sel">kept selection</span></span>
+      <span class="blk-btn" aria-label="Comment on this block" role="img"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg></span></div>
+    <div class="row-c" style="align-items:flex-start">
+      <div class="c-item is-active"><div class="c-head"><span class="kind kind-change"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 13l1-3 7-7 2 2-7 7z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>Change request</span><span class="lines">lines 12–14</span></div><p class="c-quote">Use Flask for the server</p><p class="c-text">Use FastAPI instead.</p><div class="c-actions"><button class="btn ghost" type="button">Edit</button><button class="btn ghost" type="button">Delete</button></div></div>
+      <div style="display:grid;gap:8px"><div class="kinds" role="img" aria-label="Comment kinds"><span class="on kind kind-change">Change request</span><span class="kind kind-answer">Answer</span><span class="kind kind-note">Note</span></div><span class="lines">line 40</span></div>
+    </div>
     <div class="row-c"><div class="err-box" style="flex:1"><strong>Can’t render checkout.mmd — parse error on line 7</strong><span>The file is still being watched.</span></div><span class="remote-image"><b>Remote image blocked</b>https://example.com/logo.png</span></div>
   </section>
 </template>
