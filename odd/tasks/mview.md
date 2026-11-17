@@ -102,6 +102,14 @@ Local CLI (`mview`) that opens the browser on a 127.0.0.1 server and renders Mar
   - **Out of scope.** Other document types, character-offset anchoring, re-anchoring after file changes, writing the result to a file (L84), replies or threads, several reviewers, editing the document from the page.
   - **Check.** Unit tests: line ranges per block type (including nested list items and table rows), the innermost-block and multi-block rules, result formatting (multi-line quotes, `#` lines in text), and each server status in the order above. CLI tests through the public command: exit codes 0, 3 and 4 with exact stdout and stderr, every usage error above, a non-Markdown file, and that a server started without `review` answers `405` to `POST /api/review` and `404` to `GET /api/review`. A headless browser check selects text, adds one comment of each kind, edits and deletes one, reloads the tab and still sees the drafts, submits, and sees the sent state; a non-review page has no line attributes.
 
+- **S18 — Edit mode for Markdown and Mermaid (no saving).** User (L94): "que tan complicado seria ponerle funciones de edicion a este sistema , mas que nada en el tema de Markdown y Mermaid ?"; (L95): "si, creo que lo ideal seria primero 1 para validar la idea"; answers (L95): "Split: editor a la izquierda, preview en vivo (Recommended)", "Aviso y mantengo mis cambios (Recommended)", "Copiar y Descargar (Recommended)", "Sí, 2-3 artboards y elijo (Recommended)".
+  - **Scope.** Level 1 of the estimate (L94): editing lives only in the page. No endpoint is added and nothing is sent to the server; S3 still holds (the only POST endpoint is S17's). Only when the shown type is Markdown or Mermaid, from any source (file, clipboard, stdin, or content pasted into the page). Not on review pages (S17) and not on the empty paste page.
+  - **Split.** An `Edit` button in the toolbar opens a plain text editor (a `<textarea>`, no new dependency) to the left of the existing rendered view, which updates while the user types. The rendered view keeps its features (outline, Mermaid zoom/pan/export, diagram canvas).
+  - **File changes while editing.** When the edited text differs from the last content received, a live reload (S2) does not replace it: a notice says the file changed on disk and offers to discard the edits and load the file. With no edits, live reload works as today.
+  - **Getting the text out.** `Copy` puts the edited text on the clipboard; `Download` saves it as a file named after the document (or a default name for clipboard/stdin content) with its extension (`.md` / `.mmd`). Edits are lost on a page reload.
+  - **Design first (S9).** Artboards under `design/mview-edit/` show the split, the file-changed notice, Copy/Download, a Mermaid parse error while typing, and a narrow screen, in light and dark; the user picks one. Details such as closing the editor, the narrow-screen layout and the debounce are settled with the chosen artboard.
+  - **Out of scope.** Saving to disk (level 2, its own spec later), editing JSON or CSV, syntax highlighting in the editor, WYSIWYG or visual Mermaid editing, editing on review pages.
+
 ### Server contract (shared by CLI and frontend)
 
 - `GET /` → frontend `index.html`; static assets under `/assets/*`. These carry no document data and do not require the token.
@@ -199,6 +207,12 @@ Delivery slices (L27): slice 1 = spec + T23–T24 (`5f27ae8`..`47dd525`, ~760 ch
 - [x] T48 — Agent skill section for `mview review` (S12) · S17 · Risk: item 3 (skill text agents already consume; additive) · commit: this commit
 - [x] T49 — Release `v0.7.0` with the T27 flow after T45–T48 · S17 · Risk: item 5 (release) · commit: ab8fc62 (PR #37, merge 50142b4); release v0.7.0
 
+`T50`–`T52` add the edit mode (S18, L94–L95).
+
+- [ ] T50 — Design the edit mode with gentle-design under `design/mview-edit/` (2–3 directions, light/dark); the user picks one · S18,S9 · commit: —
+- [ ] T51 — Edit mode from the chosen artboard: Edit button, split textarea + live render, file-changed notice, Copy/Download; unit tests for the state rules; README · S18 · commit: —
+- [ ] T52 — Release `v0.8.0` with the T27 flow after T51 (proposed, not confirmed) · S18 · Risk: item 5 (release) · commit: —
+
 ## Log
 
 - L1 (user, original request): "tengo una idea de hacer un viewer para markdown, mermaid, json para mi uso cotidiano.. podemos explorar la idea?"
@@ -294,3 +308,5 @@ Delivery slices (L27): slice 1 = spec + T23–T24 (`5f27ae8`..`47dd525`, ~760 ch
 - L91 (delivery): RDD pre-delivery guard blocked the push; native review of `docs/review-mode` stopped with `lens_context_budget_exceeded` (~2.7k lines of HTML artboards), so the user pushed and opened the PRs by hand: #35 (spec + design, `docs/review-mode` → `main`) and #36 (code, `feat/review-mode` → `docs/review-mode`). Next: merge, then T49 release v0.7.0.
 - L92 (T49): S17 delivered as PR #35 (`aecc02f`, spec + design) and PR #36 (`e59c402`, code); version bumped to 0.7.0 (`package.json`, `package-lock.json`) and README install URLs point to `v0.7.0/mview-0.7.0.tgz`, on branch `release/v0.7.0`.
 - L93 (T49 evidence): release PR #37 merged (`50142b4`); GitHub release `v0.7.0` (tag at `50142b4`) with `mview-0.7.0.tgz`, sha256 `97f1c0a885ad6248e0766586ff7b46dccd2302418ca383157613ecdf3727b95f` (downloaded asset matches); installed from the release URL with npm and pnpm in clean prefixes, both report `0.7.0`, and `--help` describes `mview review`. The push, PRs, merges and release were run by the user because the RDD pre-delivery guard blocked them (L91). S17 complete.
+- L94 (user): "que tan complicado seria ponerle funciones de edicion a este sistema , mas que nada en el tema de Markdown y Mermaid ?" Estimate given: level 1 page-only editor (easy), level 2 saving to the file (medium; write endpoint, watcher echo, atomic write), level 3 WYSIWYG/visual Mermaid (hard, not recommended).
+- L95 (user): "si, creo que lo ideal seria primero 1 para validar la idea"; answers: "Split: editor a la izquierda, preview en vivo (Recommended)", "Aviso y mantengo mis cambios (Recommended)", "Copiar y Descargar (Recommended)", "Sí, 2-3 artboards y elijo (Recommended)". Spec S18 and tasks T50–T52 written on branch `docs/edit-mode`; editor is a plain `<textarea>` (agent decision, no new dependency).
