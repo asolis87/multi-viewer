@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "chosen": "01-margin-rail.html",
+  "handoffs": {
+    "01-margin-rail.html": {
+      "status": "in_progress",
+      "queued": false,
+      "sentAt": "2026-11-17T17:17:01.452Z",
+      "startedAt": "2026-11-17T17:17:40.842Z",
+      "implementedAt": null,
+      "feature": "odd/tasks/mview.md",
+      "note": "Chosen. Implementing S17 as T45 (server and CLI), T46 (line ranges) and T47 (review UI)."
+    }
+  }
+}

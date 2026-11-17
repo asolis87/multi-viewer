@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=1440" />
 <title>mview — design system</title>
 <style>
-  /* Tokens copied from src/web/styles.css */
+  /* Tokens copied from src/web/styles.css (read-only sync, see design/system.md) */
   :root, .light {
     --bg: #f6f7f9; --surface: #ffffff; --surface-2: #eef0f3; --surface-3: #e3e7eb; --text: #1b1f24; --muted: #57606a;
     --border: #d5dae0; --line: #8c959f; --accent: #0b5fcc; --accent-ink: #ffffff; --accent-soft: #e2ecfb;
@@ -13,6 +13,7 @@
     --key: #8250df; --str: #116329; --num: #a3480b; --bool: #0b5fcc; --hit: #ffe58a; --grid: #c4cbd3;
     --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
     --target: 36px;
   }
   .dark {
@@ -29,7 +30,7 @@
   header.top p { margin: 0; color: var(--muted); font-size: 15px; }
   header.top code { font: 12.5px var(--mono); }
   .themes { display: grid; grid-template-columns: 1fr 1fr; }
-  .pane { background: var(--bg); color: var(--text); padding: 24px 40px 40px; }
+  .pane { background: var(--bg); color: var(--text); padding: 24px 40px 40px; min-width: 0; }
   .pane > h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 16px; }
   section { margin-bottom: 28px; }
   section h3 { font-size: 16px; margin: 0 0 10px; }
@@ -39,14 +40,14 @@
   .sw div { padding: 6px 8px; font: 11.5px var(--mono); color: var(--muted); }
   .sw b { display: block; color: var(--text); font-weight: 600; }
   .type-row { display: flex; align-items: baseline; gap: 16px; padding: 4px 0; border-bottom: 1px solid var(--border); }
-  .type-row span:first-child { width: 64px; font: 12px var(--mono); color: var(--muted); }
+  .type-row span:first-child { width: 96px; flex: none; font: 12px var(--mono); color: var(--muted); }
   .scale { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
   .scale div { background: var(--accent-soft); border: 1px solid var(--accent); }
   .scale figure { margin: 0; text-align: center; font: 11.5px var(--mono); color: var(--muted); }
-  .radii { display: flex; gap: 12px; }
+  .radii { display: flex; gap: 12px; flex-wrap: wrap; }
   .radii div { width: 64px; height: 44px; border: 1px solid var(--line); background: var(--surface); display: grid; place-items: center; font: 11.5px var(--mono); color: var(--muted); }
-  .shadows { display: flex; gap: 16px; }
-  .shadows div { width: 180px; height: 64px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; display: grid; place-items: center; font: 11.5px var(--mono); color: var(--muted); }
+  .shadows { display: flex; gap: 16px; flex-wrap: wrap; }
+  .shadows div { width: 150px; height: 64px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; display: grid; place-items: center; font: 11.5px var(--mono); color: var(--muted); text-align: center; }
   .row-c { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
 
   /* Components (from src/web/styles.css) */
@@ -56,24 +57,31 @@
   .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
   .btn.ghost { border-color: transparent; background: transparent; }
   .btn:disabled { cursor: not-allowed; opacity: .55; }
+  .btn svg { width: 16px; height: 16px; }
   .chip { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 8px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface-2); font-size: 12px; color: var(--muted); }
   .manual-tag { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--accent); border: 1px solid currentColor; border-radius: 4px; padding: 1px 5px; }
+  kbd { font: 12px var(--mono); border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 4px; padding: 1px 6px; background: var(--surface); }
   select { min-height: var(--target); padding: 0 30px 0 10px; border: 1px solid var(--border); border-radius: 6px; background-color: var(--surface); color: var(--text);
     appearance: none; font: inherit; font-size: 13px;
     background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
     background-position: calc(100% - 15px) 52%, calc(100% - 10px) 52%; background-size: 5px 5px; background-repeat: no-repeat; }
   .lbl { font-size: 12px; color: var(--muted); }
-  .search { display: flex; align-items: center; gap: 6px; width: 300px; height: var(--target); padding: 0 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); }
+  .search { display: flex; align-items: center; gap: 6px; width: 260px; height: var(--target); padding: 0 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); }
   .search:focus-within { outline: 2px solid var(--focus); outline-offset: 1px; }
   .search input { flex: 1; min-width: 0; border: 0; background: transparent; outline: none; font: inherit; font-size: 13px; color: var(--text); }
   .search svg { width: 14px; height: 14px; color: var(--muted); }
   .q-status { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); }
   .q-status .btn { min-height: 28px; padding: 0 8px; font-size: 12px; }
+  .q-count { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .q-nav { display: inline-flex; gap: 4px; }
+  .q-status .q-nav .btn { min-width: 28px; padding: 0 6px; }
+  .q-nav .btn svg { width: 14px; height: 14px; }
   .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
   .seg button { border: 0; background: var(--surface); color: var(--muted); padding: 0 12px; min-height: calc(var(--target) - 2px); font: inherit; font-size: 13px; }
   .seg button + button { border-left: 1px solid var(--border); }
   .seg button[aria-pressed="true"] { background: var(--surface-3); color: var(--text); font-weight: 600; }
   mark { background: var(--hit); color: inherit; border-radius: 2px; padding: 0 1px; }
+  mark.is-current { background: var(--accent); color: var(--accent-ink); box-shadow: 0 0 0 1px var(--surface), 0 0 0 3px var(--accent); }
   .outline { list-style: none; margin: 0; padding: 4px 8px; width: 260px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
   .outline button { width: 100%; display: flex; align-items: center; gap: 8px; min-height: var(--target); padding: 4px 8px; border: 0; background: none; border-radius: 6px; text-align: left; font: inherit; font-size: 13px; color: var(--text); }
   .outline button:hover { background: var(--surface-2); }
@@ -82,69 +90,110 @@
   .o-label { flex: 1; }
   .o-mono { font-family: var(--mono); font-size: 12.5px; }
   .o-meta { color: var(--muted); font: 11.5px var(--mono); }
-  .md-table { border-collapse: collapse; font-size: 13.5px; background: var(--surface); border: 1px solid var(--border); }
-  .md-table th, .md-table td { text-align: left; padding: 7px 12px; border-bottom: 1px solid var(--border); }
-  .md-table tr:last-child td { border-bottom: 0; }
-  .md-table th { background: var(--surface-2); font-weight: 600; font-size: 12px; color: var(--muted); }
-  .status { display: flex; align-items: center; min-height: 30px; background: var(--surface-2); border: 1px solid var(--border); font-size: 12px; color: var(--muted); }
+  /* Markdown reading sample (S15 Serif) */
+  .md { font-family: var(--serif); font-size: 19px; line-height: 32.3px; max-width: 720px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px 20px; }
+  .md h4 { font: 600 19px/25.65px var(--font); margin: 0 0 8px; }
+  .md p { margin: 0 0 12px; }
+  .md code { font: 16px var(--mono); background: var(--surface-2); border: 1px solid var(--border); padding: 0 4px; border-radius: 4px; }
+  .md blockquote { margin: 0 0 12px; padding: 2px 0 2px 20px; border-left: 3px solid var(--line); color: var(--muted); font-style: italic; }
+  .md table { border-collapse: collapse; font: 15px/22.5px var(--font); background: var(--surface); border: 1px solid var(--border); }
+  .md th, .md td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border); }
+  .md tr:last-child td { border-bottom: 0; }
+  .md th { background: var(--surface-2); font-weight: 600; font-size: 13px; color: var(--muted); }
+  /* CSV table, pager */
+  .t { border-collapse: separate; border-spacing: 0; font-size: 13.5px; background: var(--surface); border: 1px solid var(--border); }
+  .t th, .t td { text-align: left; padding: 7px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  .t th { background: var(--surface-2); font-weight: 600; font-size: 12px; color: var(--muted); }
+  .t th.is-target { background: var(--accent-soft); color: var(--text); box-shadow: inset 0 -2px var(--accent); }
+  .t td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .t tr.is-selected td { background: var(--accent-soft); }
+  .t tr.is-selected td:first-child { box-shadow: inset 2px 0 var(--accent); }
+  .pager { display: flex; align-items: center; justify-content: center; gap: 4px; padding: 4px 6px; border: 1px solid var(--border); background: var(--surface-2); }
+  .pager .btn { min-height: 30px; min-width: 30px; padding: 0 8px; font-size: 12px; }
+  .pg-label { padding: 0 8px; font: 12px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+  .status { display: flex; align-items: center; min-height: 30px; background: var(--surface-2); border: 1px solid var(--border); font-size: 12px; color: var(--muted); flex-wrap: wrap; }
   .status > * { display: flex; align-items: center; gap: 6px; padding: 4px 12px; border-right: 1px solid var(--border); white-space: nowrap; }
   .status .grow { flex: 1; border-right: 0; justify-content: flex-end; }
-  .status strong { color: var(--text); font-weight: 600; }
   .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
   .dot.off { background: transparent; border: 2px solid var(--warn); }
   .dot.idle { background: transparent; border: 2px solid var(--line); }
   .err-box { border: 1px solid var(--danger); background: var(--danger-soft); border-radius: 8px; padding: 14px 16px; }
   .err-box strong { display: block; font-size: 16px; }
   .err-box span { color: var(--muted); font-size: 13px; }
+  .remote-image { display: inline-flex; flex-direction: column; gap: 2px; padding: 8px 12px; border: 1px dashed var(--line); border-radius: 6px; background: var(--surface-2); color: var(--muted); font-size: 13px; line-height: 1.4; }
+  .remote-image b { color: var(--text); }
   .tree-row { display: flex; align-items: center; min-height: 28px; padding: 0 6px; border-radius: 4px; font: 13px/1.5 var(--mono); }
   .tree-row.is-selected { background: var(--accent-soft); box-shadow: inset 2px 0 var(--accent); }
   .k { color: var(--key); } .s { color: var(--str); } .n { color: var(--num); } .b { color: var(--bool); } .punc { color: var(--muted); }
+  .ins { width: 340px; background: var(--surface); border: 1px solid var(--border); padding: 16px; display: grid; gap: 10px; }
+  .ins-head { display: flex; align-items: center; justify-content: space-between; }
+  .ins-head h4 { margin: 0; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+  .ins-close { min-width: var(--target); min-height: var(--target); border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--muted); font-size: 16px; }
+  .kv { display: grid; grid-template-columns: 56px 1fr; gap: 6px 10px; font-size: 13px; margin: 0; }
+  .kv dt { color: var(--muted); } .kv dd { margin: 0; font-family: var(--mono); }
 </style>
 </head>
 <body>
 <header class="top">
   <h1>mview design system</h1>
-  <p>Synced read-only from <code>src/web/styles.css</code> and <code>design/mview-viewer/02-workbench.html</code>. Left: light tokens. Right: dark tokens (<code>data-theme="dark"</code>).</p>
+  <p>Synced read-only from <code>src/web/styles.css</code> (after S15 and S16). Left: light tokens. Right: dark tokens (<code>data-theme="dark"</code>).</p>
 </header>
 <main class="themes">
-  <div class="pane light" id="paneLight" aria-label="Light theme"><h2>Light</h2></div>
-  <div class="pane dark" id="paneDark" aria-label="Dark theme"><h2>Dark</h2></div>
+  <section class="pane light" id="paneLight" aria-label="Light theme"><h2>Light</h2></section>
+  <section class="pane dark" id="paneDark" aria-label="Dark theme"><h2>Dark</h2></section>
 </main>
 
 <template id="content">
   <section><h3>Colors</h3><div class="swatches" data-swatches></div></section>
   <section><h3>Type</h3>
-    <div class="type-row"><span>28 · 700</span><span style="font-size:28px;font-weight:700;letter-spacing:-0.02em;line-height:1.2">orders-service</span></div>
-    <div class="type-row"><span>18 · 600</span><span style="font-size:18px;font-weight:600">Checkout flow</span></div>
-    <div class="type-row"><span>15 · 600</span><span style="font-size:15px;font-weight:600">orders.csv</span></div>
-    <div class="type-row"><span>14 body</span><span>The storefront never talks to the payment provider directly.</span></div>
+    <div class="type-row"><span>36 · 700 sans</span><span style="font-size:36px;font-weight:700;letter-spacing:-0.02em;line-height:43.2px">mview</span></div>
+    <div class="type-row"><span>26 · 700 sans</span><span style="font-size:26px;font-weight:700;letter-spacing:-0.02em;line-height:32.5px">Specs</span></div>
+    <div class="type-row"><span>21 · 600 sans</span><span style="font-size:21px;font-weight:600;line-height:27.3px">Server contract</span></div>
+    <div class="type-row"><span>19/32.3 serif</span><span style="font:19px/32.3px var(--serif)">Live reload still shows the new content.</span></div>
+    <div class="type-row"><span>15 · 600</span><span style="font-size:15px;font-weight:600">mview.md</span></div>
+    <div class="type-row"><span>14 body</span><span>The page refetches the document on a change event.</span></div>
     <div class="type-row"><span>13 mono</span><span style="font:13px var(--mono)">items[0].sku</span></div>
-    <div class="type-row"><span>12 muted</span><span style="font-size:12px;color:var(--muted)">Live · watching orders.csv</span></div>
+    <div class="type-row"><span>12 muted</span><span style="font-size:12px;color:var(--muted)">Live · watching mview.md</span></div>
     <div class="type-row"><span>11 label</span><span style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">Outline</span></div>
   </section>
   <section><h3>Spacing</h3><div class="scale" data-scale></div></section>
-  <section><h3>Radius</h3><div class="radii"><div style="border-radius:2px">2</div><div style="border-radius:4px">4</div><div style="border-radius:6px">6</div><div style="border-radius:8px">8</div><div style="border-radius:12px">12</div></div></section>
-  <section><h3>Shadows</h3><div class="shadows"><div style="box-shadow:0 4px 16px rgb(0 0 0 / .10)">floating tools</div><div style="box-shadow:0 0 40px rgb(0 0 0 / .25)">drawer</div><div style="box-shadow:inset 2px 0 var(--accent)">current bar</div></div></section>
+  <section><h3>Radius</h3><div class="radii"><div style="border-radius:2px">2</div><div style="border-radius:4px">4</div><div style="border-radius:6px">6</div><div style="border-radius:8px">8</div><div style="border-radius:12px">12</div><div style="border-radius:50%">50%</div></div></section>
+  <section><h3>Shadows</h3><div class="shadows"><div style="box-shadow:0 4px 16px rgb(0 0 0 / .10)">floating tools</div><div style="box-shadow:0 0 40px rgb(0 0 0 / .25)">drawer</div><div style="box-shadow:inset 2px 0 var(--accent)">current bar</div><div style="box-shadow:inset 0 -2px var(--accent)">bottom bar</div><div style="box-shadow:inset 3px 0 var(--danger)">bad line</div></div></section>
   <section><h3>Components</h3>
-    <div class="row-c"><button class="btn primary" type="button">Copy path</button><button class="btn" type="button">Expand all</button><button class="btn ghost" type="button">Export SVG</button><button class="btn" type="button" disabled>Disabled</button></div>
+    <div class="row-c"><button class="btn primary" type="button">Copy path</button><button class="btn" type="button">Expand all</button><button class="btn ghost" type="button">Export SVG</button><button class="btn" type="button" disabled>Disabled</button><kbd>Esc</kbd></div>
     <div class="row-c"><span class="chip">file</span><span class="lbl">Render as</span><select aria-label="Render as"><option>Auto · CSV</option></select><span class="manual-tag">Manual</span><span class="lbl">Theme</span><select aria-label="Theme"><option>System</option><option>Light</option><option>Dark</option></select></div>
-    <div class="row-c"><label class="search"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><input type="search" value="lucía" aria-label="Search keys and values" /></label><div class="q-status"><span>2 matches</span><button class="btn" type="button">Clear search</button></div><div class="seg"><button type="button" aria-pressed="true">Tree</button><button type="button" aria-pressed="false">Raw</button></div></div>
+    <div class="row-c"><label class="search"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><input type="search" value="lucía" aria-label="Search keys and values" /></label>
+      <div class="q-status"><span class="q-count" role="status">2 of 5</span><span class="q-nav"><button class="btn" type="button" aria-label="Previous match"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 10l4-4 4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button class="btn" type="button" aria-label="Next match"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button></span><button class="btn" type="button">Clear search</button></div>
+      <div class="seg"><button type="button" aria-pressed="true">Tree</button><button type="button" aria-pressed="false">Raw</button></div></div>
     <div class="row-c" style="align-items:flex-start">
-      <ul class="outline"><li><button type="button"><span class="o-ico">#</span><span class="o-label">Checkout flow</span></button></li><li><button type="button" aria-current="true"><span class="o-ico">{ }</span><span class="o-label o-mono">customer</span><span class="o-meta">{3}</span></button></li><li><button type="button"><span class="o-ico">[ ]</span><span class="o-label o-mono">items</span><span class="o-meta">[2]</span></button></li></ul>
+      <ul class="outline"><li><button type="button"><span class="o-ico">#</span><span class="o-label">Specs</span></button></li><li><button type="button" aria-current="true"><span class="o-ico">{ }</span><span class="o-label o-mono">customer</span><span class="o-meta">{3}</span></button></li><li><button type="button"><span class="o-ico">[ ]</span><span class="o-label o-mono">items</span><span class="o-meta">[2]</span></button></li></ul>
       <div style="display:grid;gap:8px">
-        <table class="md-table"><thead><tr><th>Method</th><th>Path</th></tr></thead><tbody><tr><td>POST</td><td>/orders</td></tr><tr><td>GET</td><td>/orders/:id</td></tr></tbody></table>
-        <div class="tree-row is-selected"><span class="k">"email"</span><span class="punc">: </span><span class="s">"<mark>lucía</mark>.romero@example.com"</span></div>
+        <div class="tree-row is-selected"><span class="k">"email"</span><span class="punc">: </span><span class="s">"<mark class="is-current">lucía</mark>.romero@example.com"</span></div>
+        <div class="tree-row"><span class="k">"name"</span><span class="punc">: </span><span class="s">"<mark>Lucía</mark> Romero"</span></div>
         <div class="tree-row"><span class="k">"qty"</span><span class="punc">: </span><span class="n">2</span></div>
       </div>
     </div>
-    <div class="row-c"><div class="status" style="width:100%"><div><span class="dot"></span>Live · watching orders.csv</div><div><span class="dot off"></span>Disconnected</div><div><span class="dot idle"></span>Not watching · read from stdin</div><div>JSON · auto-detected</div><div class="grow">Copied path</div></div></div>
-    <div class="err-box"><strong>Can’t render checkout.mmd — parse error on line 7</strong><span>The file is still being watched.</span></div>
+    <div class="md" style="margin-bottom:10px">
+      <h4>Markdown reading (S15)</h4>
+      <p>Live reload still shows the new content; <code>Doc.review</code> marks a review page.</p>
+      <blockquote>Blockquote in the reading text, muted and italic.</blockquote>
+      <table><thead><tr><th>Exit code</th><th>Meaning</th></tr></thead><tbody><tr><td>0</td><td>approved</td></tr><tr><td>3</td><td>changes requested</td></tr></tbody></table>
+    </div>
+    <div class="row-c" style="align-items:flex-start">
+      <div style="display:grid;gap:0">
+        <table class="t"><thead><tr><th>order_id</th><th class="is-target">customer</th><th>total</th></tr></thead><tbody><tr><td>A-1042</td><td>Lucía Romero</td><td class="num">84.50</td></tr><tr class="is-selected"><td>A-1043</td><td>Tomás Ibarra</td><td class="num">12.00</td></tr></tbody></table>
+        <div class="pager" role="toolbar" aria-label="Pages"><button class="btn" type="button" aria-label="First page">«</button><button class="btn" type="button" aria-label="Previous page">‹</button><span class="pg-label">Rows 201–400 of 74,920</span><button class="btn" type="button" aria-label="Next page">›</button><button class="btn" type="button" disabled aria-label="Last page">»</button></div>
+      </div>
+      <div class="ins"><div class="ins-head"><h4>Row</h4><button class="ins-close" type="button" aria-label="Close">×</button></div><dl class="kv"><dt>order_id</dt><dd>A-1043</dd><dt>total</dt><dd>12.00</dd></dl></div>
+    </div>
+    <div class="row-c"><div class="status" style="width:100%"><div><span class="dot"></span>Live · watching mview.md</div><div><span class="dot off"></span>Disconnected</div><div><span class="dot idle"></span>Stopped — run mview again for live reload</div><div>CSV · 2 of 2 rows</div><div class="grow">Copied path</div></div></div>
+    <div class="row-c"><div class="err-box" style="flex:1"><strong>Can’t render checkout.mmd — parse error on line 7</strong><span>The file is still being watched.</span></div><span class="remote-image"><b>Remote image blocked</b>https://example.com/logo.png</span></div>
   </section>
 </template>
 
 <script>
   const TOKENS = ["bg","surface","surface-2","surface-3","text","muted","border","line","accent","accent-ink","accent-soft","ok","warn","danger","danger-soft","focus","key","str","num","bool","hit","grid"];
-  const SPACING = [4, 6, 8, 10, 12, 14, 16, 20, 24, 28, 32, 40, 48, 64];
+  const SPACING = [1, 2, 4, 5, 6, 7, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 40, 44, 48, 56, 64, 80];
   for (const pane of [document.getElementById("paneLight"), document.getElementById("paneDark")]) {
     pane.append(document.getElementById("content").content.cloneNode(true));
     const cs = getComputedStyle(pane);

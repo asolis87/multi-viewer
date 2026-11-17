@@ -1,0 +1,28 @@
+{
+  "title": "mview review mode",
+  "brief": "Review mode for Markdown plans (S17): select text or a whole block, add a Change request / Answer / Note, list the comments in document order, see the file-changed notice, then Request changes or Approve / Approve with comments and land on the read-only sent state. Workbench shell (design/mview-viewer/02-workbench.html) with the Serif Markdown view (design/mview-reading/02-serif.html); content is S17 of odd/tasks/mview.md with its real source line numbers; artboard-only light/dark and state switches.",
+  "feature": "odd/tasks/mview.md",
+  "artboards": [
+    {
+      "file": "01-margin-rail.html",
+      "title": "Margin rail",
+      "tradeoff": "Google Docs style: each comment card sits in a 320px rail level with its text and the decision buttons live in the toolbar, so you read text and feedback side by side; it needs about 1,150px of main width (below 1100px the rail drops under the article), and blocks with several comments push cards down out of line",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "file": "02-line-gutter.html",
+      "title": "Line gutter",
+      "tradeoff": "Code-review style: a gutter shows every block's source lines with + and numbered markers, threads open under the block, and the sidebar holds the comment list and the decision; the line numbers in the result are always visible, but the reading column moves right, inline threads break up the prose, and the outline moves behind a tab",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "file": "03-review-drawer.html",
+      "title": "Review drawer",
+      "tradeoff": "The reading view stays as it is today (numbered markers in the right margin only); one bottom drawer holds the notice, a table of comments in document order and both decision buttons, like a checkout; the drawer takes about 340px of reading height when open (it collapses to a 52px bar), and a comment is never next to its text",
+      "width": 1440,
+      "height": 900
+    }
+  ]
+}
