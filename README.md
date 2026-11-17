@@ -15,9 +15,9 @@ mview review plan.md         # comment on a plan, approve or request changes; th
 Requires Node.js 20 or later. mview is not on the npm registry yet; install the packaged release from GitHub:
 
 ```bash
-pnpm add -g https://github.com/asolis87/multi-viewer/releases/download/v0.6.0/mview-0.6.0.tgz
+pnpm add -g https://github.com/asolis87/multi-viewer/releases/download/v0.7.0/mview-0.7.0.tgz
 # or
-npm i -g https://github.com/asolis87/multi-viewer/releases/download/v0.6.0/mview-0.6.0.tgz
+npm i -g https://github.com/asolis87/multi-viewer/releases/download/v0.7.0/mview-0.7.0.tgz
 ```
 
 With pnpm, run `pnpm setup` once if it says the global bin directory is not in your `PATH`. Uninstall with `pnpm remove -g mview` or `npm rm -g mview`.
