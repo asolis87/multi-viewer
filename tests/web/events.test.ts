@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { keepEventsOpen, reloadOnChange } from "../../src/web/lib/events.js";
+import { closeWhenHidden, keepEventsOpen, reloadOnChange } from "../../src/web/lib/events.js";
 import type { DocSource } from "../../src/shared/doc.js";
 
 const SOURCES: DocSource[] = ["file", "paste", "stdin", "empty"];
@@ -30,5 +30,18 @@ describe("events stream decision (S11, T23)", () => {
       expect(reloadOnChange({ source, pastedHere: false, loadStatus: null }), source).toBe(false);
     }
     expect(reloadOnChange({ source: null, pastedHere: false, loadStatus: null })).toBe(false);
+  });
+});
+
+describe("review pages (S17, T47)", () => {
+  it("the hidden-tab close (S14 B) is off only for review pages", () => {
+    expect(closeWhenHidden({ review: true })).toBe(false);
+    expect(closeWhenHidden({ review: false })).toBe(true);
+    expect(closeWhenHidden({ review: undefined })).toBe(true);
+  });
+
+  it("a sent review page closes its stream: nothing is left to watch", () => {
+    expect(keepEventsOpen({ token: "abc", loadStatus: null, source: "file", pastedHere: false, sent: true })).toBe(false);
+    expect(keepEventsOpen({ token: "abc", loadStatus: null, source: "file", pastedHere: false, sent: false })).toBe(true);
   });
 });

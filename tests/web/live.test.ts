@@ -18,8 +18,9 @@ class FakeStream implements EventStream {
   onerror: (() => void) | null = null;
   closed = false;
   listeners: Array<() => void> = [];
-  addEventListener(_type: "change", fn: () => void) {
-    this.listeners.push(fn);
+  submittedListeners: Array<() => void> = [];
+  addEventListener(type: "change" | "submitted", fn: () => void) {
+    (type === "submitted" ? this.submittedListeners : this.listeners).push(fn);
   }
   close() {
     this.closed = true;
@@ -27,10 +28,15 @@ class FakeStream implements EventStream {
   emitChange() {
     for (const fn of this.listeners) fn();
   }
+  emitSubmitted() {
+    for (const fn of this.submittedListeners) fn();
+  }
 }
 
 /** A fake page: clock, timers that only fire when the test says so, visibility, streams and /api/doc. */
-function fakePage(opts: { limit?: number; check?: () => Promise<DocResult> } = {}) {
+function fakePage(
+  opts: { limit?: number; check?: () => Promise<DocResult>; closeWhenHidden?: () => boolean; onSubmitted?: () => void } = {},
+) {
   let now = 1_000;
   let hidden = false;
   let timers: Array<{ id: number; at: number; fn: () => void }> = [];
@@ -64,6 +70,8 @@ function fakePage(opts: { limit?: number; check?: () => Promise<DocResult> } = {
       timers = timers.filter((t) => t.id !== id);
     },
     hiddenCloseMs: opts.limit ?? 100,
+    closeWhenHidden: opts.closeWhenHidden,
+    onSubmitted: opts.onSubmitted,
   };
   const live = connectLive(deps);
   const page = {
@@ -342,5 +350,50 @@ describe("which pages take the fresh document and what the status says", () => {
       expect(liveStatus({ ...base, source: "empty", connection }).text).toBe("Waiting for input");
       expect(liveStatus({ ...base, source: "file", pastedHere: true, connection }).text).toBe("Not watching · pasted in this tab");
     }
+  });
+});
+
+describe("review pages (S17, T47)", () => {
+  it("a review page never closes its stream because it is hidden (S14 B off)", async () => {
+    let review = false;
+    const page = fakePage({ limit: 100, closeWhenHidden: () => !review });
+    page.stream.onopen?.();
+    review = true; // the review flag arrives with the document, after the stream opened
+    page.setHidden(true);
+    page.advance(10_000);
+    page.advance(10_000, false);
+    page.setHidden(false);
+    page.setHidden(true);
+    page.advance(100_000);
+    await flush();
+    expect(page.stream.closed).toBe(false);
+    expect(page.streams).toHaveLength(1);
+    expect(page.checks).toBe(0);
+    expect(page.pendingTimers).toBe(0);
+  });
+
+  it("the hidden-tab rule still applies to every other page", () => {
+    const page = fakePage({ limit: 100, closeWhenHidden: () => true });
+    page.setHidden(true);
+    page.advance(100);
+    expect(page.stream.closed).toBe(true);
+  });
+
+  it("a submitted event reaches the page; change events still reload", () => {
+    let submitted = 0;
+    const page = fakePage({ onSubmitted: () => void submitted++ });
+    page.stream.onopen?.();
+    page.stream.emitSubmitted();
+    page.stream.emitChange();
+    expect(submitted).toBe(1);
+    expect(page.changes).toBe(1);
+  });
+
+  it("the sent message replaces the status text and stays after the server stops (instead of Stopped)", () => {
+    const base = { source: "file" as const, name: "plan.md", hasDoc: true, loadFailed: false, pastedHere: false };
+    for (const connection of ["live", "connecting", "stopped"] as const) {
+      expect(liveStatus({ ...base, connection, sent: true })).toEqual({ text: "Review sent — you can close this tab", dot: "idle" });
+    }
+    expect(liveStatus({ ...base, connection: "stopped", sent: false }).text).toBe("Stopped — run mview again for live reload");
   });
 });

@@ -1,4 +1,5 @@
 import type { Doc } from "./doc.js";
+import type { ReviewSubmission } from "../../shared/review.js";
 import { connectLive, type Connection } from "./events.js";
 
 /** The per-run token from the URL printed by the CLI (`/?t=<token>`). */
@@ -37,7 +38,15 @@ export async function fetchDoc(token: string): Promise<DocResult> {
  */
 export function watchEvents(
   token: string,
-  handlers: { onChange: () => void; onDoc: (doc: Doc) => void; onConnection: (c: Connection) => void },
+  handlers: {
+    onChange: () => void;
+    onDoc: (doc: Doc) => void;
+    onConnection: (c: Connection) => void;
+    /** `event: submitted` (S17): the review of this run was sent from some tab. */
+    onSubmitted?: () => void;
+    /** False on review pages: S14's hidden-tab close does not apply (S17). */
+    closeWhenHidden?: () => boolean;
+  },
 ): () => void {
   const live = connectLive({
     ...handlers,
@@ -51,4 +60,30 @@ export function watchEvents(
     document.removeEventListener("visibilitychange", onVisibility);
     live.stop();
   };
+}
+
+export type ReviewResult = { ok: true } | { ok: false; status: number; error: string };
+
+/** Send the review (S17): `POST /api/review?t=<token>` with the submission as JSON. */
+export async function postReview(token: string, submission: ReviewSubmission): Promise<ReviewResult> {
+  let res: Response;
+  try {
+    res = await fetch(`/api/review?t=${encodeURIComponent(token)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(submission),
+      cache: "no-store",
+    });
+  } catch {
+    return { ok: false, status: 0, error: "Can’t reach the mview server. Is the command still running?" };
+  }
+  if (res.ok) return { ok: true };
+  let body: unknown = null;
+  try {
+    body = await res.json();
+  } catch {
+    /* handled below */
+  }
+  const message = (body as { error?: unknown } | null)?.error;
+  return { ok: false, status: res.status, error: typeof message === "string" ? message : `The server answered ${res.status}.` };
 }

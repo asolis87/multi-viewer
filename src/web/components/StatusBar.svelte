@@ -5,9 +5,11 @@
     zoom: number | null;
     lastCopied: string | null;
     message: string;
+    /** Review pages (S17): the comment count. */
+    comments?: string | null;
   }
 
-  let { live, typeText, zoom, lastCopied, message }: Props = $props();
+  let { live, typeText, zoom, lastCopied, message, comments = null }: Props = $props();
 </script>
 
 <footer class="status" aria-label="Status">
@@ -16,6 +18,9 @@
     <span>{live.text}</span>
   </div>
   <div>{typeText}</div>
+  {#if comments !== null}
+    <div>{comments}</div>
+  {/if}
   {#if zoom !== null}
     <div class="opt">Zoom <strong>{zoom}%</strong></div>
   {/if}

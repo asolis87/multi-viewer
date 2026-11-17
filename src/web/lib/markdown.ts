@@ -59,6 +59,26 @@ interface Env {
   [key: string | symbol]: unknown;
   outline: OutlineItem[];
   diagrams: DiagramBlock[];
+  /** Review pages only (S17): rendered blocks carry their source lines. */
+  review: boolean;
+}
+
+export interface RenderOptions {
+  /** Add `data-start`/`data-end` source line ranges to blocks (review pages only, S17). */
+  review?: boolean;
+}
+
+/** Blocks that carry source lines on a review page (S17). Code and Mermaid fences get them on their own wrapper. */
+const LINE_BLOCKS = new Set(["paragraph_open", "heading_open", "list_item_open", "blockquote_open", "tr_open"]);
+
+/**
+ * 1-based, inclusive source lines of a block from markdown-it's `token.map` (0-based, end exclusive),
+ * with the trailing blank lines it includes trimmed (L86).
+ */
+function lineRange(map: [number, number], src: string[]): { start: number; end: number } {
+  let end = map[1];
+  while (end > map[0] + 1 && !(src[end - 1] ?? "").trim()) end--;
+  return { start: map[0] + 1, end };
 }
 
 function highlight(code: string, lang: string): string {
@@ -93,6 +113,21 @@ function isMermaidFence(token: Token): boolean {
   return token.type === "fence" && token.info.trim().split(/\s+/, 1)[0]?.toLowerCase() === "mermaid";
 }
 
+interface BlockMeta {
+  diagramId?: string;
+  lines?: { start: number; end: number };
+}
+
+function linesAttrs(meta: BlockMeta | null): string {
+  return meta?.lines ? ` data-start="${meta.lines.start}" data-end="${meta.lines.end}"` : "";
+}
+
+/** Code blocks: the line range goes on the <pre> (the renderers put token attributes on <code>). */
+function withPreLines(html: string, meta: BlockMeta | null): string {
+  const attrs = linesAttrs(meta);
+  return attrs ? html.replace(/^<pre/, `<pre${attrs}`) : html;
+}
+
 function createParser(): MarkdownIt {
   // HTML is allowed only because every render goes through DOMPurify before insertion.
   const md = new MarkdownItCallable({ html: true, linkify: true, highlight });
@@ -103,7 +138,18 @@ function createParser(): MarkdownIt {
     const env = state.env as unknown as Env;
     const used = new Set<string>();
     let lastLevel = 0;
+    const src = env.review ? state.src.split("\n") : [];
     state.tokens.forEach((token, i) => {
+      if (env.review && token.map) {
+        const { start, end } = lineRange(token.map, src);
+        if (LINE_BLOCKS.has(token.type)) {
+          token.attrSet("data-start", String(start));
+          token.attrSet("data-end", String(end));
+        } else if (token.type === "fence" || token.type === "code_block") {
+          // Set on the <pre> (or the Mermaid placeholder) by the renderers below, not on the <code>.
+          token.meta = { ...(token.meta as object | null), lines: { start, end } };
+        }
+      }
       if (token.type === "heading_open") {
         const label = inlineText(state.tokens[i + 1]).trim();
         // The "h-" prefix keeps ids from clobbering DOM globals (DOMPurify would drop them).
@@ -118,7 +164,7 @@ function createParser(): MarkdownIt {
       } else if (isMermaidFence(token)) {
         const id = `diagram-${env.diagrams.length + 1}`;
         const keyword = diagramKeyword(token.content);
-        token.meta = { diagramId: id };
+        token.meta = { ...(token.meta as object | null), diagramId: id };
         env.diagrams.push({ id, source: token.content, keyword });
         env.outline.push({ kind: "diagram", id, label: keyword, level: lastLevel + 1 });
       }
@@ -128,10 +174,13 @@ function createParser(): MarkdownIt {
   const fence = md.renderer.rules.fence!;
   md.renderer.rules.fence = (tokens, idx, options, env, self) => {
     const token = tokens[idx]!;
-    const diagramId = (token.meta as { diagramId?: string } | null)?.diagramId;
-    if (diagramId) return `<div class="mermaid-slot" id="${diagramId}" tabindex="-1"></div>\n`;
-    return fence(tokens, idx, options, env, self);
+    const meta = token.meta as BlockMeta | null;
+    if (meta?.diagramId) return `<div class="mermaid-slot" id="${meta.diagramId}"${linesAttrs(meta)} tabindex="-1"></div>\n`;
+    return withPreLines(fence(tokens, idx, options, env, self), meta);
   };
+  const codeBlock = md.renderer.rules.code_block!;
+  md.renderer.rules.code_block = (tokens, idx, options, env, self) =>
+    withPreLines(codeBlock(tokens, idx, options, env, self), tokens[idx]!.meta as BlockMeta | null);
   return md;
 }
 
@@ -230,10 +279,14 @@ export function sanitizeHtml(html: string): string {
   });
 }
 
-/** Render Markdown to sanitized HTML plus its outline (headings and embedded diagrams). */
-export function renderMarkdown(source: string): RenderedMarkdown {
+/**
+ * Render Markdown to sanitized HTML plus its outline (headings and embedded diagrams).
+ * With `review`, blocks also carry their source lines as `data-start`/`data-end` (S17);
+ * without it the HTML is exactly the plain render.
+ */
+export function renderMarkdown(source: string, options: RenderOptions = {}): RenderedMarkdown {
   parser ??= createParser();
-  const env: Env = { outline: [], diagrams: [] };
+  const env: Env = { outline: [], diagrams: [], review: options.review === true };
   const html = sanitizeHtml(parser.render(source, env));
   return { html, outline: env.outline, diagrams: env.diagrams };
 }
