@@ -3,13 +3,13 @@
   "chosen": "01-margin-rail.html",
   "handoffs": {
     "01-margin-rail.html": {
-      "status": "in_progress",
+      "status": "implemented",
       "queued": false,
       "sentAt": "2026-11-17T17:17:01.452Z",
       "startedAt": "2026-11-17T17:17:40.842Z",
-      "implementedAt": null,
+      "implementedAt": "2026-11-17T18:00:00.464Z",
       "feature": "odd/tasks/mview.md",
-      "note": "Chosen. Implementing S17 as T45 (server and CLI), T46 (line ranges) and T47 (review UI)."
+      "note": "Implemented in f6bf677 (UI) and 290ec4d/e417b28 (server+CLI). User checked it in the browser with a sample plan: 5 comments, Request changes → exit 3."
     }
   }
 }
