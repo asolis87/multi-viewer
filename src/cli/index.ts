@@ -2,12 +2,15 @@
 import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { stat } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { basename, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { HELP, parseCliArgs } from "./args.js";
+import { typeFromFilename } from "../shared/detect.js";
+import type { ReviewSubmission } from "../shared/review.js";
 import { runDetached } from "./detach.js";
 import { emptyDoc, fromContent, readFileDoc, readStream, type Doc } from "./input.js";
-import { startServer } from "./server.js";
+import { formatReview, reviewExitCode } from "./review.js";
+import { startServer, type RunningServer } from "./server.js";
 import { installSkill, readSkill } from "./skill.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -51,22 +54,14 @@ async function main(argv: string[]): Promise<number> {
     return 2;
   }
 
+  if (args.kind === "review") return runReview(args.file, args.port, args.open);
+
   let getDoc: () => Promise<Doc>;
   let watchPath: string | null = null;
 
   if (args.file) {
-    const path = resolve(args.file);
-    let info;
-    try {
-      info = await stat(path);
-    } catch {
-      process.stderr.write(`mview: file not found: ${args.file}\n`);
-      return 1;
-    }
-    if (!info.isFile()) {
-      process.stderr.write(`mview: not a file: ${args.file}\n`);
-      return 1;
-    }
+    const path = await checkFile(args.file);
+    if (path === null) return 1;
     if (args.detach) {
       return runDetached({
         execPath: process.execPath,
@@ -131,19 +126,10 @@ async function main(argv: string[]): Promise<number> {
       : {}),
   });
 
-  let watcher: { close(): Promise<void> } | null = null;
-  if (watchPath) {
-    const { watch } = await import("chokidar");
-    const w = watch(watchPath, { ignoreInitial: true, awaitWriteFinish: { stabilityThreshold: 80, pollInterval: 20 } });
-    w.on("all", () => server.notifyChange());
-    watcher = w;
-  }
+  const watcher = watchPath ? await watchFile(watchPath, server) : null;
 
   process.stdout.write(`mview: ${server.url}\nPress Ctrl+C to stop.\n`);
-  if (args.open) {
-    const { default: open } = await import("open");
-    open(server.url).catch(() => process.stderr.write("mview: could not open the browser; open the URL above.\n"));
-  }
+  if (args.open) await openBrowser(server.url);
 
   process.once("SIGINT", stop);
   process.once("SIGTERM", stop);
@@ -151,6 +137,84 @@ async function main(argv: string[]): Promise<number> {
   await watcher?.close();
   await server.close();
   return 0;
+}
+
+/**
+ * S17: serve one Markdown file as a review page and wait for the human's decision. Startup lines
+ * go to stderr so stdout carries only the result. Piped stdin is never read.
+ */
+async function runReview(file: string, port: number, openPage: boolean): Promise<number> {
+  const path = await checkFile(file);
+  if (path === null) return 1;
+  // S4's extension rule: .md, .markdown or no known extension.
+  if ((typeFromFilename(basename(path)) ?? "markdown") !== "markdown") {
+    process.stderr.write(`mview: review needs a Markdown file: ${file}\n`);
+    return 1;
+  }
+
+  type Outcome = { kind: "submitted"; submission: ReviewSubmission } | { kind: "idle" } | { kind: "signal" };
+  let finish: (outcome: Outcome) => void = () => {};
+  const finished = new Promise<Outcome>((done) => (finish = done));
+
+  const server = await startServer({
+    webRoot: WEB_ROOT,
+    token: randomBytes(24).toString("base64url"),
+    port,
+    // Reviewed as Markdown even when the content of an extension-less file sniffs as another type.
+    getDoc: async () => ({ ...(await readFileDoc(path)), type: "markdown" }),
+    idle: { afterLastMs: AUTO_CLOSE_AFTER_LAST_MS, noneMs: AUTO_CLOSE_NONE_MS, onIdle: () => finish({ kind: "idle" }) },
+    review: { onSubmit: (submission) => finish({ kind: "submitted", submission }) },
+  });
+  const watcher = await watchFile(path, server);
+
+  process.stderr.write(`mview: ${server.url}\nPress Ctrl+C to stop.\n`);
+  if (openPage) await openBrowser(server.url);
+
+  process.once("SIGINT", () => finish({ kind: "signal" }));
+  process.once("SIGTERM", () => finish({ kind: "signal" }));
+  const outcome = await finished;
+  await watcher.close();
+  await server.close();
+
+  if (outcome.kind === "idle") {
+    process.stderr.write("mview: review closed without a decision\n");
+    return 4;
+  }
+  // 130, not 0: an interrupted review must never read as "approved" (L87).
+  if (outcome.kind === "signal") return 130;
+  const result = formatReview(basename(path), outcome.submission);
+  // Wait for the write: process.exit() right after could cut off a piped stdout.
+  await new Promise<void>((done) => process.stdout.write(result, () => done()));
+  return reviewExitCode(outcome.submission.decision);
+}
+
+/** S2: the absolute path of an existing regular file, or `null` after printing why not. */
+async function checkFile(file: string): Promise<string | null> {
+  const path = resolve(file);
+  let info;
+  try {
+    info = await stat(path);
+  } catch {
+    process.stderr.write(`mview: file not found: ${file}\n`);
+    return null;
+  }
+  if (!info.isFile()) {
+    process.stderr.write(`mview: not a file: ${file}\n`);
+    return null;
+  }
+  return path;
+}
+
+async function watchFile(path: string, server: RunningServer): Promise<{ close(): Promise<void> }> {
+  const { watch } = await import("chokidar");
+  const watcher = watch(path, { ignoreInitial: true, awaitWriteFinish: { stabilityThreshold: 80, pollInterval: 20 } });
+  watcher.on("all", () => server.notifyChange());
+  return watcher;
+}
+
+async function openBrowser(url: string): Promise<void> {
+  const { default: open } = await import("open");
+  open(url).catch(() => process.stderr.write("mview: could not open the browser; open the URL above.\n"));
 }
 
 function readVersion(): string {

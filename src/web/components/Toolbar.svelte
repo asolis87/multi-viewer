@@ -2,6 +2,8 @@
   import { TYPE_LABEL, TYPE_OPTIONS, type SelectValue } from "../lib/typeState.js";
   import type { DocType } from "../lib/doc.js";
   import { THEME_OPTIONS, type ThemeChoice } from "../lib/theme.js";
+  import type { ReviewControls } from "../lib/review.js";
+  import ReviewIcon from "./ReviewIcon.svelte";
 
   interface Props {
     name: string;
@@ -17,9 +19,11 @@
     onselect: (value: SelectValue) => void;
     theme: ThemeChoice;
     ontheme: (theme: ThemeChoice) => void;
+    /** Review page controls (S17); null on every other page. */
+    review?: ReviewControls | null;
   }
 
-  let { name, sourceLabel, detected, value, drawerOpen, outlineAlways = false, outlineButton = $bindable(), ontoggleoutline, onselect, theme, ontheme }: Props = $props();
+  let { name, sourceLabel, detected, value, drawerOpen, outlineAlways = false, outlineButton = $bindable(), ontoggleoutline, onselect, theme, ontheme, review = null }: Props = $props();
 </script>
 
 <header class="toolbar">
@@ -45,13 +49,16 @@
       <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 1.5h5l3.5 3.5v9.5h-8.5z M9 1.5V5h3.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" /></svg>
       <span class="sr">Source:</span><span class="chip-text">{sourceLabel}</span>
     </span>
+    {#if review}
+      <span class="chip" title="Comment on this document, then request changes or approve it"><ReviewIcon name="bubble" /><span class="chip-text">Review</span></span>
+    {/if}
   </div>
   <div class="spacer"></div>
   <div class="type">
     <label for="type-select">Render as</label>
     <select
       id="type-select"
-      disabled={detected === null}
+      disabled={detected === null || !!review}
       {value}
       onchange={(e) => onselect((e.currentTarget as HTMLSelectElement).value as SelectValue)}
     >
@@ -76,4 +83,15 @@
       {/each}
     </select>
   </div>
+  {#if review}
+    <span class="tb-sep" aria-hidden="true"></span>
+    {#if review.sent}
+      <p class="sent-msg"><ReviewIcon name="check" />Review sent — you can close this tab</p>
+    {:else}
+      <div class="decide">
+        <button class="btn" type="button" aria-describedby="req-hint" disabled={review.count === 0 || review.busy} onclick={review.onrequest}>Request changes</button>
+        <button class="btn primary" type="button" disabled={review.busy} onclick={review.onapprove}>{review.count > 0 ? "Approve with comments" : "Approve"}</button>
+      </div>
+    {/if}
+  {/if}
 </header>

@@ -4,6 +4,8 @@ import { extname, resolve, sep } from "node:path";
 import { timingSafeEqual } from "node:crypto";
 import type { AddressInfo } from "node:net";
 import type { Doc } from "./input.js";
+import { MAX_BODY_BYTES, type ReviewSubmission } from "../shared/review.js";
+import { validateSubmission } from "./review.js";
 
 export interface ServerOptions {
   webRoot: string;
@@ -16,6 +18,12 @@ export interface ServerOptions {
    * reconnecting, or `noneMs` after listening if no stream ever connected.
    */
   idle?: { afterLastMs: number; noneMs: number; onIdle: () => void };
+  /**
+   * Makes this a review server (S17): `/api/doc` carries `review: true` and `POST /api/review`
+   * accepts one submission. `onSubmit` runs once, after the response and the `submitted`
+   * event were sent; from then on the idle close no longer fires.
+   */
+  review?: { onSubmit: (submission: ReviewSubmission) => void };
 }
 
 export interface RunningServer {
@@ -66,6 +74,7 @@ export function startServer(options: ServerOptions): Promise<RunningServer> {
   let idleTimer: ReturnType<typeof setTimeout> | undefined;
   let idleDone = false;
   let closed = false;
+  let submitted = false;
 
   function armIdle(ms: number): void {
     const idle = options.idle;
@@ -93,11 +102,15 @@ export function startServer(options: ServerOptions): Promise<RunningServer> {
     // Reject DNS-rebinding: a page on another origin resolving to 127.0.0.1 sends its own Host.
     // Host names are case-insensitive in HTTP; the allowed set is lowercase.
     if (!allowedHosts.has((req.headers.host ?? "").toLowerCase())) return sendText(res, 403, "Forbidden");
-    if (req.method !== "GET" && req.method !== "HEAD") return sendText(res, 405, "Method Not Allowed");
+    // S17: only a review server has a POST route; on every other server POST stays 405 everywhere.
+    const reviewRoute = options.review !== undefined && pathOf(req.url) === "/api/review";
+    const allowed = reviewRoute ? req.method === "POST" : req.method === "GET" || req.method === "HEAD";
+    if (!allowed) return sendText(res, 405, "Method Not Allowed");
 
     const url = new URL(req.url ?? "/", `http://${HOST}`);
     if (url.pathname.startsWith("/api/")) {
       if (!tokenMatches(url.searchParams.get("t"), options.token)) return sendText(res, 403, "Forbidden");
+      if (reviewRoute) return receiveReview(req, res);
       if (url.pathname === "/api/doc") return sendDoc(res);
       if (url.pathname === "/api/events") return openEvents(req, res);
       return sendText(res, 404, "Not Found");
@@ -107,10 +120,61 @@ export function startServer(options: ServerOptions): Promise<RunningServer> {
 
   async function sendDoc(res: ServerResponse): Promise<void> {
     try {
-      sendJson(res, 200, await options.getDoc());
+      const doc = await options.getDoc();
+      sendJson(res, 200, options.review ? { ...doc, review: true } : doc);
     } catch (error) {
       sendJson(res, 500, { error: (error as Error).message });
     }
+  }
+
+  /** S17 checks after Host, method and token, in order: Origin, Content-Type, size, once, body. */
+  async function receiveReview(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    const review = options.review!;
+    // The page's own origin only: a form or fetch from any other site sends its own Origin (or none).
+    if ((req.headers.origin ?? "").toLowerCase() !== `http://${(req.headers.host ?? "").toLowerCase()}`) {
+      return sendText(res, 403, "Forbidden");
+    }
+    const mediaType = (req.headers["content-type"] ?? "").split(";", 1)[0]!.trim().toLowerCase();
+    if (mediaType !== "application/json") return sendText(res, 415, "Unsupported Media Type");
+    const body = await readBody(req, MAX_BODY_BYTES);
+    if (body === null) {
+      res.setHeader("Connection", "close");
+      return sendText(res, 413, "Payload Too Large");
+    }
+    if (submitted) return sendJson(res, 409, { error: "the review was already submitted" });
+    // Idle already ended the run as "no decision" (exit 4): a late submission must not look accepted.
+    if (idleDone || closed) return sendJson(res, 410, { error: "the review already closed without a decision" });
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(body.toString("utf8"));
+    } catch {
+      return sendJson(res, 400, { error: "body must be valid JSON" });
+    }
+    const result = validateSubmission(parsed);
+    if (!result.ok) return sendJson(res, 400, { error: result.error });
+
+    submitted = true;
+    // A page closing after the decision must not turn it into "no decision".
+    idleDone = true;
+    clearTimeout(idleTimer);
+    // "close" too: a page closed right after Submit never sees "finish", and the accepted
+    // decision must still reach the CLI instead of waiting forever (review advisory R3-002/R4-001).
+    const answered = new Promise<void>((done) => {
+      res.once("finish", () => done());
+      res.once("close", () => done());
+    });
+    sendJson(res, 200, { ok: true });
+    const events = [...clients].map(
+      (client) =>
+        new Promise<void>((done) => {
+          client.once("close", () => done());
+          client.write("event: submitted\ndata: {}\n\n", () => done());
+        }),
+    );
+    // Hand over only once the answer and the events were flushed: the CLI stops the server next.
+    await Promise.all([answered, ...events]);
+    review.onSubmit(result.value);
   }
 
   function openEvents(req: IncomingMessage, res: ServerResponse): void {
@@ -186,6 +250,46 @@ export function startServer(options: ServerOptions): Promise<RunningServer> {
         },
       });
     });
+  });
+}
+
+function pathOf(rawUrl: string | undefined): string {
+  try {
+    return new URL(rawUrl ?? "/", `http://${HOST}`).pathname;
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Reads at most `limit` bytes; `null` when the body is larger. The rest is discarded, not
+ * buffered, and the connection is closed after the answer.
+ */
+function readBody(req: IncomingMessage, limit: number): Promise<Buffer | null> {
+  const declared = Number(req.headers["content-length"]);
+  if (Number.isFinite(declared) && declared > limit) {
+    req.resume();
+    return Promise.resolve(null);
+  }
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    let size = 0;
+    let tooLarge = false;
+    req.on("data", (chunk: Buffer) => {
+      if (tooLarge) return;
+      size += chunk.length;
+      if (size > limit) {
+        tooLarge = true;
+        chunks.length = 0;
+        resolve(null);
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on("end", () => {
+      if (!tooLarge) resolve(Buffer.concat(chunks));
+    });
+    req.on("error", reject);
   });
 }
 

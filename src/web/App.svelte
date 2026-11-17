@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, tick } from "svelte";
+  import { onMount, tick, untrack } from "svelte";
   import Toolbar from "./components/Toolbar.svelte";
   import { applyTheme, resolveDark, type ThemeChoice } from "./lib/theme.js";
   import Sidebar from "./components/Sidebar.svelte";
@@ -10,8 +10,10 @@
   import CsvView from "./components/CsvView.svelte";
   import PasteView from "./components/PasteView.svelte";
   import LoadError from "./components/LoadError.svelte";
-  import { fetchDoc, readToken, watchEvents, type DocResult } from "./lib/api.js";
-  import { keepEventsOpen, liveStatus, reloadOnChange, replaceOnReconnect, type Connection } from "./lib/events.js";
+  import ReviewView from "./components/ReviewView.svelte";
+  import { fetchDoc, postReview, readToken, watchEvents, type DocResult } from "./lib/api.js";
+  import { closeWhenHidden, keepEventsOpen, liveStatus, reloadOnChange, replaceOnReconnect, type Connection } from "./lib/events.js";
+  import { buildSubmission, clearDrafts, loadDrafts, noteContent, saveDrafts, type DraftState, type ReviewAction, type ReviewControls } from "./lib/review.js";
   import { detectType, type Doc } from "./lib/doc.js";
   import { choose, effectiveType, freshContent, reload, selectValue, TYPE_LABEL, type SelectValue, type TypeChoice } from "./lib/typeState.js";
   import { renderMarkdown, type DiagramBlock } from "./lib/markdown.js";
@@ -49,6 +51,20 @@
   let mermaidView: MermaidView | undefined = $state();
   let jsonView: JsonView | undefined = $state();
   let csvView: CsvView | undefined = $state();
+  let reviewView: ReviewView | undefined = $state();
+
+  // Review mode (S17): only pages whose Doc has `review: true`.
+  /** The tab's sessionStorage (drafts, L84); null when the browser denies it. */
+  const tabStorage: Storage | null = (() => {
+    try {
+      return sessionStorage;
+    } catch {
+      return null;
+    }
+  })();
+  let drafts = $state<DraftState | null>(null);
+  let sent = $state(false);
+  let submitting = $state(false);
 
   const type = $derived(effectiveType(choice));
   const isEmpty = $derived(doc !== null && doc.source === "empty" && !pastedHere);
@@ -66,8 +82,10 @@
   );
   const watching = $derived(doc?.source === "file" && !pastedHere);
 
+  const reviewPage = $derived(doc?.review === true && !pastedHere);
+
   const live = $derived(
-    liveStatus({ source: doc?.source ?? null, name, hasDoc: !!doc, loadFailed: !!loadError, pastedHere, connection }),
+    liveStatus({ source: doc?.source ?? null, name, hasDoc: !!doc, loadFailed: !!loadError, pastedHere, connection, sent: reviewPage && sent }),
   );
 
   const typeText = $derived.by(() => {
@@ -75,8 +93,48 @@
     if (!doc) return "Loading…";
     if (isEmpty) return "Type: waiting for paste";
     if (statusOverride) return statusOverride;
+    if (reviewPage) return `${TYPE_LABEL[type]} · review`;
     return `${TYPE_LABEL[type]} · ${choice.override ? "manual" : "auto-detected"}`;
   });
+
+  const commentCount = $derived(drafts?.comments.length ?? 0);
+  const commentsText = $derived(
+    reviewPage ? (commentCount ? `${commentCount} ${commentCount === 1 ? "comment" : "comments"}` : "No comments") : null,
+  );
+
+  // Drafts live in this tab until the review is sent (S17, L84).
+  $effect(() => {
+    if (!reviewPage || !drafts || sent) return;
+    saveDrafts(tabStorage, token, $state.snapshot(drafts) as DraftState);
+  });
+
+  function markSent() {
+    if (sent) return;
+    sent = true;
+    clearDrafts(tabStorage, token);
+  }
+
+  async function submit(action: ReviewAction) {
+    if (sent || submitting || !drafts) return;
+    const body = buildSubmission(action, $state.snapshot(drafts.comments) as DraftState["comments"]);
+    if (!body) return;
+    submitting = true;
+    const result = await postReview(token, body);
+    submitting = false;
+    if (result.ok || result.status === 409) {
+      // 409: this run's review was already sent (from another tab); the page is read-only either way.
+      markSent();
+      announce("");
+    } else {
+      announce(`Couldn’t send the review: ${result.error}`);
+    }
+  }
+
+  const reviewControls = $derived<ReviewControls | null>(
+    reviewPage
+      ? { count: commentCount, sent, busy: submitting, onrequest: () => void submit("request"), onapprove: () => void submit("approve") }
+      : null,
+  );
 
   let seq = 0;
   async function load() {
@@ -92,6 +150,10 @@
       const first = doc === null;
       doc = result.doc;
       choice = first ? freshContent(result.doc.type) : reload(choice, result.doc.type);
+      if (result.doc.review && !pastedHere) {
+        // The first content this tab saw is the base; any later content turns the file-changed notice on.
+        drafts = drafts ? noteContent(drafts, result.doc.content) : loadDrafts(tabStorage, token, result.doc.content);
+      }
       if (canvasDiagram) {
         // Keep an open canvas in sync with the reloaded document (or close it if the diagram is gone).
         const id = canvasDiagram.id;
@@ -162,7 +224,7 @@
     active = item.id;
     if (narrow && drawerOpen) setDrawer(false, false);
     if (canvasDiagram) mermaidView?.reveal(item.id, item.label);
-    else if (type === "markdown") markdownView?.reveal(item.id);
+    else if (type === "markdown") (reviewPage ? reviewView : markdownView)?.reveal(item.id);
     else if (type === "mermaid") mermaidView?.reveal(item.id, item.label);
     else if (type === "json") jsonView?.reveal(item.id);
     else if (type === "csv") csvView?.reveal(item.id);
@@ -234,7 +296,7 @@
   // The events stream stays open for every source and after a paste (S11: it is how --auto-close
   // knows this page is open). Only a watched file refetches on `change` (live reload, S2).
   const eventsOpen = $derived(
-    keepEventsOpen({ token, loadStatus: loadError?.status ?? null, source: doc?.source ?? null, pastedHere }),
+    keepEventsOpen({ token, loadStatus: loadError?.status ?? null, source: doc?.source ?? null, pastedHere, sent }),
   );
   function onEventsChange() {
     if (reloadOnChange({ source: doc?.source ?? null, pastedHere, loadStatus: loadError?.status ?? null })) void load();
@@ -248,7 +310,17 @@
   }
   $effect(() => {
     if (!eventsOpen) return;
-    return watchEvents(token, { onChange: onEventsChange, onDoc: onReconnectDoc, onConnection: (c) => (connection = c) });
+    return watchEvents(token, {
+      onChange: onEventsChange,
+      onDoc: onReconnectDoc,
+      onConnection: (c) => (connection = c),
+      // S17: every open page of the run becomes read-only when the review is sent.
+      onSubmitted: () => {
+        if (doc?.review) markSent();
+      },
+      // Read when the hidden-tab rule is checked (the review flag arrives with the document).
+      closeWhenHidden: () => untrack(() => closeWhenHidden({ review: doc?.review })),
+    });
   });
 
   $effect(() => {
@@ -286,6 +358,7 @@
   onselect={onSelect}
   {theme}
   ontheme={(t) => (theme = t)}
+  review={reviewControls}
 />
 
 <div class="workspace" class:drawer-open={drawerOpen} class:collapsible class:outline-open={collapsible && outlineOpen}>
@@ -314,6 +387,21 @@
         oncopy={copy}
         onexport={(svg) => exportSvg(svg, canvasDiagram?.id)}
         onback={closeCanvas}
+      />
+    {:else if type === "markdown" && reviewPage && drafts}
+      <ReviewView
+        bind:this={reviewView}
+        content={doc.content}
+        {dark}
+        scrollRoot={mainEl}
+        {drafts}
+        {sent}
+        onchange={(next) => (drafts = next)}
+        onannounce={announce}
+        onoutline={setOutline}
+        onactive={setActive}
+        onopencanvas={openCanvas}
+        onexport={exportSvg}
       />
     {:else if type === "markdown"}
       <MarkdownView
@@ -366,4 +454,4 @@
   </main>
 </div>
 
-<StatusBar {live} {typeText} {zoom} {lastCopied} {message} />
+<StatusBar {live} {typeText} {zoom} {lastCopied} {message} comments={commentsText} />

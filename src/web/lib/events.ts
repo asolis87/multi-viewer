@@ -11,8 +11,18 @@ export function keepEventsOpen(state: {
   loadStatus: number | null;
   source: DocSource | null;
   pastedHere: boolean;
+  /** A review page after its review was sent (S17): the server is stopping. */
+  sent?: boolean;
 }): boolean {
-  return state.token !== "" && state.loadStatus !== 403;
+  return state.token !== "" && state.loadStatus !== 403 && !state.sent;
+}
+
+/**
+ * S14's hidden-tab close applies to every page except review pages (S17): a review stays open
+ * while the human reads the plan in another window; closing every tab still ends it (S11).
+ */
+export function closeWhenHidden(state: { review: boolean | undefined }): boolean {
+  return state.review !== true;
 }
 
 /**
@@ -33,7 +43,7 @@ export type Connection = "connecting" | "live" | "stopped";
 export interface EventStream {
   onopen: ((ev: Event) => unknown) | null;
   onerror: ((ev: Event) => unknown) | null;
-  addEventListener(type: "change", fn: () => void): void;
+  addEventListener(type: "change" | "submitted", fn: () => void): void;
   close(): void;
 }
 
@@ -46,6 +56,10 @@ export interface LiveDeps {
   /** The document from a successful reconnect check. */
   onDoc: (doc: Doc) => void;
   onConnection: (c: Connection) => void;
+  /** A `submitted` event: the review of this run was sent (S17). */
+  onSubmitted?: () => void;
+  /** Read whenever the hidden-tab rule is checked; false on review pages (S17). Default: always true. */
+  closeWhenHidden?: () => boolean;
   now?: () => number;
   isHidden?: () => boolean;
   setTimer?: (fn: () => void, ms: number) => unknown;
@@ -65,6 +79,7 @@ export function connectLive(deps: LiveDeps): { visibilityChanged(): void; stop()
   const setTimer = deps.setTimer ?? ((fn: () => void, ms: number) => setTimeout(fn, ms));
   const clearTimer = deps.clearTimer ?? ((h: unknown) => clearTimeout(h as ReturnType<typeof setTimeout>));
   const limit = deps.hiddenCloseMs ?? HIDDEN_CLOSE_MS;
+  const closesWhenHidden = deps.closeWhenHidden ?? (() => true);
 
   /** open: a stream exists · closed: closed after being hidden · checking · stopped (final). */
   let state: "open" | "closed" | "checking" | "stopped" = "open";
@@ -111,6 +126,12 @@ export function connectLive(deps: LiveDeps): { visibilityChanged(): void; stop()
     s.addEventListener("change", () => {
       if (stream === s) deps.onChange();
     });
+    const onSubmitted = deps.onSubmitted;
+    if (onSubmitted) {
+      s.addEventListener("submitted", () => {
+        if (stream === s) onSubmitted();
+      });
+    }
     if (hiddenSince !== null) arm();
   }
 
@@ -139,7 +160,7 @@ export function connectLive(deps: LiveDeps): { visibilityChanged(): void; stop()
   /** Close the stream once the page has been hidden long enough; otherwise wait for the rest. */
   function arm() {
     clear();
-    if (hiddenSince === null || state !== "open") return;
+    if (hiddenSince === null || state !== "open" || !closesWhenHidden()) return;
     const left = limit - (now() - hiddenSince);
     if (left <= 0) {
       closeStream();
@@ -191,7 +212,10 @@ export function liveStatus(s: {
   loadFailed: boolean;
   pastedHere: boolean;
   connection: Connection;
+  /** The review was sent (S17): this message replaces the status and outlives the server. */
+  sent?: boolean;
 }): { text: string; dot: "ok" | "off" | "idle" } {
+  if (s.sent) return { text: "Review sent — you can close this tab", dot: "idle" };
   if (s.pastedHere) return { text: "Not watching · pasted in this tab", dot: "idle" };
   if (!s.hasDoc) return { text: s.loadFailed ? "Not connected" : "Connecting…", dot: "idle" };
   if (s.source === "file") {

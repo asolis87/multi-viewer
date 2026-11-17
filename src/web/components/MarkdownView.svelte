@@ -12,12 +12,28 @@
     onactive: (id: string | null) => void;
     onopencanvas: (diagram: DiagramBlock) => void;
     onexport: (svg: SVGSVGElement, suffix: string) => void;
+    /** Review page (S17): blocks carry source line attributes. */
+    review?: boolean;
+    /** Outline footer text. */
+    foot?: string;
+    /** The rendered article (the review UI reads its blocks). */
+    article?: HTMLElement;
   }
 
-  let { content, dark, scrollRoot, onoutline, onactive, onopencanvas, onexport }: Props = $props();
+  let {
+    content,
+    dark,
+    scrollRoot,
+    onoutline,
+    onactive,
+    onopencanvas,
+    onexport,
+    review = false,
+    foot = "Click an item to jump to it.",
+    article = $bindable(),
+  }: Props = $props();
 
-  let article: HTMLElement | undefined = $state();
-  const rendered = $derived(renderMarkdown(content));
+  const rendered = $derived(renderMarkdown(content, { review }));
 
   $effect(() => {
     const { outline } = rendered;
@@ -25,7 +41,7 @@
     const headings = outline.filter((o) => o.kind === "heading").length;
     onoutline({
       sub: `Headings · ${headings}`,
-      foot: "Click an item to jump to it.",
+      foot,
       empty: "No headings in this document.",
       items: outline.map((o) => ({
         id: o.id,

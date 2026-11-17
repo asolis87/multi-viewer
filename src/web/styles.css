@@ -372,3 +372,106 @@ th.num .th-btn { justify-content: flex-end; }
 .remote-image-title { font-weight: 600; color: var(--text); }
 .remote-image-alt { color: var(--text); }
 .remote-image-url { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; word-break: break-all; }
+
+/* Review mode (S17; design/mview-review/01-margin-rail.html, "Margin rail"). Only review pages
+   render these classes; every other page keeps today's look. */
+.tb-sep { width: 1px; align-self: stretch; margin: 4px 0; background: var(--border); }
+.decide { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.decide .btn:disabled:hover { background: var(--surface); filter: none; }
+.decide .btn.primary:disabled:hover { background: var(--accent); }
+.sent-msg { display: inline-flex; align-items: center; gap: 8px; margin: 0; font-size: 13px; font-weight: 600; color: var(--text); }
+.sent-msg svg { width: 16px; height: 16px; color: var(--ok); flex: none; }
+
+/* Commented quote, current comment, and the selection kept while the popover is open (CSS Custom Highlight API).
+   The underline keeps the cue from relying on the fill alone. */
+::highlight(rv-quote) { background-color: var(--hit); color: var(--text); text-decoration: underline 2px var(--warn); }
+::highlight(rv-active) { background-color: var(--accent); color: var(--accent-ink); }
+::highlight(rv-sel) { background-color: var(--accent-soft); color: var(--text); text-decoration: underline 2px var(--accent); }
+/* Whole-block comments: the --warn bar on the left keeps them visible where --hit is close to the page colour. */
+.md .rv-block, .md .rv-active-block { background: var(--hit); box-shadow: 0 0 0 4px var(--hit), -7px 0 0 0 var(--warn); border-radius: 2px; }
+.md .rv-active-block { box-shadow: 0 0 0 4px var(--hit), -7px 0 0 0 var(--warn), 0 0 0 6px var(--accent); }
+.md pre.rv-block, .md pre.rv-active-block { background: var(--surface); }
+.md .rv-target { outline: 2px dashed var(--accent); outline-offset: 4px; border-radius: 2px; }
+
+.rv-bar { position: sticky; top: 0; z-index: 5; padding: 8px 40px; background: var(--bg); border-bottom: 1px solid var(--border); }
+.notice { display: flex; align-items: center; gap: 8px; padding: 6px 12px; background: var(--surface-2); border: 1px solid var(--border);
+  box-shadow: inset 3px 0 var(--warn); border-radius: 6px; font-size: 13px; color: var(--text); }
+.notice svg { width: 16px; height: 16px; color: var(--warn); flex: none; }
+
+.doc-wrap { position: relative; display: grid; grid-template-columns: 800px 320px; column-gap: 28px; align-items: start; padding-right: 24px; }
+
+/* Block comment controls: one row per block start, beside the text column. */
+.ctl-layer { position: absolute; left: 0; top: 0; width: 0; height: 0; }
+.ctl-row { position: absolute; left: 766px; display: flex; align-items: center; gap: 4px; height: 32px; }
+.blk-btn { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--surface); color: var(--muted); cursor: pointer; opacity: 0; }
+.blk-btn svg { width: 16px; height: 16px; }
+.blk-btn:hover { background: var(--surface-2); color: var(--text); }
+.ctl-row.is-hover .blk-btn, .ctl-row:hover .blk-btn, .blk-btn:focus-visible { opacity: 1; }
+@media (hover: none) { .blk-btn { opacity: 1; } }
+@media (pointer: coarse) { .blk-btn { width: var(--target); height: var(--target); } }
+
+/* Kinds: icon + label, never colour alone. */
+.kind { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: 12px; color: var(--text); white-space: nowrap; }
+.kind svg { width: 14px; height: 14px; flex: none; }
+.kind-change svg { color: var(--warn); } .kind-answer svg { color: var(--accent); } .kind-note svg { color: var(--muted); }
+.lines { font: 12px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* Margin rail of comment cards. */
+.rail { min-width: 0; padding: 32px 0 80px; }
+.rail-head { display: flex; align-items: baseline; gap: 6px; margin: 0 0 2px; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.rail-note { margin: 0 0 12px; font-size: 12px; color: var(--muted); }
+.rail-empty { margin: 0 0 8px; font-size: 13px; color: var(--text); }
+.req-hint { margin: 0 0 12px; font-size: 12px; color: var(--muted); }
+.c-list { list-style: none; margin: 0; padding: 0; }
+.rail-list { position: relative; }
+.rail-list:not(.is-aligned) { display: grid; gap: 8px; }
+.rail-list.is-aligned .c-item { position: absolute; left: 0; right: 0; transition: top 160ms ease; }
+.rail-list.is-aligned .c-item.is-active { left: -8px; right: 8px; }
+.c-item { display: grid; gap: 6px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  font: 13px/1.5 var(--font); color: var(--text); cursor: pointer; }
+.c-item:hover { border-color: var(--line); }
+.c-item.is-active { border-color: var(--accent); box-shadow: inset 3px 0 var(--accent); }
+.c-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.c-go { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; min-height: 28px; padding: 0; border: 0; background: none; border-radius: 4px; cursor: pointer; text-align: left; }
+.c-quote { margin: 0; padding: 0 0 0 10px; border-left: 3px solid var(--line); color: var(--muted); font: italic 13px/1.5 "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-line; }
+.c-whole { margin: 0; font-size: 12px; color: var(--muted); }
+.c-text { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.c-gone { margin: 0; font-size: 12px; color: var(--muted); }
+.c-actions { display: flex; gap: 4px; margin-left: -8px; }
+.c-actions .btn { min-height: 28px; padding: 0 8px; font-size: 12px; }
+
+/* Selection trigger and comment popover. */
+.sel-btn { position: fixed; z-index: 30; box-shadow: 0 4px 16px rgb(0 0 0 / .10); }
+.sel-btn kbd { background: transparent; color: inherit; border-color: currentColor; }
+.pop { position: fixed; z-index: 31; width: 380px; max-width: calc(100vw - 24px); display: grid; gap: 10px; padding: 14px; background: var(--surface);
+  border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 4px 16px rgb(0 0 0 / .10); font: 13px/1.5 var(--font); }
+.pop-title { margin: 0; font-size: 13px; font-weight: 600; }
+.pop .c-quote { -webkit-line-clamp: 3; }
+.kinds { display: inline-flex; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; min-width: 0; justify-self: start; }
+.kinds legend { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.kinds label { position: relative; display: flex; align-items: center; gap: 6px; padding: 0 10px; min-height: calc(var(--target) - 2px); background: var(--surface);
+  color: var(--muted); cursor: pointer; white-space: nowrap; }
+.kinds label + label { border-left: 1px solid var(--border); }
+.kinds input { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; }
+.kinds label:has(input:checked) { background: var(--surface-3); color: var(--text); font-weight: 600; }
+.kinds label:has(input:focus-visible) { outline: 2px solid var(--focus); outline-offset: -2px; }
+.kinds .kind { font-weight: inherit; font-size: 13px; color: inherit; }
+.pop-lbl { display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; }
+.pop-lbl span { font-weight: 400; color: var(--muted); }
+.pop textarea { width: 100%; min-height: 88px; resize: vertical; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); font-size: 13px; line-height: 1.5; }
+.pop textarea:focus-visible { outline-offset: 1px; }
+.pop-foot { display: flex; align-items: center; gap: 8px; }
+.pop-hint { flex: 1; margin: 0; font-size: 12px; color: var(--muted); }
+
+@media (max-width: 1100px) {
+  .doc-wrap { grid-template-columns: minmax(0, 1fr); padding-right: 0; }
+  .rail { padding: 20px 40px 64px; border-top: 1px solid var(--border); }
+  .ctl-layer { width: auto; right: 0; }
+  .ctl-row { left: auto; right: 8px; }
+  .rv-bar { padding: 8px 16px; }
+}
+@media (max-width: 899px) {
+  .rail { padding: 20px 16px 48px; }
+}
