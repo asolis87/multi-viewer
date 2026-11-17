@@ -158,10 +158,19 @@ export function startServer(options: ServerOptions): Promise<RunningServer> {
     // A page closing after the decision must not turn it into "no decision".
     idleDone = true;
     clearTimeout(idleTimer);
-    const answered = new Promise<void>((done) => res.once("finish", () => done()));
+    // "close" too: a page closed right after Submit never sees "finish", and the accepted
+    // decision must still reach the CLI instead of waiting forever (review advisory R3-002/R4-001).
+    const answered = new Promise<void>((done) => {
+      res.once("finish", () => done());
+      res.once("close", () => done());
+    });
     sendJson(res, 200, { ok: true });
     const events = [...clients].map(
-      (client) => new Promise<void>((done) => client.write("event: submitted\ndata: {}\n\n", () => done())),
+      (client) =>
+        new Promise<void>((done) => {
+          client.once("close", () => done());
+          client.write("event: submitted\ndata: {}\n\n", () => done());
+        }),
     );
     // Hand over only once the answer and the events were flushed: the CLI stops the server next.
     await Promise.all([answered, ...events]);
