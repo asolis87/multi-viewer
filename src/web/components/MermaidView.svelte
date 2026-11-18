@@ -17,9 +17,11 @@
     oncopy: (text: string, label: string) => void;
     onexport: (svg: SVGSVGElement) => void;
     onback?: () => void;
+    /** Edit mode (S18): `Go to line N` moves the editor cursor. */
+    ongotoline?: ((line: number) => void) | null;
   }
 
-  let { source, name, dark, watching, onoutline, onstatus, onzoom, oncopy, onexport, onback }: Props = $props();
+  let { source, name, dark, watching, onoutline, onstatus, onzoom, oncopy, onexport, onback, ongotoline = null }: Props = $props();
 
   type Result = { kind: "loading" } | { kind: "ok"; svg: string } | { kind: "error"; info: MermaidErrorInfo };
   let result = $state<Result>({ kind: "loading" });
@@ -96,7 +98,7 @@
           <button class="btn" type="button" onclick={onback}>← Back to document</button>
         </div>
       {/if}
-      <MermaidError bind:this={errorView} info={result.info} {source} {name} {watching} {oncopy} />
+      <MermaidError bind:this={errorView} info={result.info} {source} {name} {watching} {oncopy} {ongotoline} />
     </div>
   {:else}
     <p class="loading" role="status">Rendering diagram…</p>

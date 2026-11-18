@@ -25,13 +25,34 @@ export function closeWhenHidden(state: { review: boolean | undefined }): boolean
   return state.review !== true;
 }
 
+/** The inputs of the live reload / reconnect gate (S2, S14, S18). */
+export interface GateState {
+  source: DocSource | null;
+  pastedHere: boolean;
+  loadStatus: number | null;
+  /** The edited text differs from the disk content (S18). */
+  edits?: boolean;
+}
+
+/**
+ * The one gate shared by live reload and reconnect. `ignore`: this page never takes a new document;
+ * `show`: the document replaces what is shown (and the text of an open editor); `keep-edits`: the
+ * file is still read, but only the disk content is updated — the edited text, the editor and the
+ * rendered view stay, a failed load included, and the page shows the file-changed notice (S18).
+ */
+export function docGate(state: GateState): "ignore" | "show" | "keep-edits" {
+  if (state.pastedHere) return "ignore";
+  if (!(state.source === "file" || (state.source === null && state.loadStatus === 500))) return "ignore";
+  return state.edits ? "keep-edits" : "show";
+}
+
 /**
  * Live reload only makes sense for a watched file: refetch on `change` (no page reload).
  * A first load that failed with 500 (unreadable file) also reloads, so restoring the file recovers.
+ * With edits it still refetches: the disk content is updated, the edited text is kept (`docGate`).
  */
-export function reloadOnChange(state: { source: DocSource | null; pastedHere: boolean; loadStatus: number | null }): boolean {
-  if (state.pastedHere) return false;
-  return state.source === "file" || (state.source === null && state.loadStatus === 500);
+export function reloadOnChange(state: GateState): boolean {
+  return docGate(state) !== "ignore";
 }
 
 /** A page hidden this long (real elapsed time) closes its events stream (S14 B). */
@@ -200,7 +221,7 @@ export function connectLive(deps: LiveDeps): { visibilityChanged(): void; stop()
 }
 
 /** Only a watched file page shows the document from a reconnect; pasted content is never replaced (S3). */
-export function replaceOnReconnect(state: { source: DocSource | null; pastedHere: boolean; loadStatus: number | null }): boolean {
+export function replaceOnReconnect(state: GateState): boolean {
   return reloadOnChange(state);
 }
 

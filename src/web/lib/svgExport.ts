@@ -39,8 +39,11 @@ export function downloadText(text: string, filename: string, type: string): void
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-/** `README.md` + `diagram-2` → `README-diagram-2.svg`. */
-export function exportName(docName: string | null, suffix?: string): string {
+/**
+ * `README.md` + `diagram-2` → `README-diagram-2.svg`. The extension defaults to `svg`; the edit
+ * mode (S18) downloads text as `notes.markdown` + `md` → `notes.md`.
+ */
+export function exportName(docName: string | null, suffix?: string, ext = "svg"): string {
   const base = (docName ?? "diagram").replace(/\.[^.]+$/, "").replace(/[^\w.-]+/g, "-") || "diagram";
-  return `${base}${suffix ? `-${suffix}` : ""}.svg`;
+  return `${base}${suffix ? `-${suffix}` : ""}.${ext}`;
 }

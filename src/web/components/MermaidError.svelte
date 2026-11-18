@@ -8,9 +8,11 @@
     name: string;
     watching: boolean;
     oncopy: (text: string, label: string) => void;
+    /** Edit mode (S18): `Go to line N` selects that line in the editor instead of the source list. */
+    ongotoline?: ((line: number) => void) | null;
   }
 
-  let { info, source, name, watching, oncopy }: Props = $props();
+  let { info, source, name, watching, oncopy, ongotoline = null }: Props = $props();
 
   const lines = $derived(source.replace(/\n$/, "").split(/\r?\n/));
   const messageLines = $derived(info.message.split(/\r?\n/).filter((l) => l.trim()));
@@ -21,6 +23,10 @@
   let list: HTMLOListElement | undefined = $state();
 
   export function jumpToLine(): void {
+    if (ongotoline && info.line) {
+      ongotoline(info.line);
+      return;
+    }
     reveal(list?.querySelector<HTMLElement>("li.bad") ?? null, "center");
   }
 

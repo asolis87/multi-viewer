@@ -21,9 +21,29 @@
     ontheme: (theme: ThemeChoice) => void;
     /** Review page controls (S17); null on every other page. */
     review?: ReviewControls | null;
+    /** Edit mode (S18): null when `Edit` is not offered. */
+    edit?: { open: boolean; edited: boolean; ontoggle: () => void } | null;
+    editButton?: HTMLButtonElement;
+    outlineTitle?: string;
   }
 
-  let { name, sourceLabel, detected, value, drawerOpen, outlineAlways = false, outlineButton = $bindable(), ontoggleoutline, onselect, theme, ontheme, review = null }: Props = $props();
+  let {
+    name,
+    sourceLabel,
+    detected,
+    value,
+    drawerOpen,
+    outlineAlways = false,
+    outlineButton = $bindable(),
+    ontoggleoutline,
+    onselect,
+    theme,
+    ontheme,
+    review = null,
+    edit = null,
+    editButton = $bindable(),
+    outlineTitle = "Show or hide the column outline",
+  }: Props = $props();
 </script>
 
 <header class="toolbar">
@@ -31,7 +51,7 @@
     class="btn outline-btn"
     class:always={outlineAlways}
     type="button"
-    title={outlineAlways ? "Show or hide the column outline" : undefined}
+    title={outlineAlways ? outlineTitle : undefined}
     bind:this={outlineButton}
     aria-controls="sidebar"
     aria-expanded={drawerOpen}
@@ -83,6 +103,25 @@
       {/each}
     </select>
   </div>
+  {#if edit}
+    <span class="tb-sep" aria-hidden="true"></span>
+    <div class="edit-tools">
+      <button
+        class="btn"
+        type="button"
+        bind:this={editButton}
+        aria-pressed={edit.open}
+        aria-controls={edit.open ? "editor" : undefined}
+        title="Edit the text in this tab; nothing is saved to the file"
+        onclick={edit.ontoggle}
+      >
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 13l.8-3.2L10.5 3l2.5 2.5-6.7 6.7z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" /></svg>Edit
+      </button>
+      {#if edit.edited && !edit.open}
+        <span class="manual-tag" title="The text was edited in this tab and is not saved to the file">Edited</span>
+      {/if}
+    </div>
+  {/if}
   {#if review}
     <span class="tb-sep" aria-hidden="true"></span>
     {#if review.sent}
