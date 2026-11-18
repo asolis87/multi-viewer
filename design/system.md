@@ -4,9 +4,9 @@ Derived from the project's design source. Read-only sync: every value below is c
 
 Source:
 
-- `src/web/styles.css` — the implemented Workbench stylesheet: tokens, the manual theme (`data-theme`), the Markdown reading direction "Serif" (S15), the CSV table, pager and inspector (S13), and the search match counter, previous/next buttons and current-match mark (S16).
+- `src/web/styles.css` — the implemented Workbench stylesheet: tokens, the manual theme (`data-theme`), the Markdown reading direction "Serif" (S15), the CSV table, pager and inspector (S13), the search match counter, previous/next buttons and current-match mark (S16), and the review mode "Margin rail" (S17): toolbar decision buttons, sent message, file-changed notice, comment highlights, block comment controls, comment kinds, the margin rail of comment cards and the comment popover.
 
-Last synced after S16 (T41/T42). Previous syncs also read the chosen artboards; this one reads only the stylesheet, which implements them.
+Last synced after S17 (T47, commit f6bf677). Previous syncs also read the chosen artboards; this one reads only the stylesheet, which implements them.
 
 ## Theme model
 
@@ -27,12 +27,12 @@ Source: `src/web/styles.css`.
 | `--text` | `#1b1f24` | `#e6e9ed` | Body text | `src/web/styles.css` |
 | `--muted` | `#57606a` | `#9ba5af` | Labels, metadata, table header text, line numbers, blockquote | `src/web/styles.css` |
 | `--border` | `#d5dae0` | `#2c333b` | Every 1px divider and control border, h2 rule | `src/web/styles.css` |
-| `--line` | `#8c959f` | `#6b7580` | Blockquote bar, idle status dot, dashed remote-image box | `src/web/styles.css` |
-| `--accent` | `#0b5fcc` | `#6ea8ff` | Primary button, links, current-item bar, sort icon, current search match | `src/web/styles.css` |
+| `--line` | `#8c959f` | `#6b7580` | Blockquote bar, idle status dot, dashed remote-image box, comment quote bar, comment card hover border | `src/web/styles.css` |
+| `--accent` | `#0b5fcc` | `#6ea8ff` | Primary button, links, current-item bar, sort icon, current search match, current review comment (highlight, card bar, ring), `Answer` kind icon | `src/web/styles.css` |
 | `--accent-ink` | `#ffffff` | `#0b1220` | Text on `--accent` (primary button, current match) | `src/web/styles.css` |
-| `--accent-soft` | `#e2ecfb` | `#1a2a44` | Selected outline item, tree row, CSV row, targeted column header | `src/web/styles.css` |
-| `--ok` | `#1a7f37` | `#4ac26b` | Live status dot | `src/web/styles.css` |
-| `--warn` | `#9a6700` | `#d4a72c` | Disconnected status dot ring | `src/web/styles.css` |
+| `--accent-soft` | `#e2ecfb` | `#1a2a44` | Selected outline item, tree row, CSV row, targeted column header, kept review selection (`rv-sel`) | `src/web/styles.css` |
+| `--ok` | `#1a7f37` | `#4ac26b` | Live status dot, review sent check | `src/web/styles.css` |
+| `--warn` | `#9a6700` | `#d4a72c` | Disconnected status dot ring, notice bar and icon, commented-quote underline, whole-block comment bar, `Change request` kind icon | `src/web/styles.css` |
 | `--danger` | `#b42318` | `#ff8a80` | Error border, error text, bad source line, code deletions | `src/web/styles.css` |
 | `--danger-soft` | `#fdecea` | `#3a1d1c` | Error box and bad line background | `src/web/styles.css` |
 | `--focus` | `#0b5fcc` | `#8bb9ff` | Focus outline | `src/web/styles.css` |
@@ -40,10 +40,10 @@ Source: `src/web/styles.css`.
 | `--str` | `#116329` | `#7ee2a8` | JSON/code strings | `src/web/styles.css` |
 | `--num` | `#a3480b` | `#ffa657` | JSON/code numbers | `src/web/styles.css` |
 | `--bool` | `#0b5fcc` | `#79c0ff` | JSON booleans, code titles and sections | `src/web/styles.css` |
-| `--hit` | `#ffe58a` | `#6b5a12` | Search match (`mark`) | `src/web/styles.css` |
+| `--hit` | `#ffe58a` | `#6b5a12` | Search match (`mark`), commented quote and whole-block comment fill | `src/web/styles.css` |
 | `--grid` | `#c4cbd3` | `#2a3038` | Mermaid canvas dot grid | `src/web/styles.css` |
 
-Overlay colors used literally: `rgb(0 0 0 / .10)` (floating tool shadow), `rgb(0 0 0 / .25)` (drawer shadow), `rgb(0 0 0 / .35)` (drawer backdrop) — `src/web/styles.css`.
+Overlay colors used literally: `rgb(0 0 0 / .10)` (floating tool, selection button and popover shadow), `rgb(0 0 0 / .25)` (drawer shadow), `rgb(0 0 0 / .35)` (drawer backdrop) — `src/web/styles.css`.
 
 ## Typography
 
@@ -62,8 +62,11 @@ Overlay colors used literally: `rgb(0 0 0 / .10)` (floating tool shadow), `rgb(0
 | Manual tag (uppercase, `.04em`, 600) | 11px | `.manual-tag` |
 | Outline meta (mono, tabular) | 11.5px | `.outline .o-meta` |
 | Status bar, chips, labels, kbd, CSV table header (600, muted), pager and figure labels (mono) | 12px | `.status`, `.chip`, `.t th`, `.pg-label` |
+| Review kind label (600), lines (mono, tabular), rail note, popover label (600) and hint | 12px | `.kind`, `.lines`, `.rail-note`, `.pop-lbl`, `.pop-hint` |
 | Notes, q-status, value box (mono), outline mono item | 12.5px | `.q-status`, `.value-box`, `.o-mono` |
 | Controls, outline items, tree (mono), field text | 13px | `.btn`, `.outline button`, `.tree`, `.search input` |
+| Notice, sent message (600), comment card and popover text (`13px/1.5 --font`), popover title (600) | 13px | `.notice`, `.sent-msg`, `.c-item`, `.pop`, `.pop-title` |
+| Comment quote (italic serif, `13px/1.5`, clamped to 2 lines, 3 in the popover) | 13px | `.c-quote` |
 | CSV table cells | 13.5px | `.t` |
 | File name (600) / paste lead | 15px | `.file-name`, `.paste .lead` |
 | Error title | 16px | `.err-box h1` |
@@ -118,6 +121,7 @@ Source: `src/web/styles.css`. Values in use (px): 1, 2, 4, 5, 6, 7, 8, 10, 12, 1
 - Status bar: `min-height: 30px`; cell `padding: 4px 12px`.
 - Tree row: `min-height: 28px`, indent `18px` per depth.
 - Error / paste pages: `28px 40px 64px` / `40px 40px 64px` (narrow `20px 16px 48px`).
+- Review (S17): notice bar `.rv-bar` `8px 40px` (`8px 16px` under 1100px), sticky at the top of `main`; `.notice` `6px 12px`, gap 8px; document grid `800px` article + `320px` rail, `column-gap: 28px`, `padding-right: 24px`; rail `32px 0 80px` (under 1100px `20px 40px 64px`, under 899px `20px 16px 48px`); comment card `10px 12px`, gap 6px, list gap 8px; block control row 32px tall at `left: 766px` (under 1100px `right: 8px`), buttons 28px (`--target` on touch); popover `380px` wide (max `calc(100vw - 24px)`), padding 14px, gap 10px; popover textarea min-height 88px, `8px 10px`.
 
 ## Radius
 
@@ -133,6 +137,10 @@ Source: `src/web/styles.css`.
 - Bottom accent bar (inset): `inset 0 -2px var(--accent)` (`.t th.is-target`, `.has-hidden-current`).
 - Current search match ring: `0 0 0 1px var(--surface), 0 0 0 3px var(--accent)` (`mark.is-current`).
 - Bad line bar: `inset 3px 0 var(--danger)` (`.src li.bad`).
+- Notice bar (inset): `inset 3px 0 var(--warn)` (`.notice`).
+- Current comment card bar (inset): `inset 3px 0 var(--accent)` (`.c-item.is-active`).
+- Whole-block comment: `0 0 0 4px var(--hit), -7px 0 0 0 var(--warn)`; current adds `0 0 0 6px var(--accent)` (`.md .rv-block`, `.md .rv-active-block`).
+- Selection button and popover: `0 4px 16px rgb(0 0 0 / .10)` (`.sel-btn`, `.pop`).
 
 ## Motion
 
@@ -141,6 +149,7 @@ Source: `src/web/styles.css`.
 - Panels (CSV inspector, collapsible CSV outline): `grid-template-columns`/`grid-template-rows` and `transform` `240ms cubic-bezier(.2, .8, .2, 1)`, `opacity 160ms ease`, slide distance `24px`.
 - Narrow sidebar drawer: `transform .18s ease`.
 - Tree twisty: `transform .12s`.
+- Review margin rail cards (aligned to their blocks): `top 160ms ease`.
 - `@media (prefers-reduced-motion: reduce)`: every transition and animation off, `scroll-behavior: auto`.
 
 ## Layout
@@ -152,6 +161,8 @@ Source: `src/web/styles.css`.
 - CSV on wide screens (`min-width: 900px`): the sidebar is a collapsible column (`0px` ↔ `260px`); the always-visible `Outline` button shows `aria-expanded="true"` as `--accent-soft` + `--accent` border.
 - JSON: tree + `340px` inspector; CSV: table + `340px` inspector (`0px` when closed). Under `1100px` both inspectors stack below (JSON max `42vh`, CSV `42vh`).
 - Under `560px`: chip text and the canvas hint hide.
+- Review page (S17): `.doc-wrap` grid `800px 320px` (article + margin rail); under `1100px` one column with the rail below the article (top border).
+- The page only scrolls inside `main`; a sticky bar at the top of `main` (`.rv-bar`, `--bg`, bottom border, `z-index: 5`) holds a notice.
 
 ## Components
 
@@ -181,3 +192,18 @@ Source: `src/web/styles.css`.
 - **Code highlighting** (highlight.js classes): keywords `--key`; strings `--str`; numbers/literals `--num`; titles/names/sections `--bool`; attributes/variables `--text`; comments/quotes/meta `--muted` italic; deletions `--danger`.
 - **Focus**: `:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px }`; inside rows and table cells `outline-offset: -2px`.
 - **Screen-reader only** `.sr`.
+
+### Review mode (S17, "Margin rail")
+
+Source: `src/web/styles.css`. Only review pages render these classes.
+
+- **Toolbar separator** `.tb-sep`: 1px `--border`, full height minus `4px` margins. **Decision buttons** `.decide` (gap 8px): `Request changes` `.btn` and `Approve` / `Approve with comments` `.btn.primary`; disabled buttons keep their background on hover.
+- **Sent message** `.sent-msg`: 13px 600 `--text`, 16px `--ok` check icon; replaces the decision buttons.
+- **Notice** `.notice`: `--surface-2`, 1px `--border`, radius 6px, inset 3px `--warn` bar, 13px `--text`, 16px `--warn` warning icon, `6px 12px`; `role="status"`. Shown inside the sticky `.rv-bar`.
+- **Comment highlights** (CSS Custom Highlight API): `rv-quote` `--hit` fill + 2px `--warn` underline; `rv-active` `--accent` fill + `--accent-ink`; `rv-sel` `--accent-soft` + 2px `--accent` underline. Whole blocks `.rv-block` / `.rv-active-block` (see Shadows; code blocks keep `--surface`); `.rv-target` 2px dashed `--accent` outline, offset 4px.
+- **Block comment control** `.blk-btn`: 28px, 1px `--border`, radius 6px, `--surface`, `--muted` 16px icon; hidden until the row is hovered or focused (always shown under `hover: none`); hover `--surface-2`.
+- **Kind** `.kind`: icon 14px + 12px 600 label; `Change request` `--warn`, `Answer` `--accent`, `Note` `--muted` icon — never colour alone. **Lines** `.lines`: 12px mono muted tabular.
+- **Comment card** `.c-item`: `--surface`, 1px `--border`, radius 8px, `10px 12px`, gap 6px; hover border `--line`; current `.is-active` → `--accent` border + inset 3px accent bar. Parts: `.c-head` / `.c-go` (28px), `.c-quote` (3px `--line` left bar, italic serif muted), `.c-whole` / `.c-gone` (12px muted), `.c-text` (pre-wrap), `.c-actions` (28px 12px buttons).
+- **Margin rail** `.rail`: uppercase 11px `.rail-head`, `.rail-note` / `.req-hint` 12px muted, `.rail-empty` 13px; cards aligned to their blocks (`.rail-list.is-aligned`, current card shifted 8px left) or stacked with gap 8px.
+- **Selection button** `.sel-btn`: fixed `.btn` with the floating shadow; its `kbd` is transparent with a `currentColor` border.
+- **Comment popover** `.pop`: `--surface`, 1px `--border`, radius 8px, floating shadow, 380px; `.pop-title` 13px 600; kind picker `.kinds` (segmented radio group like `.seg`: `calc(var(--target) - 2px)` tall, checked `--surface-3` + 600, focus ring inset); `.pop-lbl` (12px 600, muted counter); textarea on `--bg`, 1px `--border`, radius 6px, 13px/1.5, min-height 88px; `.pop-foot` with `.pop-hint` 12px muted.

@@ -1,0 +1,28 @@
+{
+  "title": "mview edit mode",
+  "brief": "Page-only edit mode for Markdown and Mermaid (S18): an Edit button in the toolbar opens a plain textarea to the left of the live render; the file-changed notice (and its could-not-be-read variant) offers 'Discard edits and load the file'; Copy and Download get the edited text out; a Mermaid parse error shows the existing error view inside the live preview; closing the editor keeps the edits and the page says so; narrow screens (<900px) get their own layout. Workbench shell (design/mview-viewer/02-workbench.html) with the Serif Markdown view (design/mview-reading/02-serif.html); content is a short sign-in spec with a fenced flowchart (login-flow.md) and a raw checkout flowchart (checkout.mmd); artboard-only switches for light/dark, document, state and 1440/800 px.",
+  "feature": "odd/tasks/mview.md",
+  "artboards": [
+    {
+      "file": "01-three-pane.html",
+      "title": "Three panes",
+      "tradeoff": "Outline, editor and preview side by side with Edit, Copy and Download together in the toolbar and an 'edited · not saved' chip next to the file name, so every control and the unsaved state are always in the same place; the preview gets only half of what is left after the 260px outline (about 590px at 1440, so the Serif column wraps sooner), and on narrow screens you switch between Editor and Preview instead of seeing both",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "file": "02-editor-column.html",
+      "title": "Editor column",
+      "tradeoff": "The editor takes the outline's column (44%) and owns Copy, Download, close and the notice, so the preview keeps a wide reading column and the toolbar stays almost as today; the outline moves behind the Outline button while editing, Copy/Download are only reachable with the editor open (closed edits show an 'Edited' tag beside Edit), and on narrow screens the editor is a bottom sheet under the preview",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "file": "03-edit-bar.html",
+      "title": "Edit bar",
+      "tradeoff": "A full-width bar under the toolbar states the text's condition in words (editing, edited and kept, changed on disk, unreadable), holds Copy and Download and turns into the notice; editing collapses the outline for a 50/50 split and the editor gets a line-number gutter that marks the parse-error line; it costs 44px of height whenever there are edits, the gutter needs the textarea to stop wrapping (wrap=off, scroll sync), and narrow screens stack editor over preview",
+      "width": 1440,
+      "height": 900
+    }
+  ]
+}
