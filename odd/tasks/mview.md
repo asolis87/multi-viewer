@@ -216,7 +216,7 @@ Delivery slices (L27): slice 1 = spec + T23–T24 (`5f27ae8`..`47dd525`, ~760 ch
 
 - [x] T50 — Design the edit mode with gentle-design under `design/mview-edit/` (2–3 directions, light/dark); the user picks one · S18,S9 · chosen: `design/mview-edit/02-editor-column.html` · commit: 61ebb21
 - [x] T51 — Edit mode from the chosen artboard: Edit button, split textarea + live render, edits as an input to the reload/reconnect gate, file-changed notice, Copy/Download reusing `copy()`, `downloadText` and `exportName`; tests per S18 "Check"; README · S18 · Risk: item 3 (shared reload/reconnect gate; existing tests unchanged) · commit: see L100
-- [ ] T52 — Release `v0.8.0` with the T27 flow after T51, only if the user confirms it after trying T51 on the branch build · S18 · Risk: item 5 (release) · commit: —
+- [x] T52 — Release `v0.8.0` with the T27 flow after T51, only if the user confirms it after trying T51 on the branch build · S18 · Risk: item 5 (release) · commit: 1e5fa0f (PR #41, merge 45f4617); release v0.8.0
 
 ## Log
 
@@ -323,3 +323,4 @@ Delivery slices (L27): slice 1 = spec + T23–T24 (`5f27ae8`..`47dd525`, ~760 ch
 - L101 (user, manual check on the branch build): "perfecto, ahora si veo el aviso" — split, live Mermaid render, "Edited" status cell and the file-changed notice work in the browser (a first "no apareció nada" was the `echo` going to the other open file).
 - L102 (user answers): "Nada, así está bien (Recommended)", "PRs + release v0.8.0 (Recommended)" — delivering as two chained PRs (`docs/edit-mode` → `main`, `feat/edit-mode` → `docs/edit-mode`), then T52 release v0.8.0 with the T27 flow.
 - L103 (T52): S18 delivered as PR #39 (`fe14fcc`, spec + design) and PR #40 (`dcae773`, code); version bumped to 0.8.0 (`package.json`, `package-lock.json`) and README install URLs point to `v0.8.0/mview-0.8.0.tgz`, on branch `release/v0.8.0`.
+- L104 (T52 evidence): release PR #41 merged (`45f4617`); on a clean `main` build OK and 423/423 tests; GitHub release `v0.8.0` (tag at `45f4617`) with `mview-0.8.0.tgz`, sha256 `139852c68f161126e8228437fcafb378ad1c6aab6d4bed534a9857023b25713d` (downloaded asset matches); installed from the release URL with npm and pnpm in clean prefixes, both report `0.8.0`, and the published bundle contains `Discard edits and load the file`; `--help` unchanged as S18 says. S18 complete.
