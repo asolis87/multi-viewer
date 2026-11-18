@@ -39,6 +39,16 @@ In the JSON and CSV search, a counter shows `<current> of <total>` matches; Ente
 
 The **Theme** selector in the page header switches between System (follows your OS), Light and Dark. The choice is not remembered: every run starts on System.
 
+## Edit
+
+Markdown and Mermaid documents have an **Edit** button in the page header, whatever their source (a file, the clipboard, stdin, or content pasted into the page); review pages and the empty paste page have none. It opens a plain text editor in the left column, next to the rendered view, which updates on every keystroke and keeps its features (outline, zoom and pan, Export SVG, the diagram canvas). While editing, the outline opens from the **Outline** button; on narrow windows the editor sits below the rendered view.
+
+Nothing is saved to the file and nothing is sent to the server: the edited text lives only in that tab and is lost when you reload it. Use **Copy** (clipboard) or **Download** in the editor column to keep it. The download is named after the document with `.md` or `.mmd` for the shown type (`notes.markdown` → `notes.md`, `x.txt` shown as Mermaid → `x.mmd`), `pasted.md` for content pasted into the page and `edited.md` for clipboard or stdin content.
+
+Closing the editor (×) keeps your edits: the rendered view still shows them, an **Edited** tag appears next to **Edit**, and reopening the editor brings them back. Switching **Render as** to JSON or CSV hides the editor and renders the edited text as that type; switching back to Markdown or Mermaid shows the editor again. A Mermaid parse error shows the usual error view; its **Go to line N** button selects that line in the editor.
+
+Without edits, live reload works as usual and also updates the text in an open editor. Once the text differs from the file, a change on disk (or a file that can no longer be read) does not touch your edits: the editor shows a notice with **Discard edits and load the file**. The notice goes away when you discard or when your text matches the file again.
+
 ## Usage
 
 ```text
@@ -130,7 +140,7 @@ Rendered content is often pasted or AI-generated, so mview treats it as untruste
 
 - The server listens on `127.0.0.1` only and rejects requests with a foreign `Host` header.
 - Every run uses a random token in the URL; API requests without it get `403`.
-- The server is read-only, except for the one review submission of `mview review` (same token, same-origin `Origin` and JSON only).
+- The server is read-only, except for the one review submission of `mview review` (same token, same-origin `Origin` and JSON only). Edits made in the page are never sent to it.
 - Markdown HTML is sanitized with DOMPurify, Mermaid runs with `securityLevel: 'strict'`, and the page ships a strict Content-Security-Policy.
 - Remote images are never loaded, so a document cannot report that you opened it. They are replaced by a "Remote image blocked" box with the alt text and the URL. `data:` images still render; local relative images (`./img.png`) are not served yet.
 - Everything is bundled: no CDN, no telemetry, works offline.

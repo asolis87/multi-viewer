@@ -7,9 +7,11 @@
     message: string;
     /** Review pages (S17): the comment count. */
     comments?: string | null;
+    /** Edit mode (S18): shown while there are edits, e.g. "in this tab · not saved". */
+    edits?: string | null;
   }
 
-  let { live, typeText, zoom, lastCopied, message, comments = null }: Props = $props();
+  let { live, typeText, zoom, lastCopied, message, comments = null, edits = null }: Props = $props();
 </script>
 
 <footer class="status" aria-label="Status">
@@ -20,6 +22,9 @@
   <div>{typeText}</div>
   {#if comments !== null}
     <div>{comments}</div>
+  {/if}
+  {#if edits !== null}
+    <div><strong>Edited</strong> {edits}</div>
   {/if}
   {#if zoom !== null}
     <div class="opt">Zoom <strong>{zoom}%</strong></div>

@@ -475,3 +475,37 @@ th.num .th-btn { justify-content: flex-end; }
 @media (max-width: 899px) {
   .rail { padding: 20px 16px 48px; }
 }
+
+/* Edit mode (S18; design/mview-edit/02-editor-column.html, "Editor column"). While editing, the editor
+   takes the outline's column (44%), the preview keeps the rest, and the outline opens as an overlay
+   from the Outline button. Under 900px the editor is a bottom sheet under the preview. */
+.edit-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.edit-tools .btn[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); }
+.editor { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--surface); border-right: 1px solid var(--border); }
+.ed-col-head { display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 16px; border-bottom: 1px solid var(--border); }
+.ed-col-head h2 { margin: 0; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.ed-col-head .ed-sub { flex: 1; min-width: 0; font: 12px var(--mono); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ed-col-head .btn { min-height: 30px; padding: 0 8px; font-size: 12px; }
+.ed-col-head .btn svg { width: 14px; height: 14px; }
+.ed-notice { padding: 8px 12px; border-bottom: 1px solid var(--border); background: var(--bg); }
+.ed-notice .notice { flex-wrap: wrap; }
+.ed-notice .n-text { flex: 1; min-width: 200px; }
+.ed-notice .notice .btn { min-height: 28px; padding: 0 8px; font-size: 12px; }
+.editor textarea { flex: 1; width: 100%; min-height: 0; margin: 0; resize: none; border: 0; padding: 16px 20px; font: 13px/1.55 var(--mono);
+  background: var(--surface); color: var(--text); tab-size: 2; }
+.editor textarea:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.ed-foot { padding: 8px 16px; border-top: 1px solid var(--border); font-size: 12px; color: var(--muted); }
+@media (min-width: 900px) {
+  .workspace.editing { position: relative; grid-template-columns: minmax(420px, 44%) minmax(0, 1fr); }
+  .workspace.editing .sidebar { position: absolute; top: 0; bottom: 0; left: 0; width: 300px; z-index: 40; transform: translateX(-100%); visibility: hidden;
+    transition: transform .18s ease, visibility .18s; box-shadow: 0 0 40px rgb(0 0 0 / .25); }
+  .workspace.editing.drawer-open .sidebar { transform: none; visibility: visible; }
+  .workspace.editing.drawer-open .backdrop { display: block; position: absolute; inset: 0; z-index: 39; background: rgb(0 0 0 / .35); }
+}
+@media (max-width: 899px) {
+  .workspace.editing { grid-template-rows: minmax(0, 1fr) 45%; }
+  .workspace.editing > main { grid-row: 1; }
+  .workspace.editing > .editor { grid-row: 2; border-right: 0; border-top: 1px solid var(--border); }
+  .editor textarea { padding: 12px 16px; }
+  .ed-foot { display: none; }
+}

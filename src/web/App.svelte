@@ -11,8 +11,22 @@
   import PasteView from "./components/PasteView.svelte";
   import LoadError from "./components/LoadError.svelte";
   import ReviewView from "./components/ReviewView.svelte";
+  import EditorPane from "./components/EditorPane.svelte";
   import { fetchDoc, postReview, readToken, watchEvents, type DocResult } from "./lib/api.js";
-  import { closeWhenHidden, keepEventsOpen, liveStatus, reloadOnChange, replaceOnReconnect, type Connection } from "./lib/events.js";
+  import { closeWhenHidden, docGate, keepEventsOpen, liveStatus, reloadOnChange, replaceOnReconnect, type Connection } from "./lib/events.js";
+  import {
+    canEdit,
+    discardEdits,
+    diskShown,
+    diskUnreadable,
+    editDownload,
+    hasEdits,
+    keepEditsOnDisk,
+    shownContent,
+    startEditing,
+    typed,
+    type EditState,
+  } from "./lib/edit.js";
   import { buildSubmission, clearDrafts, loadDrafts, noteContent, saveDrafts, type DraftState, type ReviewAction, type ReviewControls } from "./lib/review.js";
   import { detectType, type Doc } from "./lib/doc.js";
   import { choose, effectiveType, freshContent, reload, selectValue, TYPE_LABEL, type SelectValue, type TypeChoice } from "./lib/typeState.js";
@@ -52,6 +66,8 @@
   let jsonView: JsonView | undefined = $state();
   let csvView: CsvView | undefined = $state();
   let reviewView: ReviewView | undefined = $state();
+  let editorPane: EditorPane | undefined = $state();
+  let editButton: HTMLButtonElement | undefined = $state();
 
   // Review mode (S17): only pages whose Doc has `review: true`.
   /** The tab's sessionStorage (drafts, L84); null when the browser denies it. */
@@ -70,7 +86,6 @@
   const isEmpty = $derived(doc !== null && doc.source === "empty" && !pastedHere);
   /** CSV documents on screen get the collapsible outline; every other view keeps today's sidebar. */
   const collapsible = $derived(!!doc && !isEmpty && !loadError && !canvasDiagram && collapsibleOutline(type));
-  const outlineExpanded = $derived(narrow ? drawerOpen : collapsible && outlineOpen);
   const name = $derived.by(() => {
     if (!doc) return "mview";
     if (doc.name) return doc.name;
@@ -83,6 +98,24 @@
   const watching = $derived(doc?.source === "file" && !pastedHere);
 
   const reviewPage = $derived(doc?.review === true && !pastedHere);
+
+  // Edit mode (S18, level 1): the edited text lives only in this tab. `edit` is created by the first
+  // `Edit` and kept when the editor closes or the type changes; only discard or a tab reload drop it.
+  let edit = $state<EditState | null>(null);
+  let editorOpen = $state(false);
+  const editable = $derived(!!doc && canEdit({ type, review: reviewPage, empty: isEmpty, failed: !!loadError }));
+  const editorShown = $derived(editorOpen && editable && !!edit);
+  const edits = $derived(!!edit && hasEdits(edit));
+  /** What the rendered view shows: the edited text once editing started (S18). */
+  const shown = $derived(doc ? shownContent(edit, doc.content) : "");
+  /** While editing, the outline is an overlay behind the Outline button (the drawer), as on narrow screens. */
+  const drawerMode = $derived(narrow || editorShown);
+  const outlineExpanded = $derived(drawerMode ? drawerOpen : collapsible && outlineOpen);
+  const editsText = $derived(
+    edits && editable
+      ? `in this tab · not saved${edit?.notice ? (edit.notice.kind === "changed" ? " · file changed on disk" : " · file could not be read") : ""}`
+      : null,
+  );
 
   const live = $derived(
     liveStatus({ source: doc?.source ?? null, name, hasDoc: !!doc, loadFailed: !!loadError, pastedHere, connection, sent: reviewPage && sent }),
@@ -145,6 +178,20 @@
   }
 
   function apply(result: DocResult) {
+    // S18: edits are one more input to the live reload / reconnect gate. With edits only the disk
+    // content changes; the edited text, the editor and the rendered view stay (a failed load too).
+    const gate = docGate({ source: doc?.source ?? null, pastedHere, loadStatus: loadError?.status ?? null, edits });
+    if (gate === "keep-edits" && edit) {
+      if (result.ok) {
+        loadError = null;
+        doc = result.doc;
+        choice = reload(choice, result.doc.type);
+        edit = keepEditsOnDisk(edit, result.doc.content);
+      } else {
+        edit = diskUnreadable(edit, result.error);
+      }
+      return;
+    }
     if (result.ok) {
       loadError = null;
       const first = doc === null;
@@ -154,11 +201,8 @@
         // The first content this tab saw is the base; any later content turns the file-changed notice on.
         drafts = drafts ? noteContent(drafts, result.doc.content) : loadDrafts(tabStorage, token, result.doc.content);
       }
-      if (canvasDiagram) {
-        // Keep an open canvas in sync with the reloaded document (or close it if the diagram is gone).
-        const id = canvasDiagram.id;
-        canvasDiagram = effectiveType(choice) === "markdown" ? (renderMarkdown(result.doc.content).diagrams.find((d) => d.id === id) ?? null) : null;
-      }
+      // No edits: live reload also replaces the text of an open editor.
+      if (edit) edit = diskShown(edit, result.doc.content);
       if (!first && result.doc.source === "file") announce(`Reloaded ${result.doc.name ?? "file"} · ${new Date().toTimeString().slice(0, 8)}`);
     } else {
       loadError = { message: result.error, status: result.status };
@@ -183,6 +227,52 @@
     return ok;
   }
 
+  // Edit mode (S18): Copy and Download of the edited text, from the editor column.
+  function copyEdited() {
+    if (edit) void copy(edit.text, "edited text");
+  }
+
+  function downloadEdited() {
+    if (!edit || !doc) return;
+    const { filename, mime } = editDownload({ name: doc.name, pastedHere, type });
+    downloadText(edit.text, filename, mime);
+    announce(`Downloaded ${filename}`);
+  }
+
+  async function openEditor() {
+    if (!doc) return;
+    edit ??= startEditing(doc.content);
+    editorOpen = true;
+    await tick();
+    editorPane?.focus();
+  }
+
+  async function closeEditor() {
+    editorOpen = false;
+    if (!narrow) drawerOpen = false;
+    await tick();
+    editButton?.focus();
+  }
+
+  function toggleEditor() {
+    if (editorShown) void closeEditor();
+    else void openEditor();
+  }
+
+  /** `Discard edits and load the file`: the disk content replaces the edited text, then the file is read again (S2's error if it fails). */
+  function discardAndLoad() {
+    if (!edit) return;
+    edit = discardEdits(edit);
+    void load();
+  }
+
+  /** `Go to line N` on a Mermaid parse error while editing (S18, L99). */
+  async function goToLine(line: number) {
+    if (!editorShown) await openEditor();
+    await tick();
+    await editorPane?.goToLine(line);
+  }
+
   function exportSvg(svg: SVGSVGElement, suffix?: string) {
     const filename = exportName(doc?.name ?? (pastedHere ? "pasted" : null), suffix);
     downloadText(serializeSvg(svg, themeBackground()), filename, "image/svg+xml");
@@ -200,6 +290,8 @@
     pastedHere = true;
     seq++; // ignore any in-flight server response
     doc = { name: null, type: detected, content: text, source: "paste" };
+    edit = null;
+    editorOpen = false;
     choice = freshContent(detected);
     announce(`Rendered pasted content as ${TYPE_LABEL[detected]}`);
     await tick();
@@ -222,7 +314,7 @@
 
   function pick(item: SideItem) {
     active = item.id;
-    if (narrow && drawerOpen) setDrawer(false, false);
+    if (drawerMode && drawerOpen) setDrawer(false, false);
     if (canvasDiagram) mermaidView?.reveal(item.id, item.label);
     else if (type === "markdown") (reviewPage ? reviewView : markdownView)?.reveal(item.id);
     else if (type === "mermaid") mermaidView?.reveal(item.id, item.label);
@@ -259,7 +351,7 @@
   }
 
   function toggleOutline() {
-    if (narrow) void setDrawer(!drawerOpen);
+    if (drawerMode) void setDrawer(!drawerOpen);
     else if (collapsible) void setOutlineColumn(!outlineOpen);
   }
 
@@ -299,12 +391,12 @@
     keepEventsOpen({ token, loadStatus: loadError?.status ?? null, source: doc?.source ?? null, pastedHere, sent }),
   );
   function onEventsChange() {
-    if (reloadOnChange({ source: doc?.source ?? null, pastedHere, loadStatus: loadError?.status ?? null })) void load();
+    if (reloadOnChange({ source: doc?.source ?? null, pastedHere, loadStatus: loadError?.status ?? null, edits })) void load();
   }
   // Reconnect (S14): only a watched file page takes the fresh document; pasted, stdin and empty
   // pages keep their content.
   function onReconnectDoc(fresh: Doc) {
-    if (!replaceOnReconnect({ source: doc?.source ?? null, pastedHere, loadStatus: loadError?.status ?? null })) return;
+    if (!replaceOnReconnect({ source: doc?.source ?? null, pastedHere, loadStatus: loadError?.status ?? null, edits })) return;
     seq++; // this response is newer than any in-flight load
     apply({ ok: true, doc: fresh });
   }
@@ -320,6 +412,18 @@
       },
       // Read when the hidden-tab rule is checked (the review flag arrives with the document).
       closeWhenHidden: () => untrack(() => closeWhenHidden({ review: doc?.review })),
+    });
+  });
+
+  // Keep an open diagram canvas in sync with the shown text (live reload or typing), or close it if the diagram is gone.
+  $effect(() => {
+    const text = shown;
+    const markdown = type === "markdown";
+    untrack(() => {
+      if (!canvasDiagram) return;
+      const id = canvasDiagram.id;
+      const next = markdown ? (renderMarkdown(text).diagrams.find((d) => d.id === id) ?? null) : null;
+      if (!next || next.source !== canvasDiagram.source || next.keyword !== canvasDiagram.keyword) canvasDiagram = next;
     });
   });
 
@@ -352,19 +456,39 @@
   detected={doc && !isEmpty && !loadError ? choice.detected : null}
   value={selectValue(choice)}
   drawerOpen={outlineExpanded}
-  outlineAlways={collapsible}
+  outlineAlways={collapsible || editorShown}
   bind:outlineButton
   ontoggleoutline={toggleOutline}
   onselect={onSelect}
   {theme}
   ontheme={(t) => (theme = t)}
   review={reviewControls}
+  edit={editable ? { open: editorShown, edited: edits, ontoggle: toggleEditor } : null}
+  bind:editButton
+  outlineTitle={editorShown ? "Show or hide the outline" : undefined}
 />
 
-<div class="workspace" class:drawer-open={drawerOpen} class:collapsible class:outline-open={collapsible && outlineOpen}>
+<div class="workspace" class:drawer-open={drawerOpen} class:collapsible class:outline-open={collapsible && outlineOpen} class:editing={editorShown}>
   <Sidebar {outline} {active} inert={collapsible && !narrow && !outlineOpen} bind:element={sidebarEl} onpick={pick} />
   {#if drawerOpen}
     <div class="backdrop" aria-hidden="true" onclick={() => setDrawer(false)}></div>
+  {/if}
+
+  {#if editorShown && edit}
+    <EditorPane
+      bind:this={editorPane}
+      title="{name} · {TYPE_LABEL[type]}"
+      {name}
+      text={edit.text}
+      notice={edit.notice}
+      oninput={(text) => {
+        if (edit) edit = typed(edit, text);
+      }}
+      oncopy={copyEdited}
+      ondownload={downloadEdited}
+      onclose={closeEditor}
+      ondiscard={discardAndLoad}
+    />
   {/if}
 
   <main bind:this={mainEl} tabindex="-1">
@@ -406,7 +530,7 @@
     {:else if type === "markdown"}
       <MarkdownView
         bind:this={markdownView}
-        content={doc.content}
+        content={shown}
         {dark}
         scrollRoot={mainEl}
         onoutline={setOutline}
@@ -417,10 +541,11 @@
     {:else if type === "mermaid"}
       <MermaidView
         bind:this={mermaidView}
-        source={doc.content}
+        source={shown}
         {name}
         {dark}
-        {watching}
+        watching={watching && !(editorShown || edits)}
+        ongotoline={editorShown || edits ? goToLine : null}
         onoutline={setOutline}
         onstatus={setStatus}
         onzoom={setZoom}
@@ -430,7 +555,7 @@
     {:else if type === "json"}
       <JsonView
         bind:this={jsonView}
-        content={doc.content}
+        content={shown}
         {name}
         onoutline={setOutline}
         onactive={setActive}
@@ -441,7 +566,7 @@
     {:else if type === "csv"}
       <CsvView
         bind:this={csvView}
-        content={doc.content}
+        content={shown}
         name={doc.name}
         label={name}
         manual={choice.override === "csv"}
@@ -454,4 +579,4 @@
   </main>
 </div>
 
-<StatusBar {live} {typeText} {zoom} {lastCopied} {message} comments={commentsText} />
+<StatusBar {live} {typeText} {zoom} {lastCopied} {message} comments={commentsText} edits={editsText} />

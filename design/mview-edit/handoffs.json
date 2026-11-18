@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "chosen": "02-editor-column.html",
+  "handoffs": {
+    "02-editor-column.html": {
+      "status": "implemented",
+      "queued": false,
+      "sentAt": "2026-11-18T16:46:25.193Z",
+      "startedAt": "2026-11-18T16:46:44.398Z",
+      "implementedAt": "2026-11-18T17:01:20.300Z",
+      "feature": "odd/tasks/mview.md",
+      "note": "T51 on feat/edit-mode; 423 tests pass"
+    }
+  }
+}
