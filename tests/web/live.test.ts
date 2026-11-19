@@ -9,6 +9,8 @@ import {
   type LiveDeps,
 } from "../../src/web/lib/events.js";
 import type { DocResult } from "../../src/web/lib/api.js";
+import { selectTab, sessionFrom, syncSession } from "../../src/web/lib/tabs.js";
+import type { DocumentTabs } from "../../src/shared/tabs.js";
 import type { Doc } from "../../src/shared/doc.js";
 
 const FILE_DOC: Doc = { name: "notes.md", type: "markdown", content: "# fresh", source: "file" };
@@ -307,6 +309,59 @@ describe("reconnecting and Stopped (S14, T36)", () => {
     await flush();
     expect(page.connections.at(-1)).toBe("stopped");
     expect(page.streams).toHaveLength(1);
+  });
+
+  it("reconnect reconciles the document session: an unchanged CLI revision keeps the browser tab (S1, L8)", async () => {
+    const server: DocumentTabs = {
+      tabs: [
+        { id: "a", name: "README.md" },
+        { id: "b", name: "notas.md" },
+      ],
+      active: "a",
+      revision: 5,
+    };
+    let session = selectTab(sessionFrom(server), "b");
+    const fetched: string[] = [];
+    const page = fakePage({
+      check: async () => {
+        // What the page does on reconnect: read the metadata, then the selected tab.
+        session = syncSession(session, { ...server, active: "a", revision: 5 }).session;
+        const id = session.selected!;
+        fetched.push(id);
+        return { ok: true, doc: { ...FILE_DOC, name: "notas.md", content: "# b" } };
+      },
+    });
+    page.stream.onopen?.();
+    page.stream.onerror?.();
+    await flush();
+    expect(session.selected).toBe("b");
+    expect(fetched).toEqual(["b"]);
+    expect(page.docs.map((doc) => doc.name)).toEqual(["notas.md"]);
+    expect(page.streams).toHaveLength(2);
+  });
+
+  it("reconnect after a CLI selection follows the new active tab (S2, L8)", async () => {
+    const server: DocumentTabs = {
+      tabs: [
+        { id: "a", name: "README.md" },
+        { id: "b", name: "notas.md" },
+      ],
+      active: "a",
+      revision: 5,
+    };
+    let session = selectTab(sessionFrom(server), "b");
+    const fetched: string[] = [];
+    const page = fakePage({
+      check: async () => {
+        session = syncSession(session, { ...server, active: "a", revision: 6 }).session;
+        fetched.push(session.selected!);
+        return { ok: true, doc: { ...FILE_DOC, name: "README.md", content: "# a" } };
+      },
+    });
+    page.stream.onerror?.();
+    await flush();
+    expect(session.selected).toBe("a");
+    expect(fetched).toEqual(["a"]);
   });
 
   it("stop() closes the stream and clears the timer", () => {
