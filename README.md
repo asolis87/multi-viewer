@@ -52,11 +52,11 @@ Without edits, live reload works as usual and also updates the text in an open e
 ## Usage
 
 ```text
-mview <file>            Open a file and live-reload it when it changes
+mview <file>            Open or select a file in the viewer; live-reload it on save
 mview --paste           Open the current clipboard content
 <command> | mview       Open content piped through stdin
 mview                   Open an empty page where you can paste (Cmd/Ctrl+V)
-mview --detach <file>   Start in the background, print the URL and return
+mview --detach <file>   Reuse the viewer or start it in the background and print its URL
 mview review <file>     Open a Markdown file for review and wait for the
                         decision: comment on its lines in the page, then
                         Approve or Request changes (see "Review" below)
@@ -73,20 +73,24 @@ mview skill install --agent pi|claude|codex [--force]
                         the last page closes, or 60 s after start if no page
                         ever opens
     --no-auto-close     Keep the server running until Ctrl+C
-    --detach            Run the server in the background (always
+    --detach            Attach or start in the background (always
                         --auto-close), print only "mview: <url>" and exit;
                         needs a file
 -h, --help              Show this help
 -v, --version           Show the version
 ```
 
-If piped input never ends (for example a command that keeps running), mview says it is waiting for stdin; finish with `Ctrl+D` or cancel with `Ctrl+C`. Each run starts its own server, which stops by itself (see below) or with `Ctrl+C`. One file at a time (no tabs yet).
+On macOS and Linux, `mview README.md` opens a viewer. While that viewer is running, `mview notas.md` attaches the second file without opening another browser tab. The attaching command prints the existing URL and exits; run the same file command again to select it without duplicating it. Each file still live-reloads on save. A tab opened through a symbolic link keeps the link’s name and follows changes to the original target, even if you remove the link.
+
+A fixed `--port`, `--no-auto-close`, clipboard, stdin, empty paste pages and `mview review` start separate servers. On Windows, or when the temporary directory path is too long for a Unix socket, file commands also start separate servers. `--no-open` never opens the browser; use the printed URL if the viewer page is not already open.
+
+If piped input never ends (for example a command that keeps running), mview says it is waiting for stdin; finish with `Ctrl+D` or cancel with `Ctrl+C`.
 
 By default the server stops by itself (exit code 0) when no mview page is open: 10 seconds after the last open page closes, or 60 seconds after start if no page ever opens. Reloading the page or opening a new tab within those 10 seconds keeps it running. It prints `mview: no open pages, stopping` on stderr when it stops, which frees the terminal. The times are fixed. This applies to files, `--paste`, stdin, the empty paste page and `--no-open`; passing `--auto-close` explicitly changes nothing. Use `--no-auto-close` to keep the server running until `Ctrl+C`.
 
 A page that stays hidden (minimized window or background tab) for 30 minutes disconnects from the server, so forgotten tabs let it stop too; the document stays on screen.
 
-`mview --detach <file>` is for scripts and AI agents that must not block on the server. It checks the file first (same `file not found` / `not a file` errors), then starts the server in the background with `--auto-close`, opens the browser (unless `--no-open`), prints only `mview: <url>` and exits 0 — no `Press Ctrl+C to stop.`. `--port` and `--no-open` are passed on to the background server. It needs a file: without one, or with `--paste`, it exits 2 with `mview: --detach needs a file` (piped stdin is not read). It always stops by itself: `--detach --no-auto-close` exits 2 with `mview: --detach always stops by itself; drop --no-auto-close`. If the background server cannot start (for example the `--port` is in use), its error is printed and the exit code is 1. Once started it writes nothing more and stops by itself as described above.
+`mview --detach <file>` is for scripts and AI agents that must not block on the server. It checks the file first (same `file not found` / `not a file` errors), then attaches to the existing viewer or starts a server in the background with `--auto-close`. Only a new server opens the browser (unless `--no-open`). The command prints only `mview: <url>` and exits 0 — no `Press Ctrl+C to stop.`. `--port` and `--no-open` are passed on to the background server. It needs a file: without one, or with `--paste`, it exits 2 with `mview: --detach needs a file` (piped stdin is not read). It always stops by itself: `--detach --no-auto-close` exits 2 with `mview: --detach always stops by itself; drop --no-auto-close`. If the background server cannot start (for example the `--port` is in use), its error is printed and the exit code is 1. Once started it writes nothing more and stops by itself as described above.
 
 ## Review
 
@@ -140,7 +144,7 @@ Rendered content is often pasted or AI-generated, so mview treats it as untruste
 
 - The server listens on `127.0.0.1` only and rejects requests with a foreign `Host` header.
 - Every run uses a random token in the URL; API requests without it get `403`.
-- The server is read-only, except for the one review submission of `mview review` (same token, same-origin `Origin` and JSON only). Edits made in the page are never sent to it.
+- The browser API is read-only, except for the one submission of `mview review` (same token, same-origin `Origin` and JSON only). File tabs expose only names and opaque IDs, not local paths. Only CLI processes with access to the same account’s private Unix socket can register files. Edits made in the page are never sent to the server.
 - Markdown HTML is sanitized with DOMPurify, Mermaid runs with `securityLevel: 'strict'`, and the page ships a strict Content-Security-Policy.
 - Remote images are never loaded, so a document cannot report that you opened it. They are replaced by a "Remote image blocked" box with the alt text and the URL. `data:` images still render; local relative images (`./img.png`) are not served yet.
 - Everything is bundled: no CDN, no telemetry, works offline.

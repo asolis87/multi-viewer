@@ -6,12 +6,14 @@ import type { AddressInfo } from "node:net";
 import type { Doc } from "./input.js";
 import { MAX_BODY_BYTES, type ReviewSubmission } from "../shared/review.js";
 import { validateSubmission } from "./review.js";
+import type { DocumentTabs } from "../shared/tabs.js";
 
 export interface ServerOptions {
   webRoot: string;
   token: string;
   port: number;
   getDoc: () => Promise<Doc>;
+  fileTabs?: { describe(): DocumentTabs; get(id: string): (() => Promise<Doc>) | undefined };
   /**
    * Stop when no page is open (S11). An open page is a connected `/api/events` stream with a
    * valid token. `onIdle` runs once: `afterLastMs` after the last stream closes with none
@@ -111,16 +113,22 @@ export function startServer(options: ServerOptions): Promise<RunningServer> {
     if (url.pathname.startsWith("/api/")) {
       if (!tokenMatches(url.searchParams.get("t"), options.token)) return sendText(res, 403, "Forbidden");
       if (reviewRoute) return receiveReview(req, res);
-      if (url.pathname === "/api/doc") return sendDoc(res);
+      if (url.pathname === "/api/tabs" && options.fileTabs) return sendJson(res, 200, options.fileTabs.describe());
+      if (url.pathname === "/api/doc") {
+        const id = url.searchParams.get("d");
+        const read = id !== null && options.fileTabs ? options.fileTabs.get(id) : options.getDoc;
+        if (!read) return sendText(res, 404, "Not Found");
+        return sendDoc(res, read);
+      }
       if (url.pathname === "/api/events") return openEvents(req, res);
       return sendText(res, 404, "Not Found");
     }
     return sendStatic(url.pathname, res);
   }
 
-  async function sendDoc(res: ServerResponse): Promise<void> {
+  async function sendDoc(res: ServerResponse, read: () => Promise<Doc>): Promise<void> {
     try {
-      const doc = await options.getDoc();
+      const doc = await read();
       sendJson(res, 200, options.review ? { ...doc, review: true } : doc);
     } catch (error) {
       sendJson(res, 500, { error: (error as Error).message });

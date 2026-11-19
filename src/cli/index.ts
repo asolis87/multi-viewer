@@ -10,7 +10,9 @@ import type { ReviewSubmission } from "../shared/review.js";
 import { runDetached } from "./detach.js";
 import { emptyDoc, fromContent, readFileDoc, readStream, type Doc } from "./input.js";
 import { formatReview, reviewExitCode } from "./review.js";
-import { startServer, type RunningServer } from "./server.js";
+import { fileTabs, watchFile } from "./file-tabs.js";
+import { startServer } from "./server.js";
+import { attachToSession, serveSession, sessionDirectory } from "./session.js";
 import { installSkill, readSkill } from "./skill.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -58,10 +60,19 @@ async function main(argv: string[]): Promise<number> {
 
   let getDoc: () => Promise<Doc>;
   let watchPath: string | null = null;
+  let sessionDir: string | null = null;
 
   if (args.file) {
     const path = await checkFile(args.file);
     if (path === null) return 1;
+    if (args.port === 0 && args.autoClose) {
+      sessionDir = await sessionDirectory();
+      const attached = sessionDir ? await attachToSession(sessionDir, path) : null;
+      if (attached) {
+        await new Promise<void>((done) => process.stdout.write(`mview: ${attached}\n`, () => done()));
+        return 0;
+      }
+    }
     if (args.detach) {
       return runDetached({
         execPath: process.execPath,
@@ -104,14 +115,24 @@ async function main(argv: string[]): Promise<number> {
     getDoc = async () => emptyDoc();
   }
 
-  let stop: () => void = () => {};
-  const stopped = new Promise<void>((done) => (stop = done));
+  let finish: () => void = () => {};
+  let closing = false;
+  const stopped = new Promise<void>((done) => (finish = done));
+  const stop = () => { closing = true; finish(); };
+  let notify = () => {};
+  const tabs = sessionDir ? fileTabs(() => notify()) : undefined;
+  if (tabs && watchPath) {
+    await tabs.select(watchPath);
+    // Requests without a tab ID still read the first tab, using the same stable target.
+    getDoc = tabs.get(tabs.describe().active) ?? getDoc;
+  }
 
   const server = await startServer({
     webRoot: WEB_ROOT,
     token: randomBytes(24).toString("base64url"),
     port: args.port,
     getDoc,
+    fileTabs: tabs,
     ...(args.autoClose
       ? {
           idle: {
@@ -126,17 +147,25 @@ async function main(argv: string[]): Promise<number> {
       : {}),
   });
 
-  const watcher = watchPath ? await watchFile(watchPath, server) : null;
-
-  process.stdout.write(`mview: ${server.url}\nPress Ctrl+C to stop.\n`);
-  if (args.open) await openBrowser(server.url);
-
+  notify = server.notifyChange;
+  let watcher: Awaited<ReturnType<typeof watchFile>> | undefined;
+  let closeSession: (() => void) | undefined;
   process.once("SIGINT", stop);
   process.once("SIGTERM", stop);
-  await stopped;
-  await watcher?.close();
-  await server.close();
-  return 0;
+  try {
+    if (sessionDir && tabs) {
+      closeSession = await serveSession(sessionDir, server.url, async (path) => !closing && await tabs.select(path));
+    } else if (watchPath) {
+      watcher = await watchFile(watchPath, notify);
+    }
+    process.stdout.write(`mview: ${server.url}\nPress Ctrl+C to stop.\n`);
+    if (args.open) await openBrowser(server.url);
+    await stopped;
+    return 0;
+  } finally {
+    closeSession?.();
+    await Promise.all([watcher?.close(), tabs?.close(), server.close()]);
+  }
 }
 
 /**
@@ -165,7 +194,7 @@ async function runReview(file: string, port: number, openPage: boolean): Promise
     idle: { afterLastMs: AUTO_CLOSE_AFTER_LAST_MS, noneMs: AUTO_CLOSE_NONE_MS, onIdle: () => finish({ kind: "idle" }) },
     review: { onSubmit: (submission) => finish({ kind: "submitted", submission }) },
   });
-  const watcher = await watchFile(path, server);
+  const watcher = await watchFile(path, server.notifyChange);
 
   process.stderr.write(`mview: ${server.url}\nPress Ctrl+C to stop.\n`);
   if (openPage) await openBrowser(server.url);
@@ -203,13 +232,6 @@ async function checkFile(file: string): Promise<string | null> {
     return null;
   }
   return path;
-}
-
-async function watchFile(path: string, server: RunningServer): Promise<{ close(): Promise<void> }> {
-  const { watch } = await import("chokidar");
-  const watcher = watch(path, { ignoreInitial: true, awaitWriteFinish: { stabilityThreshold: 80, pollInterval: 20 } });
-  watcher.on("all", () => server.notifyChange());
-  return watcher;
 }
 
 async function openBrowser(url: string): Promise<void> {
