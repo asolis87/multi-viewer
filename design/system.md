@@ -6,7 +6,7 @@ Source:
 
 - `src/web/styles.css` — the implemented Workbench stylesheet: tokens, the manual theme (`data-theme`), the Markdown reading direction "Serif" (S15), the CSV table, pager and inspector (S13), the search match counter, previous/next buttons and current-match mark (S16), and the review mode "Margin rail" (S17): toolbar decision buttons, sent message, file-changed notice, comment highlights, block comment controls, comment kinds, the margin rail of comment cards and the comment popover.
 
-Last synced after S17 (T47, commit f6bf677). Previous syncs also read the chosen artboards; this one reads only the stylesheet, which implements them.
+Last synced after S18 (source at `defdd13`). Since the S17 sync (`f6bf677`), the stylesheet adds the Editor column without changing the existing color or font tokens.
 
 ## Theme model
 
@@ -163,6 +163,7 @@ Source: `src/web/styles.css`.
 - Under `560px`: chip text and the canvas hint hide.
 - Review page (S17): `.doc-wrap` grid `800px 320px` (article + margin rail); under `1100px` one column with the rail below the article (top border).
 - The page only scrolls inside `main`; a sticky bar at the top of `main` (`.rv-bar`, `--bg`, bottom border, `z-index: 5`) holds a notice.
+- Editor column (S18): on wide screens `.workspace.editing` uses `minmax(420px, 44%) minmax(0, 1fr)`; the outline becomes a `300px` overlay with the existing drawer shadow and backdrop. Below `900px` the preview is above the editor in the remaining space, and the editor uses `45%` of the workspace height.
 
 ## Components
 
@@ -192,6 +193,15 @@ Source: `src/web/styles.css`.
 - **Code highlighting** (highlight.js classes): keywords `--key`; strings `--str`; numbers/literals `--num`; titles/names/sections `--bool`; attributes/variables `--text`; comments/quotes/meta `--muted` italic; deletions `--danger`.
 - **Focus**: `:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px }`; inside rows and table cells `outline-offset: -2px`.
 - **Screen-reader only** `.sr`.
+
+### Edit mode (S18, "Editor column")
+
+Source: `src/web/styles.css`.
+
+- **Toolbar** `.edit-tools`: gap `8px`, wraps; the pressed Edit button uses `--accent-soft` with a `--accent` border.
+- **Editor** `.editor`: `--surface`, `--border` divider. Header `.ed-col-head`: gap `8px`, padding `8px 8px 8px 16px`, heading `11px` uppercase, metadata `12px --mono` truncating with an ellipsis; buttons `30px` high, `12px` labels, `14px` icons.
+- **Source text** `.editor textarea`: `13px/1.55 --mono`, `16px 20px` padding (`12px 16px` below `900px`), tab size `2`, `--surface` and `--text`, inset `2px --focus` outline. Footer `.ed-foot` is `12px --muted` with `8px 16px` padding and hides below `900px`.
+- **Disk notice** `.ed-notice`: `--bg`, `8px 12px` padding, bordered bottom; reuses the wrapping `.notice` with a small `28px` action.
 
 ### Review mode (S17, "Margin rail")
 

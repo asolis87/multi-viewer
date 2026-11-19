@@ -131,6 +131,16 @@
   .ins-close { min-width: var(--target); min-height: var(--target); border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--muted); font-size: 16px; }
   .kv { display: grid; grid-template-columns: 56px 1fr; gap: 6px 10px; font-size: 13px; margin: 0; }
   .kv dt { color: var(--muted); } .kv dd { margin: 0; font-family: var(--mono); }
+  /* Edit mode (S18, Editor column) */
+  .ed-demo { width: 100%; display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border); }
+  .ed-col-head { display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 16px; border-bottom: 1px solid var(--border); }
+  .ed-col-head strong { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+  .ed-col-head .ed-sub { flex: 1; min-width: 0; font: 12px var(--mono); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ed-col-head .btn { min-height: 30px; padding: 0 8px; font-size: 12px; }
+  .ed-demo textarea { margin: 0; resize: none; border: 0; padding: 16px 20px; font: 13px/1.55 var(--mono); background: var(--surface); color: var(--text); tab-size: 2; }
+  .ed-demo textarea:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+  .ed-foot { padding: 8px 16px; border-top: 1px solid var(--border); font-size: 12px; color: var(--muted); }
+
   /* Review mode (S17, Margin rail) */
   .tb-sep { width: 1px; align-self: stretch; margin: 4px 0; background: var(--border); }
   .decide { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -164,7 +174,7 @@
 <body>
 <header class="top">
   <h1>mview design system</h1>
-  <p>Synced read-only from <code>src/web/styles.css</code> (after S15, S16 and S17). Left: light tokens. Right: dark tokens (<code>data-theme="dark"</code>).</p>
+  <p>Synced read-only from <code>src/web/styles.css</code> (after S18). Left: light tokens. Right: dark tokens (<code>data-theme="dark"</code>).</p>
 </header>
 <main class="themes">
   <section class="pane light" id="paneLight" aria-label="Light theme"><h2>Light</h2></section>
@@ -223,6 +233,8 @@
       <div class="c-item is-active"><div class="c-head"><span class="kind kind-change"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 13l1-3 7-7 2 2-7 7z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>Change request</span><span class="lines">lines 12–14</span></div><p class="c-quote">Use Flask for the server</p><p class="c-text">Use FastAPI instead.</p><div class="c-actions"><button class="btn ghost" type="button">Edit</button><button class="btn ghost" type="button">Delete</button></div></div>
       <div style="display:grid;gap:8px"><div class="kinds" role="img" aria-label="Comment kinds"><span class="on kind kind-change">Change request</span><span class="kind kind-answer">Answer</span><span class="kind kind-note">Note</span></div><span class="lines">line 40</span></div>
     </div>
+    <div class="row-c"><div class="ed-demo"><div class="ed-col-head"><strong>Editor</strong><span class="ed-sub">README.md</span><button class="btn" type="button">Copy</button><button class="btn" type="button">Download</button></div><textarea rows="2" aria-label="Example Markdown source" readonly># Run locally
+npm run dev</textarea><div class="ed-foot">Edits stay in this tab and are not saved to disk.</div></div></div>
     <div class="row-c"><div class="err-box" style="flex:1"><strong>Can’t render checkout.mmd — parse error on line 7</strong><span>The file is still being watched.</span></div><span class="remote-image"><b>Remote image blocked</b>https://example.com/logo.png</span></div>
   </section>
 </template>

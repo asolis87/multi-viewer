@@ -1,22 +1,40 @@
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync, utimesSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, statSync, symlinkSync, unlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { createServer, request, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 const CLI = resolve("dist/cli/index.js");
+const originalTmpdir = process.env.TMPDIR;
+let runtimeDir: string | undefined;
 
 beforeAll(() => {
+  if (process.platform !== "win32") {
+    // Short Unix socket paths, isolated from any real viewer the user has open.
+    runtimeDir = mkdtempSync(join("/tmp", "mv-cli-"));
+    process.env.TMPDIR = runtimeDir;
+  }
   const build = spawnSync("npx", ["tsc", "-p", "tsconfig.cli.json"], { encoding: "utf8" });
   if (build.status !== 0) throw new Error(build.stdout + build.stderr);
 });
 
+afterAll(() => {
+  if (originalTmpdir === undefined) delete process.env.TMPDIR;
+  else process.env.TMPDIR = originalTmpdir;
+  if (runtimeDir) rmSync(runtimeDir, { recursive: true, force: true });
+});
+
 let child: ChildProcess | null = null;
-afterEach(() => {
-  child?.kill("SIGINT");
+afterEach(async () => {
+  const proc = child;
   child = null;
+  if (proc && proc.exitCode === null && proc.signalCode === null) {
+    const exited = new Promise((done) => proc.once("close", done));
+    proc.kill("SIGINT");
+    await exited;
+  }
 });
 
 function startCli(args: string[], stdin?: string, cwd?: string): Promise<{ url: string; proc: ChildProcess }> {
@@ -36,6 +54,173 @@ function startCli(args: string[], stdin?: string, cwd?: string): Promise<{ url: 
     else proc.stdin!.end();
   });
 }
+
+describe.skipIf(process.platform === "win32")("file tabs", () => {
+  it("keeps reading and watching the real file when its original symlink is removed", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "mv-alias-"));
+    const file = join(dir, "notes.txt");
+    const alias = join(dir, "notes.md");
+    writeFileSync(file, "{}");
+    symlinkSync(file, alias);
+    const { url } = await startCli([alias]);
+    const tabsUrl = docUrl(url).replace("/api/doc", "/api/tabs");
+    const initial = await (await fetch(tabsUrl)).json();
+    expect(initial.tabs).toEqual([{ id: initial.active, name: "notes.md" }]);
+
+    unlinkSync(alias);
+    const reopened = spawnSync(process.execPath, [CLI, "--no-open", file], { encoding: "utf8", timeout: 2000, killSignal: "SIGINT" });
+    expect(reopened.status).toBe(0);
+    expect(reopened.stdout).toBe(`mview: ${url}\n`);
+    expect(reopened.stderr).toBe("");
+    expect(await (await fetch(tabsUrl)).json()).toEqual({ ...initial, revision: initial.revision + 1 });
+    const routes = [docUrl(url), `${docUrl(url)}&d=${encodeURIComponent(initial.active)}`];
+    async function expectDocument(content: string) {
+      for (const route of routes) {
+        const response = await fetch(route);
+        expect(response.status).toBe(200);
+        expect(await response.json()).toEqual({ name: "notes.md", type: "markdown", source: "file", content });
+      }
+    }
+    await expectDocument("{}");
+
+    const page = await watchChanges(url);
+    try {
+      writeFileSync(file, "# Updated target");
+      await waitFor(() => page.count() > 0);
+      await expectDocument("# Updated target");
+    } finally {
+      page.close();
+    }
+  });
+
+  it("attaches and reselects files without reopening the browser, keeps both live, and isolates review", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "mv-"));
+    const env = { ...process.env, TMPDIR: dir };
+    const first = join(dir, "README.md");
+    const second = join(dir, "notas.md");
+    writeFileSync(first, "# Readme");
+    writeFileSync(second, "# Notes");
+    // Replace only the system browser opener so the actual CLI takes its default open path.
+    const opened = join(dir, "opened");
+    const loader = join(dir, "loader.mjs");
+    const opener = `import {appendFileSync} from 'node:fs'; export default (url) => { appendFileSync(${JSON.stringify(opened)}, url+'\\n'); return Promise.resolve(); };`;
+    writeFileSync(loader, `export function resolve(id, context, next) { return id === 'open' ? {shortCircuit:true,url:${JSON.stringify(`data:text/javascript,${encodeURIComponent(opener)}`)}} : next(id, context); }`);
+    const register = `import {register} from 'node:module'; register(${JSON.stringify(new URL(`file://${loader}`).href)});`;
+    const args = ["--import", `data:text/javascript,${encodeURIComponent(register)}`, CLI];
+
+    function loopback(rawUrl: string, data?: { body: string; json?: boolean }): Promise<{ status: number; body: string }> {
+      const url = new URL(rawUrl);
+      if (url.protocol !== "http:" || url.hostname !== "127.0.0.1") throw new Error("Expected a loopback URL");
+      return new Promise((done, fail) => {
+        const req = request({ hostname: "127.0.0.1", port: url.port, path: url.pathname + url.search, method: data ? "POST" : "GET", headers: data?.json ? { origin: url.origin, "content-type": "application/json" } : {} }, (res) => {
+          let body = "";
+          res.setEncoding("utf8").on("data", (chunk) => (body += chunk));
+          res.on("end", () => done({ status: res.statusCode!, body }));
+        });
+        req.on("error", fail);
+        req.end(data?.body);
+      });
+    }
+
+    function run(...argv: string[]) {
+      return new Promise<{ code: number | null; stdout: string; stderr: string }>((done, fail) => {
+        const proc = spawn(process.execPath, [...args, ...argv], { env, cwd: dir, stdio: ["ignore", "pipe", "pipe"] });
+        let stdout = "";
+        let stderr = "";
+        proc.stdout.on("data", (c) => (stdout += c));
+        proc.stderr.on("data", (c) => (stderr += c));
+        const timer = setTimeout(() => proc.kill("SIGINT"), 2500);
+        proc.once("error", fail);
+        proc.once("close", (code) => { clearTimeout(timer); done({ code, stdout, stderr }); });
+      });
+    }
+
+    const server = spawn(process.execPath, [...args, first], { env, stdio: ["ignore", "pipe", "pipe"] });
+    let out = "";
+    let err = "";
+    server.stdout.on("data", (c) => (out += c));
+    server.stderr.on("data", (c) => (err += c));
+    const exited = new Promise((done) => server.once("close", done));
+    let page: Awaited<ReturnType<typeof watchChanges>> | undefined;
+    let review: ChildProcess | undefined;
+    try {
+      await waitFor(() => /^mview: .*\n/.test(out));
+      const url = out.split("\n")[0]!.slice("mview: ".length);
+      const tabsUrl = docUrl(url).replace("/api/doc", "/api/tabs");
+      const tabs = async () => {
+        const response = await loopback(tabsUrl);
+        expect(response.status).toBe(200);
+        return JSON.parse(response.body) as { active: string; revision: number; tabs: { id: string; name: string }[] };
+      };
+      const getDoc = async (id: string) => JSON.parse((await loopback(`${docUrl(url)}&d=${encodeURIComponent(id)}`)).body);
+      const initial = await tabs();
+      const firstId = initial.active;
+      expect(initial.tabs).toEqual([{ id: firstId, name: "README.md" }]);
+      expect(firstId).not.toContain(dir);
+      page = await watchChanges(url);
+
+      expect(await run("notas.md")).toEqual({ code: 0, stdout: `mview: ${url}\n`, stderr: "" });
+      const attached = await tabs();
+      const secondId = attached.active;
+      expect(secondId).not.toBe(firstId);
+      expect(attached.tabs).toEqual([{ id: firstId, name: "README.md" }, { id: secondId, name: "notas.md" }]);
+      expect(attached.revision).toBeGreaterThan(initial.revision);
+      await waitFor(() => page!.count() > 0);
+
+      expect(await run("--detach", "./README.md")).toEqual({ code: 0, stdout: `mview: ${url}\n`, stderr: "" });
+      const reopened = await tabs();
+      expect(reopened).toEqual({ active: firstId, revision: attached.revision + 1, tabs: attached.tabs });
+      expect(readFileSync(opened, "utf8")).toBe(`${url}\n`);
+      expect(out).toBe(`mview: ${url}\nPress Ctrl+C to stop.\n`);
+      expect(err).toBe("");
+
+      for (const [file, id, content] of [[first, firstId, "# Readme 2"], [second, secondId, "# Notes 2"]] as const) {
+        const before = page.count();
+        writeFileSync(file, content);
+        await waitFor(() => page!.count() > before);
+        expect((await getDoc(id)).content).toBe(content);
+      }
+      expect(await run("missing.md")).toEqual({ code: 1, stdout: "", stderr: "mview: file not found: missing.md\n" });
+      expect(await loopback(`${docUrl(url)}&d=${encodeURIComponent(first)}`)).toEqual({ status: 404, body: "Not Found" });
+      expect(await loopback(tabsUrl, { body: second })).toEqual({ status: 405, body: "Method Not Allowed" });
+      expect(await tabs()).toEqual(reopened);
+
+      unlinkSync(first);
+      for (const endpoint of [docUrl(url), `${docUrl(url)}&d=${encodeURIComponent(firstId)}`]) {
+        const missing = await loopback(endpoint);
+        expect(missing.status).toBe(500);
+        expect(JSON.parse(missing.body)).toEqual({ error: "README.md could not be read." });
+      }
+      expect(await tabs()).toEqual(reopened);
+      writeFileSync(first, "# Restored Readme");
+
+      review = spawn(process.execPath, [CLI, "review", "--no-open", first], { env, stdio: ["ignore", "pipe", "pipe"] });
+      let reviewErr = "";
+      let reviewOut = "";
+      review.stderr!.on("data", (c) => (reviewErr += c));
+      review.stdout!.on("data", (c) => (reviewOut += c));
+      const reviewExit = new Promise((done) => review!.once("close", done));
+      await waitFor(() => reviewErr.includes("Press Ctrl+C to stop.\n"));
+      const reviewUrl = reviewErr.split("\n")[0]!.slice("mview: ".length);
+      expect(reviewUrl).not.toBe(url);
+      expect(await loopback(docUrl(reviewUrl).replace("/api/doc", "/api/tabs"))).toEqual({ status: 404, body: "Not Found" });
+      expect(await tabs()).toEqual(reopened);
+      const response = await loopback(docUrl(reviewUrl).replace("/api/doc", "/api/review"), {
+        body: JSON.stringify({ decision: "approved", comments: [] }), json: true,
+      });
+      expect(response).toEqual({ status: 200, body: '{"ok":true}' });
+      expect(await reviewExit).toBe(0);
+      expect(reviewOut).toBe("# Review: README.md\nDecision: approved\nComments: 0\n");
+      expect(reviewErr).toBe(`mview: ${reviewUrl}\nPress Ctrl+C to stop.\n`);
+    } finally {
+      page?.close();
+      review?.kill("SIGINT");
+      server.kill("SIGINT");
+      await exited;
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 10000);
+});
 
 function docUrl(pageUrl: string): string {
   const u = new URL(pageUrl);

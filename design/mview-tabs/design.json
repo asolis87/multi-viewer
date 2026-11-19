@@ -1,0 +1,28 @@
+{
+  "title": "mview document tabs",
+  "brief": "Reuse one Workbench browser page for files opened from the terminal, with a visible active document and responsive, keyboard-accessible navigation. Tabs live until the viewer exits. The Edit demo shows isolated drafts; the existing document toolbar and review flow remain separate.",
+  "feature": "odd/tasks/document-tabs.md",
+  "artboards": [
+    {
+      "file": "01-toolbar-tabs.html",
+      "title": "Toolbar tabs",
+      "tradeoff": "Keeps the current height on wide screens; the tab strip shares space with Edit, Render as and Theme.",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "file": "02-document-strip.html",
+      "title": "Document strip",
+      "tradeoff": "Shows more complete filenames and leaves controls in place; costs one slim row.",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "file": "03-workbench-rail.html",
+      "title": "Workbench rail",
+      "tradeoff": "Scales to a longer list on desktop; documents and the current outline share the side pane.",
+      "width": 1440,
+      "height": 900
+    }
+  ]
+}
