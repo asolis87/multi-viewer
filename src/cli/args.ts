@@ -15,11 +15,11 @@ export type CliArgs =
 export const HELP = `mview — view Markdown, Mermaid, JSON and CSV in your browser
 
 Usage:
-  mview <file>            Open a file and live-reload it when it changes
+  mview <file>            Open or select a file in the viewer; live-reload it on save
   mview --paste           Open the current clipboard content
   <command> | mview       Open content piped through stdin
   mview                   Open an empty page where you can paste (Cmd/Ctrl+V)
-  mview --detach <file>   Start in the background, print the URL and return
+  mview --detach <file>   Reuse the viewer or start it in the background and print its URL
   mview review <file>     Open a Markdown file for review and wait for the
                           decision: comment on its lines in the page, then
                           Approve or Request changes (see "Review" below)
@@ -37,7 +37,7 @@ Options:
                           the last page closes, or 60 s after start if no page
                           ever opens
       --no-auto-close     Keep the server running until Ctrl+C
-      --detach            Run the server in the background (always
+      --detach            Attach or start in the background (always
                           --auto-close), print only "mview: <url>" and exit;
                           needs a file
   -h, --help              Show this help
@@ -48,6 +48,9 @@ Types are detected from the file extension (.md, .markdown, .mmd, .mermaid,
 listens on 127.0.0.1 only. It stops by itself once no page is open, or with Ctrl+C;
 use --no-auto-close to keep it running until Ctrl+C. A page hidden for 30 minutes
 (minimized or a background tab) disconnects, so forgotten tabs let it stop too.
+On macOS/Linux, another file command reuses the viewer without opening the
+browser again. A fixed --port, --no-auto-close, clipboard, stdin and review
+use separate servers. --no-open never opens the browser.
 The skill is never installed automatically; use "mview skill print > <path>"
 for other locations.
 

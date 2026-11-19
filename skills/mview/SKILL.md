@@ -10,8 +10,8 @@ Use mview when the human should see a Mermaid diagram, a JSON document longer th
 ## Steps
 
 1. Write the content to a file with the right extension: `.md` for Markdown (fenced ```` ```mermaid ```` blocks render as diagrams), `.mmd` for a Mermaid diagram, `.json` for JSON, `.csv` or `.tsv` for tabular data (the first row is the header; quote fields that contain the delimiter, quotes or line breaks). If the content is not in a file yet, create one under the OS temporary directory (for example `$TMPDIR` or `/tmp` on macOS and Linux, `%TEMP%` on Windows). If it already is a file, use that file.
-2. Run `mview --detach <file>`. It returns at once, opens the page in the human's browser and prints one line: `mview: <url>`.
-3. Give the human the printed URL. Tell them it stops working if no page opens within 60 seconds, and that running the same command again opens a new one.
+2. Run `mview --detach <file>`. It prints one line, `mview: <url>`, and returns at once. It opens a browser page for a new viewer, or selects the file in the existing viewer without opening another browser tab.
+3. Give the human the printed URL. A new viewer stops if no page opens within 60 seconds. Running the same command again selects the file if the viewer is still running, or starts a new viewer if it stopped.
 
 ## Rules
 
@@ -53,4 +53,4 @@ mview --detach "${TMPDIR:-/tmp}/auth-flow.mmd"
 # mview: http://127.0.0.1:53412/?t=...
 ```
 
-Then tell the human: "I opened the diagram in your browser: http://127.0.0.1:53412/?t=... — it stops working if no page opens within 60 seconds; running the same command again opens a new one."
+Then tell the human: "The diagram is in mview: http://127.0.0.1:53412/?t=..." If the viewer stops, run the command again to reopen it.
