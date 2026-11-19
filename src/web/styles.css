@@ -66,6 +66,17 @@ kbd { font-size: 12px; border: 1px solid var(--border); border-bottom-width: 2px
 .type select:disabled, .theme select:disabled { cursor: not-allowed; opacity: .6; }
 .manual-tag { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--accent); border: 1px solid currentColor; border-radius: 4px; padding: 1px 5px; }
 
+/* Document tabs (S1–S4, L8; design/mview-tabs/01-toolbar-tabs.html): the strip replaces the file
+   name on wide screens and wraps to its own horizontally scrollable row on narrow ones. */
+.toolbar.has-tabs .spacer { display: none; }
+.documents { min-width: 0; flex: 1 1 240px; background: var(--surface); }
+.tablist { display: flex; gap: 4px; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; }
+.tablist button { flex: 0 0 auto; min-height: var(--target); max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  padding: 0 12px; border: 0; border-radius: 6px; background: var(--surface); color: var(--muted); font-size: 13px; text-align: left; cursor: pointer; }
+.tablist button:hover { background: var(--surface-2); }
+.tablist button:focus-visible { outline-offset: -2px; }
+.tablist button[aria-selected="true"] { color: var(--text); background: var(--accent-soft); box-shadow: inset 0 -2px var(--accent); font-weight: 600; }
+
 /* Workspace: sidebar + main */
 .workspace { display: grid; grid-template-columns: 260px minmax(0, 1fr); min-height: 0; }
 .sidebar { background: var(--surface); border-right: 1px solid var(--border); overflow: auto; display: flex; flex-direction: column; }
@@ -338,6 +349,8 @@ th.num .th-btn { justify-content: flex-end; }
 }
 .outline-btn.always[aria-expanded="true"] { background: var(--accent-soft); border-color: var(--accent); }
 @media (max-width: 899px) {
+  .toolbar.has-tabs { flex-wrap: wrap; gap: 8px; }
+  .toolbar.has-tabs .documents { order: 3; flex: 0 0 100%; }
   .outline-btn { display: inline-flex; }
   .brand span, .type label, .theme label { display: none; }
   .brand { border-right: 0; padding-right: 0; }

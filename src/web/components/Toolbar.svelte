@@ -3,7 +3,9 @@
   import type { DocType } from "../lib/doc.js";
   import { THEME_OPTIONS, type ThemeChoice } from "../lib/theme.js";
   import type { ReviewControls } from "../lib/review.js";
+  import type { TabRef } from "../lib/tabs.js";
   import ReviewIcon from "./ReviewIcon.svelte";
+  import DocumentTabs from "./DocumentTabs.svelte";
 
   interface Props {
     name: string;
@@ -25,6 +27,8 @@
     edit?: { open: boolean; edited: boolean; ontoggle: () => void } | null;
     editButton?: HTMLButtonElement;
     outlineTitle?: string;
+    /** Two or more open documents (S1–S4, L8): the strip replaces the file name. */
+    tabs?: { items: TabRef[]; selected: string | null; onselect: (id: string) => void } | null;
   }
 
   let {
@@ -43,10 +47,11 @@
     edit = null,
     editButton = $bindable(),
     outlineTitle = "Show or hide the column outline",
+    tabs = null,
   }: Props = $props();
 </script>
 
-<header class="toolbar">
+<header class="toolbar" class:has-tabs={tabs !== null}>
   <button
     class="btn outline-btn"
     class:always={outlineAlways}
@@ -63,16 +68,20 @@
     <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="1" y="3" width="18" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="1.6" /><path d="M5 13V7l2.5 3L10 7v6M13 7l2 6 2-6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" /></svg>
     <span>mview</span>
   </div>
-  <div class="file">
-    <span class="file-name">{name}</span>
-    <span class="chip" title="Where this content came from">
-      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 1.5h5l3.5 3.5v9.5h-8.5z M9 1.5V5h3.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" /></svg>
-      <span class="sr">Source:</span><span class="chip-text">{sourceLabel}</span>
-    </span>
-    {#if review}
-      <span class="chip" title="Comment on this document, then request changes or approve it"><ReviewIcon name="bubble" /><span class="chip-text">Review</span></span>
-    {/if}
-  </div>
+  {#if tabs}
+    <DocumentTabs items={tabs.items} selected={tabs.selected} onselect={tabs.onselect} />
+  {:else}
+    <div class="file">
+      <span class="file-name">{name}</span>
+      <span class="chip" title="Where this content came from">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 1.5h5l3.5 3.5v9.5h-8.5z M9 1.5V5h3.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" /></svg>
+        <span class="sr">Source:</span><span class="chip-text">{sourceLabel}</span>
+      </span>
+      {#if review}
+        <span class="chip" title="Comment on this document, then request changes or approve it"><ReviewIcon name="bubble" /><span class="chip-text">Review</span></span>
+      {/if}
+    </div>
+  {/if}
   <div class="spacer"></div>
   <div class="type">
     <label for="type-select">Render as</label>
