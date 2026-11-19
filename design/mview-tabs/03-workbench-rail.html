@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en" data-layout="rail">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>mview · Workbench rail</title>
+<style>
+:root { --bg: #f6f7f9; --surface: #ffffff; --surface-2: #eef0f3; --surface-3: #e3e7eb; --text: #1b1f24; --muted: #57606a; --border: #d5dae0; --accent: #0b5fcc; --accent-soft: #e2ecfb; --focus: #0b5fcc; --ok: #1a7f37; --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif; --target: 36px; color-scheme: light dark; }
+:root[data-theme="dark"] { --bg: #0f1216; --surface: #161a1f; --surface-2: #1d2228; --surface-3: #262c33; --text: #e6e9ed; --muted: #9ba5af; --border: #2c333b; --accent: #6ea8ff; --accent-soft: #1a2a44; --focus: #8bb9ff; --ok: #4ac26b; color-scheme: dark; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #0f1216; --surface: #161a1f; --surface-2: #1d2228; --surface-3: #262c33; --text: #e6e9ed; --muted: #9ba5af; --border: #2c333b; --accent: #6ea8ff; --accent-soft: #1a2a44; --focus: #8bb9ff; --ok: #4ac26b; } }
+:root[data-theme="light"] { color-scheme: light; }
+@media (pointer: coarse) { :root { --target: 44px; } }
+* { box-sizing: border-box; }
+body { margin: 0; min-height: 100dvh; display: grid; grid-template-rows: auto minmax(0,1fr) auto; grid-template-columns: minmax(0,1fr); background: var(--bg); color: var(--text); font: 14px/1.5 var(--font); }
+[hidden] { display: none !important; }
+button, select, textarea { font: inherit; color: inherit; }
+button, select { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.toolbar { display: flex; align-items: center; min-height: 52px; padding: 6px 12px; gap: 12px; border-bottom: 1px solid var(--border); background: var(--surface); }
+.brand { display: flex; align-items: center; gap: 8px; padding-right: 12px; border-right: 1px solid var(--border); }
+.brand svg { width: 20px; height: 20px; color: var(--accent); }
+.filename { font-size: 15px; font-weight: 600; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; min-width: 0; }
+.tools { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+.tools label { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.tools button, .tools select { min-height: var(--target); border: 1px solid var(--border); background: var(--surface); border-radius: 6px; padding: 0 8px; font-size: 13px; }
+.tools button[aria-expanded="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.documents { min-width: 0; background: var(--surface); }
+.documents h2, .side h2 { margin: 0; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.documents h2 { display: none; }
+.tablist { display: flex; gap: 4px; overflow: auto; }
+.tablist button { min-height: var(--target); max-width: 240px; flex: 0 0 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 12px; border: 0; border-radius: 6px; background: var(--surface); color: var(--muted); font-size: 13px; text-align: left; }
+.tablist button:hover { background: var(--surface-2); }
+.tablist button[aria-selected="true"] { color: var(--text); background: var(--accent-soft); box-shadow: inset 0 -2px var(--accent); font-weight: 600; }
+.layout { display: grid; grid-template-columns: 260px minmax(0,1fr); min-width: 0; min-height: 0; }
+.side { background: var(--surface); border-right: 1px solid var(--border); padding: 14px 0; }
+.outline { padding: 0 16px; }
+.outline p { margin: 6px 0; font-size: 13px; color: var(--muted); }
+.preview { display: grid; grid-template-columns: minmax(0,1fr); }
+.preview.editing { grid-template-columns: minmax(200px,44%) minmax(0,1fr); }
+.article { max-width: 800px; padding: 32px 40px 80px; font: 19px/32.3px var(--serif); overflow-wrap: anywhere; }
+.article h1 { font: 700 36px/43.2px var(--font); letter-spacing: -.02em; margin: 0 0 24px; }
+.article h2 { font: 700 26px/32.5px var(--font); margin: 40px 0 16px; border-bottom: 1px solid var(--border); }
+.article p { margin: 0 0 22px; max-width: 720px; }
+.article pre { padding: 16px 20px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); overflow: auto; }
+.article pre, code { font: 15px/24px var(--mono); }
+.editor { min-width: 0; display: flex; flex-direction: column; background: var(--surface); border-right: 1px solid var(--border); }
+.editor label, .editor p { margin: 0; padding: 8px 16px; color: var(--muted); background: var(--surface); font-size: 12px; border-bottom: 1px solid var(--border); }
+.editor textarea { width: 100%; min-height: 120px; flex: 1; border: 0; padding: 16px 20px; resize: none; background: var(--surface); font: 13px/1.55 var(--mono); }
+.status { display: flex; align-items: center; gap: 8px; min-height: 30px; padding: 4px 12px; background: var(--surface-2); border-top: 1px solid var(--border); color: var(--muted); font-size: 12px; }
+.status .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
+.status .hint { margin-left: auto; }
+:root[data-layout="inline"] .toolbar .documents { flex: 1; }
+:root[data-layout="strip"] .toolbar-wrap > .documents { border-bottom: 1px solid var(--border); padding: 4px 12px; }
+:root[data-layout="strip"] .tablist button[aria-selected="true"] { box-shadow: inset 0 -2px var(--accent); }
+:root[data-layout="rail"] .side .documents { padding: 0 8px 12px; margin-bottom: 14px; border-bottom: 1px solid var(--border); }
+:root[data-layout="rail"] .side .documents h2 { display: block; padding: 0 8px 6px; }
+:root[data-layout="rail"] .tablist { flex-direction: column; }
+:root[data-layout="rail"] .tablist button[aria-selected="true"] { box-shadow: inset 2px 0 var(--accent); }
+@media (max-width: 899px) {
+  .layout { grid-template-columns: minmax(0,1fr); grid-template-rows: auto minmax(0,1fr); }
+  .side { padding: 0; border: 0; }
+  .outline { display: none; }
+  .toolbar { flex-wrap: wrap; gap: 8px; }
+  :root[data-layout="inline"] .toolbar .documents { order: 3; flex: 0 0 100%; }
+  :root[data-layout="rail"] .side .documents { padding: 4px 12px; margin: 0; }
+  :root[data-layout="rail"] .side .documents h2 { display: none; }
+  :root[data-layout="rail"] .tablist { flex-direction: row; }
+  :root[data-layout="rail"] .tablist button[aria-selected="true"] { box-shadow: inset 0 -2px var(--accent); }
+  .article { padding: 20px 16px 56px; font-size: 17px; line-height: 28.9px; }
+  .article h1 { font-size: 30px; line-height: 36px; }
+  .preview.editing { grid-template-columns: minmax(0,1fr); }
+  .preview.editing .editor { grid-row: 2; border-right: 0; border-top: 1px solid var(--border); }
+}
+@media (max-width: 560px) { .tools { gap: 4px; } .tools label { font-size: 0; } .status .hint { display: none; } }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }
+</style></head>
+<body>
+<div class="toolbar-wrap"><header class="toolbar"><strong class="brand"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="3.5" width="15" height="13" rx="2" fill="none" stroke="currentColor"/><path d="m6 12 3-4 2 3 2-2 2 3" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></svg>mview</strong><span id="filename" class="filename">README.md</span><div class="tools"><button id="edit" type="button" aria-expanded="false" aria-controls="editor">Edit</button><label>Render as <select aria-label="Render as"><option>Markdown</option></select></label><label>Theme <select id="theme" aria-label="Theme"><option>System</option><option>Light</option><option>Dark</option></select></label></div></header></div>
+<div class="layout">
+  <aside class="side"><section class="documents" aria-label="Open documents"><h2>Documents</h2><div class="tablist" role="tablist" aria-label="Documents" aria-orientation="horizontal">
+  <button id="tab-0" role="tab" aria-selected="true" aria-controls="doc-panel" tabindex="0" type="button" title="README.md">README.md</button>
+  <button id="tab-1" role="tab" aria-selected="false" aria-controls="doc-panel" tabindex="-1" type="button" title="notas.md">notas.md</button>
+  <button id="tab-2" role="tab" aria-selected="false" aria-controls="doc-panel" tabindex="-1" type="button" title="release-checklist.md">release-checklist.md</button>
+  <button id="tab-3" role="tab" aria-selected="false" aria-controls="doc-panel" tabindex="-1" type="button" title="deployment-notes.md">deployment-notes.md</button>
+</div></section><div class="outline"><h2>Outline</h2><p id="outline-title"></p><p id="outline-heading"></p></div></aside>
+  <main id="doc-panel" role="tabpanel" aria-labelledby="tab-0" tabindex="0" class="preview"><div class="editor" id="editor" hidden><label for="source">Editor · Markdown</label><textarea id="source" spellcheck="false"></textarea><p>Edits stay in this tab and are not saved to disk.</p></div><article class="article"><h1 id="title"></h1><p id="intro"></p><h2 id="heading"></h2><p id="detail"></p><pre id="command"></pre></article></main>
+</div>
+<footer class="status"><span class="dot" aria-hidden="true"></span><span id="status" role="status"></span><span class="hint">Live reload · Markdown</span></footer>
+<script>
+  const items = [
+    ['README.md','mview','View Markdown, Mermaid, JSON and CSV in your browser, straight from the terminal.','Open a document','Run mview with the path to a file. Changes appear when you save.','mview README.md'],
+    ['notas.md','Release notes','The viewer keeps related documents together in the same browser page.','Try the workspace','Open these notes from a second terminal. Open the README again to jump back without adding a duplicate.','mview notas.md'],
+    ['release-checklist.md','Release checklist','Confirm the CLI can start a viewer and attach a second file.','Before tagging','Run the tests, verify live reload and check that the review command remains separate.','npm run check && npm test'],
+    ['deployment-notes.md','Deployment notes','The viewer serves the built frontend on the local machine.','Local smoke test','Start the built CLI and open the URL it prints.','node dist/cli/index.js README.md'],
+  ];
+  const byId = (id) => document.getElementById(id);
+  const buttons = [...document.querySelectorAll('[role="tab"]')];
+  const list = document.querySelector('[role="tablist"]');
+  const editors = new Set();
+  const drafts = new Map();
+  let current = 0;
+  function select(i, focus = false) {
+    current = i;
+    const [name,title,intro,heading,detail,command] = items[i];
+    for (const [id,value] of Object.entries({title,intro,heading,detail,command,status: 'Watching ' + name,'outline-title':title,'outline-heading':heading,filename:name})) { if (byId(id)) byId(id).textContent = value; }
+    for (const [j,button] of buttons.entries()) { button.setAttribute('aria-selected', String(i===j)); button.tabIndex = i===j ? 0 : -1; }
+    byId('doc-panel').setAttribute('aria-labelledby','tab-'+i);
+    byId('editor').hidden = !editors.has(i);
+    byId('doc-panel').classList.toggle('editing',editors.has(i));
+    byId('edit').setAttribute('aria-expanded',String(editors.has(i)));
+    byId('source').value = drafts.get(i) ?? '# '+title+'\n\n'+intro+'\n\n## '+heading+'\n\n'+detail;
+    if (focus) buttons[i].focus();
+    if (focus) buttons[i].scrollIntoView({block:'nearest',inline:'nearest'});
+  }
+  const narrow = matchMedia('(max-width: 899px)');
+  const orient = () => list.setAttribute('aria-orientation',document.documentElement.dataset.layout==='rail'&&!narrow.matches?'vertical':'horizontal');
+  narrow.addEventListener('change',orient); orient();
+  buttons.forEach((button,i) => {
+    button.addEventListener('click',() => select(i));
+    button.addEventListener('keydown',(event) => {
+      const vertical = list.getAttribute('aria-orientation')==='vertical';
+      const offset = event.key===(vertical?'ArrowUp':'ArrowLeft')?-1:event.key===(vertical?'ArrowDown':'ArrowRight')?1:0;
+      const next = event.key==='Home'?0:event.key==='End'?buttons.length-1:offset?(i+offset+buttons.length)%buttons.length:null;
+      if(next===null)return;
+      event.preventDefault(); select(next,true);
+    });
+  });
+  byId('edit').addEventListener('click',() => { if(editors.has(current)) editors.delete(current); else editors.add(current); select(current); if(editors.has(current)) byId('source').focus(); });
+  byId('source').addEventListener('input',() => drafts.set(current,byId('source').value));
+  byId('theme').addEventListener('change',(event) => { const choice=event.target.value.toLowerCase(); if(choice==='system') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme=choice; });
+  select(0);
+</script>
+</body></html>
