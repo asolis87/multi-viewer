@@ -37,6 +37,8 @@ The file extension wins when it is known. You can always override the detected t
 
 In the JSON and CSV search, a counter shows `<current> of <total>` matches; Enter and Shift+Enter (or the arrow buttons next to the box) go to the next and previous match, wrapping around.
 
+In the CSV view, **Wrap text** shows long cell values across multiple lines. The choice is remembered in the browser.
+
 The **Theme** selector in the page header switches between System (follows your OS), Light and Dark. The choice is not remembered: every run starts on System.
 
 ## Edit

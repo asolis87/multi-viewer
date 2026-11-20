@@ -39,6 +39,16 @@
 
   const table = $derived(buildTable(parseCsv(content, delimiterFor(content, name, manual))));
 
+  // Storage can be unavailable (for example, when the browser denies access).
+  function readWrapText(): boolean {
+    try {
+      return localStorage.getItem("mview.csv.wrapText") === "true";
+    } catch {
+      return false;
+    }
+  }
+
+  let wrapText = $state(readWrapText());
   let query = $state("");
   let sort = $state<SortState | null>(null);
   let target = $state<number | null>(null);
@@ -128,7 +138,7 @@
   $effect(() => {
     const m = current;
     void drawn;
-    hiddenCurrent = m !== null && cutOff(cellEl(m.row, m.col));
+    hiddenCurrent = !wrapText && m !== null && cutOff(cellEl(m.row, m.col));
   });
 
   $effect(() => onstatus(rowStatus(view.length, table.rows.length)));
@@ -148,6 +158,15 @@
   function clearSearch() {
     query = "";
     searchEl?.focus();
+  }
+
+  function toggleWrapText() {
+    wrapText = !wrapText;
+    try {
+      localStorage.setItem("mview.csv.wrapText", String(wrapText));
+    } catch {
+      // Keep the toggle usable even when the preference cannot be saved.
+    }
   }
 
   async function revealSelected() {
@@ -317,9 +336,10 @@
           <button class="btn" type="button" onclick={clearSearch}>Clear search</button>
         </div>
       {/if}
+      <button class="btn wrap-text-btn" type="button" aria-pressed={wrapText} onclick={toggleWrapText}>Wrap text</button>
     </div>
     <div class="grid-scroll" bind:this={scrollEl}>
-      <table class="t" id="csv-table">
+      <table class="t" class:is-wrapped={wrapText} id="csv-table">
         <caption class="sr">{caption}</caption>
         <thead>
           <tr bind:this={headEl}>
