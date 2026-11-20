@@ -1,0 +1,89 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>mview — Wide blocks</title><style>
+:root{--bg:#f6f7f9;--surface:#fff;--surface-2:#eef0f3;--text:#1b1f24;--muted:#57606a;--border:#d5dae0;--line:#8c959f;--accent:#0b5fcc;--accent-ink:#fff;--accent-soft:#e2ecfb;--ok:#1a7f37;--focus:#0b5fcc;
+--font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;--serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;--target:36px;color-scheme:light dark}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1216;--surface:#161a1f;--surface-2:#1d2228;--text:#e6e9ed;--muted:#9ba5af;--border:#2c333b;--line:#6b7580;--accent:#6ea8ff;--accent-ink:#0b1220;--accent-soft:#1a2a44;--ok:#4ac26b;--focus:#8bb9ff}}
+*{box-sizing:border-box}html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--text);font:14px/1.5 var(--font);display:grid;grid-template-rows:auto minmax(0,1fr) auto;overflow:hidden}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+code,pre{font-family:var(--mono)}
+.toolbar{display:flex;align-items:center;gap:12px;min-height:52px;padding:6px 12px;background:var(--surface);border-bottom:1px solid var(--border)}
+.brand{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:-.02em;padding-right:12px;border-right:1px solid var(--border)}
+.brand svg{width:20px;height:20px}
+.file-name{font-weight:600;font-size:15px}
+.chip{display:inline-flex;align-items:center;height:24px;padding:0 8px;border-radius:12px;border:1px solid var(--border);background:var(--surface-2);font-size:12px;color:var(--muted)}
+.spacer{flex:1}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:var(--target);padding:0 12px;border:1px solid var(--border);background:var(--surface);border-radius:6px;cursor:pointer;font:inherit;font-size:13px;color:inherit}
+.btn:hover{background:var(--surface-2)}
+.workspace{display:grid;grid-template-columns:260px minmax(0,1fr);min-height:0}
+.sidebar{background:var(--surface);border-right:1px solid var(--border);overflow:auto}
+.side-head{padding:14px 16px 6px}.side-head h2{margin:0;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.outline{list-style:none;margin:0;padding:4px 8px 16px}
+.outline a{display:flex;align-items:center;min-height:var(--target);padding:4px 8px 4px calc(8px + var(--lv,0)*14px);border-radius:6px;font-size:13px;color:inherit;text-decoration:none}
+.outline a:hover{background:var(--surface-2)}
+.outline a[aria-current="true"]{background:var(--accent-soft);box-shadow:inset 2px 0 var(--accent);font-weight:600}
+main{overflow:auto;min-width:0;position:relative}
+.status{display:flex;gap:16px;align-items:center;padding:4px 12px;font-size:12px;color:var(--muted);background:var(--surface);border-top:1px solid var(--border)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--ok);display:inline-block;margin-right:6px}
+/* Markdown base: production values from src/web/styles.css */
+.md{--col:720px;padding:32px 40px 80px;overflow-wrap:break-word;font-family:var(--serif);font-size:19px;line-height:32.3px}
+.md :is(h1,h2,h3){font-family:var(--font);max-width:var(--col)}
+.md h1{font-size:36px;line-height:43.2px;font-weight:700;letter-spacing:-.02em;margin:0 0 24px}
+.md h2{font-size:26px;line-height:32.5px;font-weight:700;letter-spacing:-.02em;margin:56px 0 16px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+.md p{margin:0 0 22px;max-width:var(--col)}
+.md ul{margin:0 0 22px;padding-left:30px;max-width:var(--col)}.md li+li{margin-top:10px}
+.md code{font-size:16px;background:var(--surface-2);border:1px solid var(--border);padding:0 4px;border-radius:4px}
+.md pre{font-size:15px;line-height:24px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 20px;overflow-x:auto;margin:0 0 26px;max-width:var(--col)}
+.md pre code{background:none;border:0;padding:0;font-size:inherit}
+.md .tbl{max-width:var(--col);overflow-x:auto;background:var(--surface);border:1px solid var(--border);margin:0 0 22px}
+.md table{border-collapse:collapse;width:100%;font-family:var(--font);font-size:15px;line-height:22.5px}
+.md th,.md td{text-align:left;vertical-align:top;padding:10px 14px;border-bottom:1px solid var(--border);white-space:nowrap}
+.md td.wrap{white-space:normal;min-width:260px}
+.md tr:last-child td{border-bottom:0}
+.md th{background:var(--surface-2);font-weight:600;font-size:13px;color:var(--muted)}
+.md figure{margin:12px 0 26px;max-width:var(--col);background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;overflow-x:auto}
+.md figure svg{display:block;width:100%;min-width:640px;height:auto;font-family:var(--font)}
+.md figcaption{font:13px/1.5 var(--font);color:var(--muted);margin-top:8px}
+.md a{color:var(--accent)}
+.note{position:fixed;right:16px;bottom:40px;max-width:300px;padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 16px rgb(0 0 0 / .10);font-size:12.5px;color:var(--muted)}
+.note strong{color:var(--text);display:block;font-size:13px;margin-bottom:4px}
+@media (max-width:899px){.workspace{grid-template-columns:minmax(0,1fr)}.sidebar{display:none}.md{padding:20px 16px 56px;font-size:17px;line-height:28.9px}.md h1{font-size:30px;line-height:36px}.md h2{font-size:23px;line-height:28.75px}.note{display:none}.toolbar .chip{display:none}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+.md{max-width:none;padding:32px 48px 80px}
+.md .tbl,.md pre,.md figure{max-width:none}
+.md .tbl{border-radius:8px}</style></head><body>
+<header class="toolbar"><div class="brand"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2" y="3" width="16" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M6 8h8M6 12h5" stroke="currentColor" stroke-width="1.6"/></svg><span>mview</span></div><span class="file-name">release-checklist.md</span><span class="chip">Markdown</span><span class="spacer"></span><button class="btn" type="button">Edit</button><button class="btn" type="button">Review</button></header>
+<div class="workspace"><nav class="sidebar" aria-label="Document outline"><div class="side-head"><h2>Outline</h2></div><ul class="outline">
+<li><a href="#release" aria-current="true">Release checklist — mview 0.4</a></li>
+<li><a href="#matrix" style="--lv:1">Verification matrix</a></li>
+<li><a href="#flow" style="--lv:1">Request flow</a></li>
+<li><a href="#tag" style="--lv:1">Tag and publish</a></li></ul></nav><main id="main"><article class="md">
+<h1 id="release">Release checklist — mview 0.4</h1>
+<p>This release ships document tabs and the review rail. Run every step below on a clean checkout of <code>main</code> before tagging; each step names the command, the expected output and who signs it off.</p>
+<h2 id="matrix">Verification matrix</h2>
+<div class="tbl" tabindex="0" role="region" aria-label="Verification matrix">
+<table><thead><tr><th>Step</th><th>Command</th><th>Platform</th><th>Expected result</th><th>Owner</th><th>Status</th><th>Notes</th></tr></thead><tbody>
+<tr><td>1</td><td><code>npm ci && npm run build</code></td><td>macOS 15, Node 22</td><td>Exit 0, <code>dist/</code> rebuilt</td><td>Alva Solís</td><td>Passed</td><td class="wrap">Build time 14.2 s; no new warnings from Vite.</td></tr>
+<tr><td>2</td><td><code>npm test -- --run</code></td><td>macOS 15, Node 22</td><td>412 tests, 0 failed</td><td>Alva Solís</td><td>Passed</td><td class="wrap">tabs-app.test.ts covers reuse of the open page.</td></tr>
+<tr><td>3</td><td><code>mview README.md docs/plan.md</code></td><td>Ubuntu 24.04, Node 20</td><td>One page, two tabs</td><td>Marco Ferreyra</td><td>Pending</td><td class="wrap">Check that the second file reuses the tab instead of opening a window.</td></tr>
+<tr><td>4</td><td><code>mview review spec.md</code></td><td>Windows 11, Node 22</td><td>Approve writes verdict</td><td>Lucía Benítez</td><td>Pending</td><td class="wrap">Verify CRLF files keep line anchors.</td></tr>
+</tbody></table></div>
+<h2 id="flow">Request flow</h2>
+<p>A second <code>mview</code> call never starts a new server: it hands the file to the running one, which pushes it to the open page as a new tab.</p>
+<figure aria-label="Diagram: CLI to server to browser tab">
+<svg viewBox="0 0 1000 200" role="img" aria-label="CLI sends file to running server, server pushes over SSE to the browser page, page opens a tab">
+<defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="currentColor"/></marker></defs>
+<g fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--line)">
+<rect x="10" y="60" width="170" height="70" rx="8" fill="var(--surface-2)"/><rect x="270" y="60" width="200" height="70" rx="8" fill="var(--surface-2)"/>
+<rect x="560" y="60" width="190" height="70" rx="8" fill="var(--surface-2)"/><rect x="830" y="60" width="160" height="70" rx="8" fill="var(--accent-soft)" style="color:var(--accent)"/>
+<path d="M180 95H266" marker-end="url(#ar)"/><path d="M470 95H556" marker-end="url(#ar)"/><path d="M750 95H826" marker-end="url(#ar)"/></g>
+<g fill="var(--text)" font-size="15" text-anchor="middle"><text x="95" y="100">mview plan.md</text><text x="370" y="100">Running server</text><text x="655" y="100">Open browser page</text><text x="910" y="100">New tab</text></g>
+<g fill="var(--muted)" font-size="12" text-anchor="middle"><text x="223" y="82">POST /open</text><text x="513" y="82">SSE push</text><text x="788" y="82">render</text></g>
+</svg><figcaption>Mermaid diagram · flowchart LR</figcaption></figure>
+<h2 id="tag">Tag and publish</h2>
+<p>Once the matrix is green, tag from the release branch. The publish script refuses to run when the working tree is dirty or when the version in <code>package.json</code> does not match the tag.</p>
+<pre><code>git switch release/0.4 && git pull --ff-only && npm version 0.4.0 --no-git-tag-version && git commit -am "chore(release): 0.4.0" && git tag -s v0.4.0 -m "mview 0.4.0"
+npm publish --access public --provenance   # requires the npm-publish environment in CI, never from a laptop</code></pre>
+<ul><li>Announce in <a href="#release">#mview-releases</a> with the changelog link.</li><li>Close the milestone and move open issues to 0.5.</li></ul>
+</article></main></div>
+<footer class="status"><span><span class="dot" aria-hidden="true"></span>Live · watching release-checklist.md</span><span>4 sections · 1 table · 1 diagram</span></footer>
+<aside class="note" aria-label="Direction notes"><strong>Wide blocks</strong>Prose keeps its 720px reading measure. Tables, code blocks and diagrams take the full width of the panel, so the matrix and the long git command fit without horizontal scroll.</aside></body></html>

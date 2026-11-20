@@ -104,9 +104,11 @@ main:focus { outline: none; }
 .loading { padding: 28px 40px; color: var(--muted); }
 
 /* Markdown — reading direction "Serif" (S15; design/mview-reading/02-serif.html, its Values panel).
-   Font size and line height live on .md, never on body, so the shell and the other views keep 14px/1.5. */
+   Font size and line height live on .md, never on body, so the shell and the other views keep 14px/1.5.
+   Wide blocks (design/mview-md-width/01-wide-blocks.html): prose keeps the --col reading measure, while tables,
+   code blocks and diagrams take the full width of the panel. Review mode bounds .md with its own 800px column. */
 .md { --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif; --col: 720px;
-  max-width: 800px; padding: 32px 40px 80px; overflow-wrap: break-word; font-family: var(--serif); font-size: 19px; line-height: 32.3px; }
+  padding: 32px 40px 80px; overflow-wrap: break-word; font-family: var(--serif); font-size: 19px; line-height: 32.3px; }
 .md > :first-child { margin-top: 0; }
 .md :is(h1, h2, h3, h4, h5, h6) { font-family: var(--font); max-width: var(--col); color: var(--text); }
 .md h1 { font-size: 36px; line-height: 43.2px; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 24px; }
@@ -126,9 +128,9 @@ main:focus { outline: none; }
 .md hr { border: 0; border-top: 1px solid var(--border); margin: 24px 0; }
 .md img { max-width: 100%; }
 .md code { font-size: 16px; background: var(--surface-2); border: 1px solid var(--border); padding: 0 4px; border-radius: 4px; }
-.md pre { font-size: 15px; line-height: 24px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px 20px; overflow-x: auto; margin: 0 0 26px; max-width: var(--col); }
+.md pre { font-size: 15px; line-height: 24px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px 20px; overflow-x: auto; margin: 0 0 26px; }
 .md pre code { background: none; border: 0; padding: 0; font-size: inherit; }
-.md table { border-collapse: collapse; width: 100%; max-width: 720px; font-family: var(--font); font-size: 15px; line-height: 22.5px; background: var(--surface); border: 1px solid var(--border); margin: 0 0 22px; display: block; overflow-x: auto; }
+.md table { border-collapse: collapse; width: fit-content; max-width: 100%; font-family: var(--font); font-size: 15px; line-height: 22.5px; background: var(--surface); border: 1px solid var(--border); margin: 0 0 22px; display: block; overflow-x: auto; }
 .md th, .md td { text-align: left; vertical-align: top; padding: 10px 14px; border-bottom: 1px solid var(--border); }
 .md tr:last-child td { border-bottom: 0; }
 .md th { background: var(--surface-2); font-weight: 600; font-size: 13px; color: var(--muted); }
