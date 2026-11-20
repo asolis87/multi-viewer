@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "chosen": "01-wide-blocks.html",
+  "handoffs": {
+    "01-wide-blocks.html": {
+      "status": "implemented",
+      "queued": false,
+      "sentAt": "2026-11-20T15:26:33.561Z",
+      "startedAt": null,
+      "implementedAt": "2026-11-20T15:29:47.620Z",
+      "note": "styles.css only: .md drops its 800px cap, prose keeps --col 720px, pre/figures fill the panel, tables fit content up to 100%. Review mode keeps its 800px column.",
+      "previewUrl": "http://127.0.0.1:4318/?t=gZjb3H3ZqL6GBm7l4W1crKlt2-3q5W9D"
+    }
+  }
+}

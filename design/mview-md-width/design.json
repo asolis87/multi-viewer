@@ -1,0 +1,27 @@
+{
+  "title": "mview Markdown width",
+  "brief": "Let the Markdown reader use the available window width better: today the article is capped at 800px (prose 720px, tables 720px) and left-aligned next to the outline, so wide tables, code and diagrams scroll while most of a large screen stays empty.",
+  "artboards": [
+    {
+      "file": "01-wide-blocks.html",
+      "title": "Wide blocks",
+      "tradeoff": "Keeps comfortable prose measure; wide content uses the full panel. Mixed edges: prose and blocks end at different widths.",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "file": "02-centered-fluid.html",
+      "title": "Centered fluid column",
+      "tradeoff": "Calm, balanced page that grows with the window; longer prose lines and still a cap on very wide screens.",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "file": "03-width-toggle.html",
+      "title": "Width toggle",
+      "tradeoff": "User decides per taste; adds a toolbar control and persisted state, and Full makes prose lines very long.",
+      "width": 1440,
+      "height": 900
+    }
+  ]
+}
