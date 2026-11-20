@@ -246,6 +246,9 @@ mark.is-current { background: var(--accent); color: var(--accent-ink); box-shado
 .t td.num, .t th.num { text-align: right; }
 .t td.num { font-variant-numeric: tabular-nums; }
 .t .cell { max-width: 320px; overflow: hidden; text-overflow: ellipsis; }
+.wrap-text-btn[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); }
+.t.is-wrapped td { max-width: 384px; vertical-align: top; white-space: normal; }
+.t.is-wrapped td .cell { max-width: 360px; overflow: visible; text-overflow: clip; overflow-wrap: break-word; }
 .th-btn { display: flex; align-items: center; gap: 6px; width: 100%; min-height: var(--target); padding: 0 12px; border: 0; background: none;
   cursor: pointer; font: inherit; color: inherit; text-align: left; white-space: nowrap; }
 th.num .th-btn { justify-content: flex-end; }
